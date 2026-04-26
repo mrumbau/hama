@@ -1121,3 +1121,133 @@ that wasn't obvious from the architecture diagram alone.
   payloads — no all-or-nothing dropout.
 
 ---
+
+## D-021 — Tag 9: Sniper UI (4-column brutalist dashboard, Realtime layer streaming)
+
+**Date:** 2026-04-26
+**Why a D-entry:** ADR-7 records "Realtime as the only push channel";
+ADR-8 records the brutalist + minimalist split. Tag 9 lives at the
+intersection — every shape, status indicator, and animation choice
+in the Sniper UI was decided against those two ADRs simultaneously.
+
+### What landed
+
+1. **`/sniper` landing page** (`client/src/pages/Sniper.tsx`)
+   - Drop-zone / file picker for the query image. Click or drag-and-
+     drop a JPEG/PNG/WebP → `sniperApi.run(file)` → on success,
+     redirect to `/sniper/:id`.
+   - Past reports list — direct supabase-js read of `fusion_reports`,
+     ordered by `created_at` DESC, limit 25. RLS gates the rows
+     (operator sees own; admin sees all per `is_admin()` policy from
+     0004_rls_policies.sql).
+   - Per-row status badge with the same colour vocabulary the rest
+     of the brutalist surface uses
+     (`--color-status-{ok,warn,fail,running,pending}`).
+
+2. **`/sniper/:id` detail page** (`client/src/pages/SniperDetail.tsx`)
+   - Header with report id (8-char prefix), created/finished
+     timestamps, live status badge.
+   - 4-column grid (`repeat(4, 1fr)`, collapses to 2-col @ 60rem and
+     1-col @ 36rem). One column per layer in fixed order:
+     `identity → web_presence → geographic → authenticity`.
+   - Each column carries its own state machine indicator:
+     `pending → running → done | failed`. Border colour transitions
+     with the state for at-a-glance "which layer is live right now".
+     Status dot pulses while `running`.
+   - Initial fetch via `GET /api/sniper/:id` (the polling-fallback
+     endpoint from Tag 8a) so a user landing on a completed report
+     sees the full state immediately. Realtime channel subscribes
+     to UPDATE events on `fusion_layers` filtered by `report_id`,
+     plus a parallel channel on `fusion_reports` for the header
+     status flip.
+   - Per-layer payload renderers:
+     - **Identity:** matches list with similarity bar (cyan when
+       above POI threshold, amber otherwise) + threshold tick mark.
+       Shows votes (e.g. "3/5") + raw similarity to 3 dp.
+     - **Web Presence:** Google Lens hits with thumbnail + title +
+       host. Top 6 only — list scrolls inside the column body.
+     - **Geographic:** big country glyph + confidence pct + region/
+       city sub-line + clickable Google-Maps coordinates link +
+       up-to-4 alternatives with confidences.
+     - **Authenticity:** verdict badge (`AUTHENTIC` cyan,
+       `DEEPFAKE` red, `UNCERTAIN` amber) + score to 3 dp + source
+       (`mock`/`real`) + sha256 prefix.
+
+3. **Realtime subscriptions** in `client/src/lib/realtime.ts`
+   - `subscribeToFusionLayers(reportId, onChange)` listens to the
+     `*` event class on `fusion_layers` (UPDATE covers the typical
+     pending → running → done flip; a single INSERT also fires
+     during the initial backbone insert).
+   - `subscribeToFusionReport(reportId, onChange)` is a separate
+     channel for the parent `fusion_reports` row, which is the only
+     way the UI sees the final `complete`/`failed` status flip
+     without polling.
+
+4. **API client** in `client/src/lib/sniper.ts`
+   - `sniperApi.run(file)` does the multipart upload (FormData with
+     the operator's Bearer token); receives the full report shape.
+   - `sniperApi.detail(reportId)` is the polling fallback, mirrors
+     the `GET /api/sniper/:id` response.
+
+### Tactical decisions worth recording
+
+1. **Column key order is hard-coded, not derived from the DB.** The
+   Tag 8 schema enforces all four `fusion_layers.layer` enum values
+   exist for every report (one INSERT-with-VALUES inserts all four
+   rows in the orchestrator). The UI relies on that — the
+   `LAYER_ORDER` array is the source of truth for left-to-right
+   render order, independent of whatever order Realtime delivers
+   the rows in. Removes a class of "first-paint flicker because
+   identity arrived before web_presence" bugs.
+
+2. **DOM-keying by `track_id`** in Patrol Mode (D-018) and by
+   `layer` enum here. Same React-idiom: stable keys = stable DOM
+   nodes = no flicker on Realtime updates that re-render the
+   parent component.
+
+3. **No Server-Sent-Events fallback.** The Patrol page's existing
+   Realtime channel runs on the same Supabase plumbing; if it works
+   for events INSERT bursts at 6 fps, it works for the at-most-4
+   layer transitions per Sniper run. The polling endpoint covers
+   the disconnect case.
+
+4. **5-min signed URL not surfaced to the UI.** The query image is
+   private in the `sniper-queries` bucket; the Sniper UI doesn't
+   render the query thumbnail today. Tag 14 polish may add it (as
+   a `signedReadUrl` call from the detail page), but for the
+   Tag 9 cut the focus is the layer outputs, not echoing the input.
+
+5. **Stylelint nudges:** the per-Sniper CSS uses `0.0625rem`
+   instead of `1px` for the visually-hidden file input
+   (`unit-allowed-list` rule — D-014 era cleanup) and the modern
+   media-query range syntax `@media (width <= 60rem)` instead of
+   `max-width:` (the `media-feature-range-notation` rule the
+   stylelint-config-standard 36 ships).
+
+### Tests
+
+- Client tsc clean across the workspace.
+- Stylelint clean on all CSS (no new px units, no missing empty
+  lines, range-notation in media queries).
+- ESLint clean (`!= null` in latency check rewritten to explicit
+  `!== null && !== undefined` per the project's `eqeqeq` rule).
+- No new server tests — Tag 9 is pure UI; the contract was tested
+  in Tag 8b.
+
+### What's NOT in 9 (deferred)
+
+- **Query thumbnail in the report header.** Cosmetic; needs a
+  signed-URL fetch and a rendered preview block. One-evening
+  follow-up.
+- **Batch / multi-image queue.** A demo Sniper run is one image;
+  feeding 10 photos through and getting a side-by-side comparison
+  is a separate UX concern (Tag 14 candidate).
+- **Sniper-quality pre-flight gate.** Currently any image passes —
+  the upload doesn't run the `/quality` endpoint first. The
+  defensible reason: Sniper is for *investigative* photos which
+  may legitimately fail enrolment quality (the whole point of
+  Layer 4 is to detect deepfakes; rejecting "low-quality" photos
+  upstream is the wrong gate). Worth re-discussing if real users
+  hit confusing 422s downstream.
+
+---
