@@ -115,7 +115,8 @@ export const poiApi = {
       if (!token) {
         return { kind: "other", status: 401, message: "missing_session" };
       }
-      const res = await fetch(`/api/poi/${id}/photos`, {
+      const apiBase = import.meta.env.VITE_API_URL ?? "";
+      const res = await fetch(`${apiBase}/api/poi/${id}/photos`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: fd,
