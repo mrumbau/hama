@@ -42,21 +42,27 @@ export class PicartaError extends Error {
   }
 }
 
-interface PicartaResponseRow {
-  country?: string;
-  region?: string;
-  city?: string;
+interface PicartaTopkRow {
+  address?: { city?: string; country?: string; province?: string };
   gps?: [number, number] | null;
   confidence?: number;
 }
 
+/**
+ * Picarta `/classify` response shape (verified against the live
+ * endpoint Tag 14). Top-level `ai_*` fields carry the top-1 guess as
+ * separate scalars (`ai_country` + `ai_lat` + `ai_lon` rather than a
+ * tuple), and `topk_predictions_dict` is an *object* keyed by stringified
+ * positional rank ("1", "2", ...), not an array.
+ */
 interface PicartaResponse {
   ai_country?: string;
-  ai_region?: string;
-  ai_city?: string;
-  ai_gps?: [number, number] | null;
+  ai_lat?: number;
+  ai_lon?: number;
   ai_confidence?: number;
-  topk?: PicartaResponseRow[];
+  city?: string;
+  province?: string;
+  topk_predictions_dict?: Record<string, PicartaTopkRow>;
 }
 
 /**
@@ -70,7 +76,7 @@ export async function predictLocation(
   topkCount = 5,
 ): Promise<PicartaPrediction> {
   const t0 = Date.now();
-  const url = `${env.PICARTA_BASE_URL}/picarta`;
+  const url = `${env.PICARTA_BASE_URL}/classify`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), env.PICARTA_TIMEOUT_MS);
@@ -106,20 +112,37 @@ export async function predictLocation(
     }
 
     const r = body as PicartaResponse;
+    const topGps: [number, number] | null =
+      typeof r.ai_lat === "number" && typeof r.ai_lon === "number"
+        ? [r.ai_lat, r.ai_lon]
+        : null;
     const top: PicartaTopK = {
       country: r.ai_country,
-      region: r.ai_region,
-      city: r.ai_city,
-      gps: r.ai_gps ?? null,
+      region: r.province,
+      city: r.city,
+      gps: topGps,
       confidence: r.ai_confidence ?? 0,
     };
-    const alternatives: PicartaTopK[] = (r.topk ?? []).map((row) => ({
-      country: row.country,
-      region: row.region,
-      city: row.city,
-      gps: row.gps ?? null,
-      confidence: row.confidence ?? 0,
-    }));
+
+    // topk_predictions_dict comes as { "1": row, "2": row, ... }. The
+    // dict's first entry duplicates the top-1 (same content as the
+    // ai_* scalars); we surface entries 2..N as alternatives.
+    const alternatives: PicartaTopK[] = [];
+    if (r.topk_predictions_dict) {
+      const sortedKeys = Object.keys(r.topk_predictions_dict).sort(
+        (a, b) => Number(a) - Number(b),
+      );
+      for (const key of sortedKeys.slice(1)) {
+        const row = r.topk_predictions_dict[key];
+        alternatives.push({
+          country: row.address?.country,
+          region: row.address?.province,
+          city: row.address?.city,
+          gps: row.gps ?? null,
+          confidence: row.confidence ?? 0,
+        });
+      }
+    }
 
     return { top, alternatives, latency_ms: Date.now() - t0 };
   } catch (err) {

@@ -27,29 +27,47 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 describe("picarta/predictLocation", () => {
-  it("maps the ai_* fields to top + topk to alternatives", async () => {
+  it("maps ai_* scalars to top + topk_predictions_dict to alternatives", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
         jsonResponse(200, {
-          ai_country: "United Arab Emirates",
-          ai_region: "Dubai",
-          ai_city: "Dubai",
-          ai_gps: [25.276987, 55.296249],
-          ai_confidence: 0.81,
-          topk: [
-            { country: "United Arab Emirates", region: "Dubai", confidence: 0.81 },
-            { country: "Saudi Arabia", region: "Riyadh", confidence: 0.06 },
-          ],
+          ai_country: "Spain",
+          ai_lat: 40.227,
+          ai_lon: -3.646,
+          ai_confidence: 0.93,
+          city: "Valdemoro",
+          province: "Madrid",
+          topk_predictions_dict: {
+            "1": {
+              address: { city: "Valdemoro", country: "Spain", province: "Madrid" },
+              confidence: 0.93,
+              gps: [40.227, -3.646],
+            },
+            "2": {
+              address: { city: "Bueng Sam Phan", country: "Thailand", province: "Phetchabun" },
+              confidence: 0.92,
+              gps: [15.87, 100.99],
+            },
+            "3": {
+              address: { city: "Khe Tre", country: "Vietnam", province: "Thua Thien-Hue" },
+              confidence: 0.91,
+              gps: [16.16, 107.83],
+            },
+          },
         }),
       ),
     );
     const r = await predictLocation("base64imagebody==", 5);
-    expect(r.top.country).toBe("United Arab Emirates");
-    expect(r.top.confidence).toBeCloseTo(0.81);
-    expect(r.top.gps).toEqual([25.276987, 55.296249]);
+    expect(r.top.country).toBe("Spain");
+    expect(r.top.region).toBe("Madrid");
+    expect(r.top.city).toBe("Valdemoro");
+    expect(r.top.confidence).toBeCloseTo(0.93);
+    expect(r.top.gps).toEqual([40.227, -3.646]);
+    // First topk entry is the top-1 itself; we expose entries 2..N as alternatives.
     expect(r.alternatives).toHaveLength(2);
-    expect(r.alternatives[1].confidence).toBeCloseTo(0.06);
+    expect(r.alternatives[0].country).toBe("Thailand");
+    expect(r.alternatives[1].country).toBe("Vietnam");
     expect(r.latency_ms).toBeGreaterThanOrEqual(0);
   });
 
@@ -60,7 +78,7 @@ describe("picarta/predictLocation", () => {
         jsonResponse(200, {
           ai_country: "Germany",
           ai_confidence: 0.5,
-          // No region, city, gps, topk.
+          // No lat/lon/city/province/topk.
         }),
       ),
     );

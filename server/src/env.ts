@@ -38,7 +38,7 @@ const schema = z.object({
   SERPAPI_BASE_URL: z.string().url().default("https://serpapi.com"),
   SERPAPI_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   PICARTA_API_KEY: z.string().min(10),
-  PICARTA_BASE_URL: z.string().url().default("https://picarta.ai/api/v1"),
+  PICARTA_BASE_URL: z.string().url().default("https://picarta.ai"),
   PICARTA_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   REALITY_DEFENDER_API_KEY: z.string().min(20),
   REALITY_DEFENDER_BASE_URL: z.string().url().default("https://api.prd.realitydefender.xyz"),

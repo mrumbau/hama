@@ -98,6 +98,8 @@
 
   /* ── Spacing (8pt grid, expressed in rem so user font-prefs scale it) ── */
   --space-0: 0;
+  --space-px: 0.0625rem; /* 1px — visually-hidden inputs, hairline detail */
+  --space-half: 0.125rem; /* 2px — sim-bar threshold tick, fine borders */
   --space-1: 0.25rem; /*   4px */
   --space-2: 0.5rem; /*   8px */
   --space-2-5: 0.625rem; /*  10px — half-step for the canonical status-dot square */
