@@ -26,16 +26,16 @@ import styles from "./SniperDetail.module.css";
 
 const LAYER_ORDER: FusionLayer[] = ["identity", "web_presence", "geographic", "authenticity"];
 const LAYER_TITLE: Record<FusionLayer, string> = {
-  identity: "IDENTITY",
-  web_presence: "WEB PRESENCE",
-  geographic: "GEOGRAPHIC",
-  authenticity: "AUTHENTICITY",
+  identity: "MATCH",
+  web_presence: "WEB",
+  geographic: "PLACE",
+  authenticity: "REAL?",
 };
 const LAYER_SOURCE: Record<FusionLayer, string> = {
-  identity: "pgvector kNN · ArcFace 512-D",
+  identity: "pgvector · ArcFace 512-D",
   web_presence: "SerpAPI · Google Lens",
-  geographic: "Picarta · location predict",
-  authenticity: "Reality Defender · deepfake",
+  geographic: "Picarta",
+  authenticity: "Reality Defender",
 };
 
 // Per-call costs charged when the cost-guard accepts the layer. These
@@ -172,13 +172,13 @@ export default function SniperDetail() {
           <div className={styles.queryThumbPlaceholder}>?</div>
         )}
         <div className={styles.headerText}>
-          <span className={styles.eyebrow}>SNIPER / REPORT</span>
+          <span className={styles.eyebrow}>SEARCH RESULT</span>
           <h1 className={styles.title}>
-            {report ? `Report ${report.id.slice(0, 8)}…` : "loading…"}
+            {report ? `Search ${report.id.slice(0, 8)}…` : "loading…"}
           </h1>
           {report && (
             <div className={styles.meta}>
-              <span>created {formatTime(report.created_at)}</span>
+              <span>started {formatTime(report.created_at)}</span>
               <span className={styles.metaSep}>·</span>
               <span>finished {formatTime(report.completed_at)}</span>
               <span className={styles.metaSep}>·</span>
@@ -225,7 +225,7 @@ function LayerColumn({ name, row }: { name: FusionLayer; row: SniperLayerRow | n
       <div className={styles.colSource}>{LAYER_SOURCE[name]}</div>
 
       <div className={styles.colBody}>
-        {status === "pending" && <span className={styles.placeholder}>pending dispatch…</span>}
+        {status === "pending" && <span className={styles.placeholder}>waiting…</span>}
         {status === "running" && <LayerSkeleton name={name} />}
         {status === "failed" && (
           <div className={styles.failBlock}>
@@ -291,7 +291,7 @@ function LayerPayload({
   name: FusionLayer;
   payload: SniperLayerRow["payload"];
 }) {
-  if (!payload) return <span className={styles.placeholder}>empty payload</span>;
+  if (!payload) return <span className={styles.placeholder}>no result data</span>;
   switch (name) {
     case "identity":
       return <IdentityCard payload={payload as IdentityPayload} />;
@@ -309,11 +309,11 @@ function IdentityCard({ payload }: { payload: IdentityPayload }) {
   return (
     <div className={styles.identity}>
       <div className={styles.identitySummary}>
-        <span className={styles.identityLabel}>{payload.has_strong_match ? "MATCH" : "no strong match"}</span>
+        <span className={styles.identityLabel}>{payload.has_strong_match ? "FOUND" : "no clear match"}</span>
         <span className={styles.identityCorpus}>corpus n={payload.corpus_size}</span>
       </div>
       {matches.length === 0 ? (
-        <span className={styles.placeholder}>no candidates returned</span>
+        <span className={styles.placeholder}>nobody in your library matches</span>
       ) : (
         <div className={styles.identityList}>
           {matches.map((m) => (
@@ -350,11 +350,13 @@ function WebPresenceCard({ payload }: { payload: WebPresencePayload }) {
   return (
     <div className={styles.webPresence}>
       <div className={styles.webHeader}>
-        <span className={styles.webCount}>{payload.hit_count} hits</span>
+        <span className={styles.webCount}>
+          {payload.hit_count} {payload.hit_count === 1 ? "hit" : "hits"}
+        </span>
         <span className={styles.webEngine}>google lens</span>
       </div>
       {hits.length === 0 ? (
-        <span className={styles.placeholder}>no visual matches</span>
+        <span className={styles.placeholder}>no matches on the public web</span>
       ) : (
         <div className={styles.webList}>
           {hits.map((h, i) => (
@@ -420,7 +422,7 @@ function GeographicCard({ payload }: { payload: GeographicPayload }) {
       )}
       {altCount > 0 && (
         <div className={styles.geoAlternatives}>
-          <span className={styles.altLabel}>alternatives</span>
+          <span className={styles.altLabel}>other guesses</span>
           {payload.alternatives.slice(0, 4).map((a, i) => (
             <div key={i} className={styles.altRow}>
               <span>{a.country ?? "—"}</span>
@@ -446,7 +448,7 @@ function AuthenticityCard({ payload }: { payload: AuthenticityPayload }) {
       <div className={styles.authMeta}>
         <span>score {payload.score.toFixed(3)}</span>
         <span className={styles.authSep}>·</span>
-        <span>via {payload.source}</span>
+        <span>{payload.source === "mock" ? "demo mode" : "live check"}</span>
       </div>
       <div className={styles.authHash}>sha256 {payload.sha256.slice(0, 16)}…</div>
     </div>

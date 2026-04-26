@@ -57,7 +57,7 @@ function App() {
 }
 
 const rootEl = document.getElementById("root");
-if (!rootEl) throw new Error("Argus: #root not found");
+if (!rootEl) throw new Error("Project Chaw: #root not found");
 
 createRoot(rootEl).render(
   <StrictMode>

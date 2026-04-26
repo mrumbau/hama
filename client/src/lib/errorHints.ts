@@ -79,7 +79,7 @@ function describeApiError(err: ApiError): DescribedError {
   if (err.status === 403) {
     return {
       title: "Forbidden",
-      hint: "Your operator account doesn't have access to this resource.",
+      hint: "Your account doesn't have access to this.",
       action: null,
       raw,
     };
@@ -106,7 +106,7 @@ function describeApiError(err: ApiError): DescribedError {
   if (err.status === 415 || err.message.includes("unsupported_mime_type")) {
     return {
       title: "Unsupported file type",
-      hint: "Argus accepts JPEG, PNG, and WebP. Convert the file and retry.",
+      hint: "Use a JPEG, PNG, or WebP file.",
       action: { kind: "retry", label: "retry" },
       raw,
     };
@@ -115,7 +115,7 @@ function describeApiError(err: ApiError): DescribedError {
   if (err.status === 429 || err.message.includes("cost_guard_exceeded")) {
     return {
       title: "Daily budget exceeded",
-      hint: "You've hit the per-operator cost cap for today. The budget resets at 00:00 UTC.",
+      hint: "You've used up today's daily budget. It resets at midnight (UTC).",
       action: null,
       raw,
     };
@@ -123,8 +123,8 @@ function describeApiError(err: ApiError): DescribedError {
   // ML / orchestrator failures — usually transient.
   if (err.status === 502 || err.status === 504 || err.message.includes("ml_unreachable")) {
     return {
-      title: "ML service unavailable",
-      hint: "The face-recognition service is offline or overloaded. Retry in a few seconds.",
+      title: "Face service offline",
+      hint: "The face-recognition service is offline or busy. Try again in a few seconds.",
       action: { kind: "retry", label: "retry" },
       raw,
     };

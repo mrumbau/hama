@@ -31,10 +31,10 @@ setup("authenticate operator", async ({ page }) => {
   await page.getByLabel("password").fill(password);
   await page.getByRole("button", { name: /sign in/i }).click();
 
-  // After a successful sign-in the AppShell is rendered with the POI
-  // navigation link active. Wait for it before persisting state so the
-  // session cookie is fully written.
-  await expect(page.getByRole("link", { name: /^POI$/ })).toBeVisible();
+  // After a successful sign-in the AppShell is rendered with the
+  // PEOPLE navigation link active. Wait for it before persisting
+  // state so the session cookie is fully written.
+  await expect(page.getByRole("link", { name: /^PEOPLE$/ })).toBeVisible();
   await expect(page).toHaveURL(/\/poi/);
 
   await page.context().storageState({ path: STORAGE_STATE });

@@ -19,24 +19,24 @@ export interface QualityReasonCopy {
 
 export const QUALITY_REASON_COPY: Record<string, QualityReasonCopy> = {
   no_face: {
-    title: "No face detected",
-    hint: "Make sure the face is fully visible in the frame and not occluded by hair or accessories.",
+    title: "No face found",
+    hint: "Make sure the face is fully visible — hair, hand, or sunglasses can hide it.",
   },
   multiple_faces: {
     title: "More than one face",
-    hint: "Each enrolment photo must contain exactly one person.",
+    hint: "Use a photo with just one person.",
   },
   face_too_small: {
     title: "Face too small",
-    hint: "Move closer or upload a higher-resolution photo — minimum 112 px on the short edge of the face.",
+    hint: "Move closer or use a sharper photo. The face needs to be at least 112 pixels wide.",
   },
   pose_extreme: {
     title: "Head turned too far",
-    hint: "Look directly at the camera. The gate accepts up to ±55° yaw — hold a near-frontal angle.",
+    hint: "Look at the camera. The face should be roughly straight — up to about 55° to either side is OK.",
   },
   low_confidence_detection: {
-    title: "Detector unsure about face",
-    hint: "Causes: partial occlusion (mask, hand, hair across the face), extreme angle, very low light, or heavy compression artifacts. Try a different photo with the face fully visible and well-lit.",
+    title: "Face is hard to read",
+    hint: "Could be partial cover (mask, hand, hair), an extreme angle, low light, or a heavily compressed image. Try a clearer photo.",
   },
 };
 

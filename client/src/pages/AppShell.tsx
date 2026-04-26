@@ -14,10 +14,10 @@ import SniperDetail from "./SniperDetail";
 import styles from "./AppShell.module.css";
 
 const NAV = [
-  { href: "/poi", label: "POI" },
-  { href: "/patrol", label: "PATROL" },
-  { href: "/sniper", label: "SNIPER" },
-  { href: "/events", label: "EVENTS" },
+  { href: "/poi", label: "PEOPLE" },
+  { href: "/patrol", label: "CAMERA" },
+  { href: "/sniper", label: "SEARCH" },
+  { href: "/events", label: "MATCHES" },
 ] as const;
 
 export default function AppShell() {
@@ -29,8 +29,8 @@ export default function AppShell() {
     <div className={styles.shell}>
       <aside className={styles.rail}>
         <div>
-          <span className={styles.brand}>ARGUS</span>
-          <span className={styles.brandRev}>REV 0.1.0 · DAY 3</span>
+          <span className={styles.brand}>PROJECT CHAW</span>
+          <span className={styles.brandRev}>v0.1.0</span>
         </div>
 
         <nav className={styles.nav}>
@@ -48,7 +48,7 @@ export default function AppShell() {
         <div className={styles.spacer} />
 
         <div className={styles.operatorBlock}>
-          <span className={styles.operatorRole}>OPERATOR</span>
+          <span className={styles.operatorRole}>SIGNED IN</span>
           <span className={styles.operatorEmail}>{user?.email ?? "—"}</span>
           <button type="button" onClick={() => void signOut()} className={styles.signOut}>
             sign out
@@ -69,8 +69,8 @@ export default function AppShell() {
           <Route>
             <Placeholder
               eyebrow="404"
-              title="Unknown route"
-              body="The operator surface has /poi, /patrol, /sniper, /events. Tag 3 placeholder."
+              title="Page not found"
+              body="The app has four sections: People, Camera, Search, and Matches. Pick one from the side."
             />
           </Route>
         </Switch>

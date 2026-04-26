@@ -158,14 +158,14 @@ export default function Events() {
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
-          <span className={styles.eyebrow}>EVENTS / AUDIT TRAIL</span>
-          <h1 className={styles.title}>Events</h1>
+          <span className={styles.eyebrow}>MATCHES · HISTORY</span>
+          <h1 className={styles.title}>Matches</h1>
         </div>
       </header>
 
       <div className={styles.summary}>
         <span>
-          [ {rows.length} events · {pending} pending · realtime feed live ]
+          [ {rows.length} matches · {pending} pending · live ]
         </span>
       </div>
 
@@ -173,14 +173,14 @@ export default function Events() {
 
       {rows.length === 0 ? (
         <div className={styles.empty}>
-          [ no recognition events yet ] · events appear here when patrol mode flags a registered
-          POI in a webcam frame
+          [ no matches yet ] · matches appear here when the live camera spots someone from your
+          library
         </div>
       ) : (
         <div>
           <div className={styles.tableHeader}>
             <span>WHEN</span>
-            <span>POI</span>
+            <span>PERSON</span>
             <span>KIND</span>
             <span>CAMERA</span>
             <span className={styles.score}>SCORE</span>

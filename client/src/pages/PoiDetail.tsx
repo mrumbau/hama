@@ -122,20 +122,20 @@ export default function PoiDetail() {
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
-          <span className={styles.eyebrow}>POI / DETAIL</span>
+          <span className={styles.eyebrow}>PERSON</span>
           <h1 className={styles.title}>{poi?.fullName ?? "loading…"}</h1>
           {poi && (
             <div className={styles.meta}>
               <span>{poi.id.slice(0, 12)}…</span>
               <span className={styles.metaSep}>{poi.category}</span>
-              <span className={styles.metaSep}>thr {poi.threshold.toFixed(2)}</span>
+              <span className={styles.metaSep}>strictness {poi.threshold.toFixed(2)}</span>
             </div>
           )}
         </div>
         {poi && (
           <div className={styles.headerActions}>
             <button type="button" className={styles.deleteBtn} onClick={onDelete}>
-              soft-delete
+              delete
             </button>
           </div>
         )}
@@ -145,19 +145,19 @@ export default function PoiDetail() {
 
       <div className={styles.summary}>
         <span className={cn(enrolledCount >= ENROLMENT_TARGET && styles.summaryActive)}>
-          [ {enrolledCount} / {ENROLMENT_TARGET} embeddings ·{" "}
-          {enrolledCount >= ENROLMENT_TARGET ? "active" : "enrol more to activate"} ]
+          [ {enrolledCount} / {ENROLMENT_TARGET} photos ·{" "}
+          {enrolledCount >= ENROLMENT_TARGET ? "active" : "needs more photos"} ]
         </span>
-        <span>[ {ENROLMENT_MAX - enrolledCount - inFlight} slots remaining ]</span>
+        <span>[ {ENROLMENT_MAX - enrolledCount - inFlight} slots left ]</span>
       </div>
 
       <div className={styles.gallery}>
         {photos.map((p) => (
           <article key={p.id} className={styles.tile}>
             {p.signed_url ? (
-              <img className={styles.thumb} src={p.signed_url} alt="enrolled face" />
+              <img className={styles.thumb} src={p.signed_url} alt="saved face" />
             ) : (
-              <div className={styles.thumbPlaceholder}>signed-url failed</div>
+              <div className={styles.thumbPlaceholder}>image link expired</div>
             )}
             <div className={styles.tileMeta}>
               <div className={styles.tileMetaRow}>
@@ -165,7 +165,7 @@ export default function PoiDetail() {
                 <span className={styles.tileMetaValue}>{p.qualityScore.toFixed(3)}</span>
               </div>
               <div className={styles.tileMetaRow}>
-                <span className={styles.tileMetaLabel}>authenticity</span>
+                <span className={styles.tileMetaLabel}>real?</span>
                 <span className={styles.tileMetaValue}>
                   {p.authenticityScore !== null ? p.authenticityScore.toFixed(3) : "—"}
                 </span>
@@ -187,13 +187,13 @@ export default function PoiDetail() {
               {u.status === "uploading" && (
                 <>
                   <span className={styles.statusDotRunning} aria-hidden="true" />
-                  quality + authenticity + embed…
+                  checking…
                 </>
               )}
               {u.status === "done" && (
                 <>
                   <span className={styles.statusDotDone} aria-hidden="true" />
-                  enrolled
+                  saved
                 </>
               )}
               {u.status === "failed" && (
@@ -220,20 +220,22 @@ export default function PoiDetail() {
             {u.outcome?.kind === "authenticity_failed" && (
               <div className={styles.errorPanel}>
                 <span className={styles.errorReasons}>
-                  deepfake / replay (verdict={u.outcome.verdict}, src={u.outcome.source})
+                  image looks fake or manipulated ({u.outcome.verdict})
                 </span>
               </div>
             )}
             {u.outcome?.kind === "image_too_large" && (
               <div className={styles.errorPanel}>
                 <span className={styles.errorReasons}>
-                  too large (max {Math.round(u.outcome.max_bytes / (1024 * 1024))}MB)
+                  too large (max {Math.round(u.outcome.max_bytes / (1024 * 1024))} MB)
                 </span>
               </div>
             )}
             {u.outcome?.kind === "unsupported_mime_type" && (
               <div className={styles.errorPanel}>
-                <span className={styles.errorReasons}>unsupported type ({u.outcome.mimetype})</span>
+                <span className={styles.errorReasons}>
+                  use a JPEG, PNG, or WebP file ({u.outcome.mimetype} not supported)
+                </span>
               </div>
             )}
             {u.outcome?.kind === "other" && (
@@ -265,9 +267,9 @@ export default function PoiDetail() {
               onChange={onPicked}
             />
             <div className={styles.dropzoneText}>
-              [ drop photo here or click ]
+              [ drop a photo here or click ]
               <span className={styles.dropzoneSub}>
-                jpeg / png / webp · ≤ 50mb · auto-resized to 1920px · 1 face, frontal, sharp
+                jpeg / png / webp · up to 50 MB · one face, looking forward, sharp
               </span>
             </div>
           </label>
@@ -275,7 +277,7 @@ export default function PoiDetail() {
       </div>
 
       <Link href="/poi" className={cn(styles.deleteBtn)} style={{ width: "fit-content" }}>
-        ← back to registry
+        ← back to people
       </Link>
     </div>
   );

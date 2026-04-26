@@ -31,8 +31,8 @@ export default function Login() {
   return (
     <div className={styles.page}>
       <main className={styles.card}>
-        <span className={styles.brand}>argus / 0.1.0 · operator sign-in</span>
-        <h1 className={styles.title}>Operator sign-in.</h1>
+        <span className={styles.brand}>project chaw · sign in</span>
+        <h1 className={styles.title}>Sign in.</h1>
 
         <form className={styles.form} onSubmit={onSubmit} noValidate>
           <div className={styles.field}>
@@ -75,7 +75,7 @@ export default function Login() {
         </form>
 
         <Link href="/" className={styles.backLink}>
-          ← argus / 0.1.0
+          ← project chaw
         </Link>
       </main>
     </div>

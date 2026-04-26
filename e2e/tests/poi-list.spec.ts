@@ -14,16 +14,16 @@
 
 import { expect, test } from "@playwright/test";
 
-test("operator sees the POI registry header and at least one row", async ({ page }) => {
+test("user sees the People list header and at least one row", async ({ page }) => {
   await page.goto("/poi");
-  await expect(page.getByRole("heading", { name: /poi registry/i })).toBeVisible();
-  // The "+ new poi" CTA links to /poi/new (Tag 5 enrolment flow).
-  await expect(page.getByRole("link", { name: /\+\s*new poi/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^people$/i })).toBeVisible();
+  // The "+ add person" CTA links to /poi/new (Tag 5 enrolment flow).
+  await expect(page.getByRole("link", { name: /\+\s*add person/i })).toBeVisible();
 
   // At least one row link to /poi/<uuid>. The CSS-module class is
   // generated so we anchor on the href pattern instead of class names.
-  // The "+ new poi" button also matches /poi/new — exclude that with a
-  // more specific UUID-shaped href.
+  // The "+ add person" button also matches /poi/new — exclude that with
+  // a more specific UUID-shaped href.
   const rows = page.locator('a[href^="/poi/"]:not([href$="/new"])');
   await expect(rows.first()).toBeVisible();
   expect(await rows.count()).toBeGreaterThan(0);

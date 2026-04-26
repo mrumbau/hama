@@ -4,23 +4,23 @@ import styles from "./Landing.module.css";
 const LAYERS = [
   {
     n: "01",
-    name: "Identity",
-    desc: "ArcFace 512-D embedding, kNN against the operator's own POI database via pgvector HNSW.",
+    name: "Match",
+    desc: "Compare the face against people you've added to your library.",
   },
   {
     n: "02",
-    name: "Web Presence",
-    desc: "SerpAPI Google Lens + reverse-image + Bing reverse, deduplicated and re-ranked against the query face.",
+    name: "Web",
+    desc: "Reverse image search across the public web. Returns visual matches with thumbnails.",
   },
   {
     n: "03",
-    name: "Geographic",
-    desc: "Picarta photo-geolocation on the input image — answers where the photo was taken.",
+    name: "Place",
+    desc: "Predict where the photo was taken — country, region, coordinates.",
   },
   {
     n: "04",
-    name: "Authenticity",
-    desc: "Reality Defender deepfake/replay detection on top-N matches.",
+    name: "Real?",
+    desc: "Authentic, deepfake, or unsure. Flags manipulated images.",
   },
 ] as const;
 
@@ -30,7 +30,7 @@ export default function Landing() {
       <div className={styles.container}>
         <header className={styles.topbar}>
           <span className={styles.brand}>
-            argus<span className={styles.brandRev}>/ 0.1.0</span>
+            project chaw<span className={styles.brandRev}>/ v0.1.0</span>
           </span>
           <Link href="/login" className={styles.signInLink}>
             sign in
@@ -38,15 +38,15 @@ export default function Landing() {
         </header>
 
         <section className={styles.hero}>
-          <span className={styles.heroEyebrow}>OSINT FUSION ENGINE · UNIVERSITY PROJECT</span>
+          <span className={styles.heroEyebrow}>FACE SEARCH · UNIVERSITY PROJECT</span>
           <h1 className={styles.heroHeadline}>
-            One face photo in. Four independent identity layers out.
+            One face photo in. Four answers out.
           </h1>
           <p className={styles.heroLead}>
-            Argus correlates a single image across pgvector kNN against an operator-curated
-            database, public-web reverse-image search, photo geolocation, and deepfake detection —
-            and presents the consolidated report in a single dashboard with per-layer latency
-            visible at all times.
+            Project Chaw takes a single face photo and runs four checks in parallel: who they are
+            in your own library, where else the face appears on the web, where the photo was
+            taken, and whether the image is real. Results stream into one screen, with timings
+            visible.
           </p>
           <Link href="/login" className={styles.heroPrimary}>
             Sign in →
@@ -54,28 +54,26 @@ export default function Landing() {
         </section>
 
         <section className={styles.section}>
-          <span className={styles.sectionEyebrow}>§ ARCHITECTURE</span>
+          <span className={styles.sectionEyebrow}>§ HOW IT WORKS</span>
           <h2 className={styles.sectionHeadline}>
-            Recognition is commodity. The value is in the correlation.
+            Recognition is easy. The interesting part is putting four sources side by side.
           </h2>
           <div className={styles.sectionBody}>
             <p>
-              A pgvector + ArcFace recognizer is two hundred lines of code. The engineering interest
-              of this project is the layer parallelisation, the latency choreography, the
-              partial-failure handling, and the unified operator UX over heterogeneous sources.
+              Each of the four checks runs independently. Any one of them can fail — the others
+              still finish. Each one runs through a circuit breaker that cools down failing
+              upstreams, and each one respects a daily cost budget per user.
             </p>
             <p>
-              Each of the four layers can fail without aborting the report. Each runs against a
-              circuit breaker. Each respects a per-operator daily cost budget. The Sniper Mode
-              dashboard streams results layer-by-layer over Supabase Realtime — no spinners, only
-              latency tickers in milliseconds.
+              The result page streams the four columns as they finish. No loading spinners — just
+              live latency tickers and a status dot per column.
             </p>
           </div>
 
           <div className={styles.layerGrid}>
             {LAYERS.map((l) => (
               <article key={l.n} className={styles.layerCell}>
-                <div className={styles.layerName}>LAYER {l.n}</div>
+                <div className={styles.layerName}>STEP {l.n}</div>
                 <h3 className={styles.layerTitle}>{l.name}</h3>
                 <p className={styles.layerDesc}>{l.desc}</p>
               </article>
@@ -84,15 +82,14 @@ export default function Landing() {
         </section>
 
         <section className={styles.section}>
-          <span className={styles.sectionEyebrow}>§ DEFENCE THESIS</span>
+          <span className={styles.sectionEyebrow}>§ DESIGN NOTE</span>
           <p className={styles.thesis}>
-            Form follows the trust relationship. Minimalism for the public examiner; brutalism for
-            the trusted operator. The seam between them is /login — a custom form against
-            supabase.auth, not the Supabase Auth UI.
+            Two surfaces, one app. A clean editorial landing for visitors; a dense tactical
+            dashboard once you sign in. Same code, two design vocabularies — the seam is /login.
           </p>
         </section>
 
-        <footer className={styles.footer}>argus / 0.1.0 · uni project · 2026</footer>
+        <footer className={styles.footer}>project chaw / v0.1.0 · 2026</footer>
       </div>
     </div>
   );

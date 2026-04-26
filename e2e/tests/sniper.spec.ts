@@ -30,7 +30,7 @@ const FIXTURE = join(__dirname, "..", "fixtures", "sniper-query.jpg");
 
 test("upload + 4-layer fanout reaches a final state", async ({ page }) => {
   await page.goto("/sniper");
-  await expect(page.getByRole("heading", { name: /sniper mode/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /face search/i })).toBeVisible();
 
   // The dropzone has an <input type="file"> hidden inside the label.
   // setInputFiles bypasses the visible drop area and exercises the
@@ -44,14 +44,14 @@ test("upload + 4-layer fanout reaches a final state", async ({ page }) => {
   // their own latencies in worst case.
   await expect(page).toHaveURL(/\/sniper\/[0-9a-f-]{36}/, { timeout: 60_000 });
 
-  // Header renders for the report.
-  await expect(page.getByRole("heading", { name: /report\s/i })).toBeVisible();
+  // Header renders for the result.
+  await expect(page.getByRole("heading", { name: /search\s/i })).toBeVisible();
 
   // All four column titles render in the dashboard.
-  await expect(page.getByText("IDENTITY", { exact: true })).toBeVisible();
-  await expect(page.getByText("WEB PRESENCE", { exact: true })).toBeVisible();
-  await expect(page.getByText("GEOGRAPHIC", { exact: true })).toBeVisible();
-  await expect(page.getByText("AUTHENTICITY", { exact: true })).toBeVisible();
+  await expect(page.getByText("MATCH", { exact: true })).toBeVisible();
+  await expect(page.getByText("WEB", { exact: true })).toBeVisible();
+  await expect(page.getByText("PLACE", { exact: true })).toBeVisible();
+  await expect(page.getByText("REAL?", { exact: true })).toBeVisible();
 
   // Final status badge — accepts either COMPLETE or FAILED. PROCESSING
   // would be a contract violation: runSniperReport awaits all four

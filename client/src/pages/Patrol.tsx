@@ -146,8 +146,8 @@ export default function Patrol() {
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
-          <span className={styles.eyebrow}>PATROL / LIVE</span>
-          <h1 className={styles.title}>Patrol</h1>
+          <span className={styles.eyebrow}>LIVE CAMERA</span>
+          <h1 className={styles.title}>Camera</h1>
         </div>
         <div className={styles.controls}>
           <button
@@ -155,7 +155,7 @@ export default function Patrol() {
             className={cn(styles.toggle, running && styles.toggleLive)}
             onClick={() => setRunning((v) => !v)}
           >
-            {running ? "■ stop patrol" : "▶ start patrol"}
+            {running ? "■ stop" : "▶ start"}
           </button>
         </div>
       </header>
@@ -202,7 +202,7 @@ export default function Patrol() {
         </span>
         {last && (
           <span style={{ marginLeft: "auto" }}>
-            ml: detect <span className={styles.statusValue}>{last.latency_ms.detect}ms</span> · knn{" "}
+            detect <span className={styles.statusValue}>{last.latency_ms.detect}ms</span> · match{" "}
             <span className={styles.statusValue}>{last.latency_ms.knn}ms</span> · total{" "}
             <span className={styles.statusValue}>{last.latency_ms.total}ms</span>
             {last.ml_metrics && (
@@ -220,14 +220,14 @@ export default function Patrol() {
       {error && <div className={styles.error}>{error}</div>}
 
       <section className={styles.feedSection}>
-        <span className={styles.feedTitle}>recent events (realtime)</span>
+        <span className={styles.feedTitle}>recent matches (live)</span>
         {feed.length === 0 ? (
-          <div className={styles.empty}>[ no events yet — start patrol or wait ]</div>
+          <div className={styles.empty}>[ no matches yet — start the camera or wait ]</div>
         ) : (
           <div className={styles.feedTable}>
             <div className={cn(styles.feedRow, styles.feedRowHeader)}>
               <span>TIME</span>
-              <span>POI</span>
+              <span>PERSON</span>
               <span>KIND</span>
               <span className={styles.feedScore}>SCORE</span>
               <span className={styles.feedStatus}>STATUS</span>

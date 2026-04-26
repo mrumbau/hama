@@ -43,14 +43,14 @@ export default function PoiNew() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <span className={styles.eyebrow}>POI / NEW</span>
-        <h1 className={styles.title}>Enrol new person</h1>
+        <span className={styles.eyebrow}>PEOPLE · ADD</span>
+        <h1 className={styles.title}>Add a person</h1>
       </header>
 
       <form className={styles.form} onSubmit={onSubmit} noValidate>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="full_name">
-            full name
+            name
           </label>
           <input
             id="full_name"
@@ -84,7 +84,7 @@ export default function PoiNew() {
 
         <div className={styles.field}>
           <label className={styles.label} htmlFor="threshold">
-            recognition threshold (cosine ≥ {threshold.toFixed(2)})
+            match strictness (≥ {threshold.toFixed(2)})
           </label>
           <div className={styles.thresholdRow}>
             <input
@@ -118,7 +118,7 @@ export default function PoiNew() {
 
         <div className={styles.actions}>
           <button type="submit" className={styles.submit} disabled={submitting}>
-            {submitting ? "creating…" : "create poi"}
+            {submitting ? "saving…" : "save"}
           </button>
           <Link href="/poi" className={styles.cancel}>
             cancel

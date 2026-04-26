@@ -63,12 +63,12 @@ export default function PoiList() {
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
-          <span className={styles.eyebrow}>POI / REGISTRY</span>
-          <h1 className={styles.title}>POI Registry</h1>
+          <span className={styles.eyebrow}>PEOPLE</span>
+          <h1 className={styles.title}>People</h1>
         </div>
         <div className={styles.headerActions}>
           <Link href="/poi/new" className={styles.primaryButton}>
-            + new poi
+            + add person
           </Link>
         </div>
       </header>
@@ -77,23 +77,23 @@ export default function PoiList() {
 
       {rows !== null && rows.length === 0 && (
         <div className={styles.firstRun}>
-          <span className={styles.firstRunEyebrow}>FIRST RUN</span>
-          <h2 className={styles.firstRunHeadline}>No POIs enrolled yet.</h2>
+          <span className={styles.firstRunEyebrow}>FIRST TIME HERE</span>
+          <h2 className={styles.firstRunHeadline}>No people added yet.</h2>
           <p className={styles.firstRunBody}>
-            A <span className={styles.firstRunTerm}>POI</span> is a person of interest the system
-            recognises in webcam frames or Sniper queries. Enrolment needs ≥ 3 photos per POI; the
-            ML service extracts a 512-D ArcFace embedding per photo and stores it in pgvector.
+            Add someone by uploading 3 clear photos of their face. Once added, the live camera
+            will flag this person when they appear in the frame, and a face search will return
+            them as a match.
           </p>
           <p className={styles.firstRunBody}>
-            Once a POI has 3+ embeddings it becomes <span className={styles.firstRunTerm}>active</span>
-            : Patrol mode flags it in webcam frames, Sniper layer 1 surfaces it in fusion reports.
+            You can also run a face search right now without adding anyone — the search still
+            returns web hits, location guess, and authenticity check.
           </p>
           <div className={styles.firstRunActions}>
             <Link href="/poi/new" className={styles.primaryButton}>
-              + new poi
+              + add person
             </Link>
             <Link href="/sniper" className={styles.firstRunSecondary}>
-              or run a Sniper query directly →
+              or search a face directly →
             </Link>
           </div>
         </div>
@@ -102,12 +102,12 @@ export default function PoiList() {
       {rows !== null && rows.length > 0 && (
         <div>
           <div className={styles.tableHeader}>
-            <span>POI ID</span>
-            <span>FULL NAME</span>
-            <span>CAT</span>
-            <span className={styles.embeddings}>EMB</span>
-            <span className={styles.threshold}>THR</span>
-            <span className={styles.timestamp}>CREATED</span>
+            <span>ID</span>
+            <span>NAME</span>
+            <span>TAG</span>
+            <span className={styles.embeddings}>PHOTOS</span>
+            <span className={styles.threshold}>STRICTNESS</span>
+            <span className={styles.timestamp}>ADDED</span>
             <span className={styles.status}>STATUS</span>
           </div>
           {rows.map((p) => {
@@ -130,7 +130,7 @@ export default function PoiList() {
                 <span
                   className={cn(styles.status, active ? styles.statusActive : styles.statusEnrol)}
                 >
-                  {active ? "active" : "enrol"}
+                  {active ? "active" : "needs photos"}
                 </span>
               </Link>
             );
@@ -140,7 +140,7 @@ export default function PoiList() {
 
       <div className={styles.footer}>
         <span>
-          [ {rows?.length ?? "…"} POIS · ENROL ≥ {ENROLMENT_TARGET} EMBEDDINGS TO ACTIVATE ]
+          [ {rows?.length ?? "…"} PEOPLE · ADD ≥ {ENROLMENT_TARGET} PHOTOS TO ACTIVATE ]
         </span>
       </div>
     </div>

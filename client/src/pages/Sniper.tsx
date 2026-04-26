@@ -114,10 +114,11 @@ export default function Sniper() {
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
-          <span className={styles.eyebrow}>SNIPER / FUSION</span>
-          <h1 className={styles.title}>Sniper Mode</h1>
+          <span className={styles.eyebrow}>SEARCH</span>
+          <h1 className={styles.title}>Face Search</h1>
           <p className={styles.subtitle}>
-            One face photo in — four independent OSINT layers out, in parallel.
+            Upload a face photo. Four checks run at the same time: who they are, where they
+            appear on the web, where the photo was taken, and whether it&apos;s real.
           </p>
         </div>
         {costSummary && <BudgetWidget summary={costSummary} />}
@@ -129,7 +130,7 @@ export default function Sniper() {
 
       {/* ── Upload zone ─────────────────────────────────────────────────── */}
       <section className={styles.uploadSection}>
-        <span className={styles.sectionTitle}>NEW QUERY</span>
+        <span className={styles.sectionTitle}>NEW SEARCH</span>
         <label
           className={cn(
             styles.dropzone,
@@ -155,13 +156,13 @@ export default function Sniper() {
             {uploading ? (
               <>
                 <span className={styles.spinnerDot} aria-hidden="true" />
-                running 4-layer fanout…
+                running four checks…
               </>
             ) : (
-              "[ drop face photo here or click ]"
+              "[ drop a face photo here or click ]"
             )}
             <span className={styles.dropzoneSub}>
-              jpeg / png / webp · ≤ 10 mb · 1 face frontal · est. cost €0.13 / run
+              jpeg / png / webp · up to 10 MB · one face, looking forward · about €0.13 per search
             </span>
           </div>
         </label>
@@ -170,19 +171,19 @@ export default function Sniper() {
 
       {/* ── Past reports ────────────────────────────────────────────────── */}
       <section className={styles.listSection}>
-        <span className={styles.sectionTitle}>RECENT REPORTS</span>
+        <span className={styles.sectionTitle}>PAST SEARCHES</span>
         {pageError !== null && <ErrorBlock error={pageError} />}
         {reports === null ? (
-          <div className={styles.empty}>[ loading reports… ]</div>
+          <div className={styles.empty}>[ loading… ]</div>
         ) : reports.length === 0 ? (
           <div className={styles.empty}>
-            [ no reports yet ] · drop a face photo above to fan out across all four OSINT layers
+            [ no searches yet ] · drop a face photo above to start
           </div>
         ) : (
           <div className={styles.table}>
             <div className={cn(styles.tableRow, styles.tableHeader)}>
-              <span>CREATED</span>
-              <span>REPORT ID</span>
+              <span>STARTED</span>
+              <span>SEARCH ID</span>
               <span>STATUS</span>
               <span>FINISHED</span>
             </div>
@@ -216,32 +217,32 @@ function StatusBadge({ status }: { status: ReportRow["status"] }) {
 function FirstRunLayerIntro({ summary }: { summary: SniperCostSummary }) {
   const layers = [
     {
-      tag: "L1",
-      name: "Identity",
-      source: "pgvector kNN · ArcFace 512-D",
+      tag: "1",
+      name: "Match",
+      source: "pgvector · ArcFace 512-D",
       cost: "free",
-      desc: "Match the face against your registered POIs. Median-of-top-K voting on the embedding nearest neighbours.",
+      desc: "Compare the face against the people in your library. Returns who they are if there's a match.",
     },
     {
-      tag: "L2",
-      name: "Web Presence",
+      tag: "2",
+      name: "Web",
       source: "SerpAPI · Google Lens",
       cost: `€${summary.per_call_costs.serpapi.toFixed(2)}`,
-      desc: "Reverse-image search across the public web. Returns visual matches with thumbnails + source URLs.",
+      desc: "Reverse image search across the public web. Returns thumbnails and source pages.",
     },
     {
-      tag: "L3",
-      name: "Geographic",
-      source: "Picarta · location predict",
+      tag: "3",
+      name: "Place",
+      source: "Picarta",
       cost: `€${summary.per_call_costs.picarta.toFixed(2)}`,
-      desc: "Predict where the photo was taken. Top-1 country/region/city + alternatives with confidence.",
+      desc: "Predict where the photo was taken. Returns country, region, city, and coordinates.",
     },
     {
-      tag: "L4",
-      name: "Authenticity",
-      source: "Reality Defender · deepfake",
+      tag: "4",
+      name: "Real?",
+      source: "Reality Defender",
       cost: `€${summary.per_call_costs.reality_defender.toFixed(2)}`,
-      desc: "Authentic / deepfake / uncertain verdict on the input. Mock by default; real-mode via env.",
+      desc: "Authentic, deepfake, or unsure. Flags manipulated images. (Mock mode in this demo.)",
     },
   ];
   const total =
@@ -251,12 +252,12 @@ function FirstRunLayerIntro({ summary }: { summary: SniperCostSummary }) {
 
   return (
     <section className={styles.firstRun}>
-      <span className={styles.firstRunEyebrow}>WHAT YOU GET PER QUERY</span>
+      <span className={styles.firstRunEyebrow}>WHAT YOU GET PER SEARCH</span>
       <div className={styles.firstRunGrid}>
         {layers.map((l) => (
           <div key={l.tag} className={styles.firstRunCard}>
             <div className={styles.firstRunCardHead}>
-              <span className={styles.firstRunCardTag}>{l.tag}</span>
+              <span className={styles.firstRunCardTag}>STEP {l.tag}</span>
               <span className={styles.firstRunCardCost}>{l.cost}</span>
             </div>
             <span className={styles.firstRunCardName}>{l.name}</span>
@@ -266,8 +267,8 @@ function FirstRunLayerIntro({ summary }: { summary: SniperCostSummary }) {
         ))}
       </div>
       <p className={styles.firstRunFooter}>
-        Total per query ≈ €{total.toFixed(2)}. Failed layers (upstream timeout, rate-limit, etc.)
-        do not stop the others — partial reports are surfaced with explicit per-layer status.
+        About €{total.toFixed(2)} per search. If one step fails (upstream timeout, rate limit),
+        the others still finish — you get a partial result, not a blank screen.
       </p>
     </section>
   );
@@ -285,7 +286,7 @@ function BudgetWidget({ summary }: { summary: SniperCostSummary }) {
 
   return (
     <div className={cn(styles.budget, warn && styles.budgetWarn, halt && styles.budgetHalt)}>
-      <span className={styles.budgetLabel}>BUDGET TODAY</span>
+      <span className={styles.budgetLabel}>SPENT TODAY</span>
       <span className={styles.budgetValue}>
         €{summary.total_today_eur.toFixed(2)} / €{summary.cap_eur.toFixed(2)}
       </span>
@@ -293,7 +294,7 @@ function BudgetWidget({ summary }: { summary: SniperCostSummary }) {
         <div className={styles.budgetBarFill} style={{ width: `${usedPct}%` }} />
       </div>
       <span className={styles.budgetHint}>
-        next run ~€{perRunEstimate.toFixed(2)} · headroom €{summary.headroom_eur.toFixed(2)}
+        next search ~€{perRunEstimate.toFixed(2)} · €{summary.headroom_eur.toFixed(2)} left
       </span>
     </div>
   );
