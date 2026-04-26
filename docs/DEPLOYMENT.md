@@ -19,12 +19,12 @@ browser-side checklist.
 | Express API       | Render              | `https://chaw-server.onrender.com`   | Starter ($7/mo, 512MB)        |
 | Python ML         | Render              | `https://chaw-ml.onrender.com`       | Starter ($7/mo, 512MB)        |
 | Redis (tracker)   | Render Key-Value    | injected as `REDIS_URL`              | Free (25MB)                   |
-| Postgres + Auth + Storage + Realtime | Supabase | Frankfurt (`eu-central-1`) | Free                  |
+| Postgres + Auth + Storage + Realtime | Supabase | Mumbai (`ap-south-1`) | Free                  |
 | DNS               | Mittwald            | `project-chaw.net` → Vercel CNAME    | Existing                      |
 
 Cost: ~$14/mo for the two Render web services. Everything else is free
 tier. Cleanup after the defence: delete the two Render services + the
-Frankfurt Supabase project; DNS records can stay pointing at Vercel
+production Supabase project; DNS records can stay pointing at Vercel
 (returns 404 once the project is deleted).
 
 ---
@@ -34,7 +34,7 @@ Frankfurt Supabase project; DNS records can stay pointing at Vercel
 The order matters because each layer's env wires into the next:
 
 ```
-1. Supabase Frankfurt        → produces SUPABASE_URL, ANON, SERVICE_ROLE,
+1. Supabase production project        → produces SUPABASE_URL, ANON, SERVICE_ROLE,
                                JWT_SECRET, DB_PASSWORD
 2. Render: Redis             → produces REDIS_URL (internal)
 3. Render: chaw-ml           → produces ML_BASE_URL (internal)
@@ -52,9 +52,9 @@ others — the URLs and secrets stay stable.
 
 ## 3. Step-by-step (browser clicks)
 
-### 3.1 Supabase Frankfurt project
+### 3.1 Supabase production project project
 
-1. **supabase.com → New project**, region `eu-central-1`, name
+1. **supabase.com → New project**, region `ap-south-1`, name
    `argus-prod`. Pick a strong DB password and store it.
 2. **SQL Editor → Run** every file in `supabase/migrations/` in order.
    The local `make db.push` (= `tsx scripts/db-push.ts`) runs the same
@@ -76,7 +76,7 @@ others — the URLs and secrets stay stable.
 ### 3.2 Render Key-Value (Redis)
 
 1. **render.com → New → Key Value**: name `chaw-redis`, region
-   `Frankfurt`, free tier.
+   `Singapore`, free tier.
 2. After provisioning, copy the **Internal Redis URL** for the
    `REDIS_URL` env var on both Render web services.
 
@@ -85,7 +85,7 @@ others — the URLs and secrets stay stable.
 1. **New → Web Service** → connect this Git repo, branch `main`.
 2. **Configuration:**
    - Name: `chaw-ml`
-   - Region: `Frankfurt`
+   - Region: `Singapore`
    - Runtime: `Docker`
    - Dockerfile path: `python/Dockerfile`
    - Docker Build Context: `python` (the repo subdirectory)
@@ -105,7 +105,7 @@ others — the URLs and secrets stay stable.
 1. **New → Web Service** → same repo + branch.
 2. **Configuration:**
    - Name: `chaw-server`
-   - Region: `Frankfurt`
+   - Region: `Singapore`
    - Runtime: `Node`
    - Build Command: `corepack enable && pnpm install --frozen-lockfile && pnpm --filter @argus/server build`
    - Start Command: `pnpm --filter @argus/server start`
@@ -114,8 +114,8 @@ others — the URLs and secrets stay stable.
    - Plan: Starter (512MB)
 3. **Environment** (paste from `server/.env.production.example`):
    - All Supabase values from §3.1
-   - `DATABASE_URL` and `DATABASE_DIRECT_URL` with the Frankfurt
-     password substituted
+   - `DATABASE_URL` and `DATABASE_DIRECT_URL` with the production
+     project's password substituted
    - `REDIS_URL` = same Internal URL as the ML service
    - `ML_BASE_URL` = `https://chaw-ml.onrender.com` (the public URL —
      Render's internal DNS works too if both services are in the
@@ -168,19 +168,19 @@ others — the URLs and secrets stay stable.
 ## 4. One-shot post-deploy: Re-enrol the existing POIs
 
 The model switch `buffalo_l` → `buffalo_s` (D-025) makes the existing
-Mumbai-corpus embeddings useless against fresh probes — the Frankfurt
+dev-corpus embeddings useless against fresh probes — the production
 project starts empty. Two options:
 
 - **Empty start (recommended for the open demo):** the demo operators
   enrol fresh photos via the UI, no migration needed.
-- **Migrate Mumbai → Frankfurt + re-enrol:** dump the dev project's
+- **Migrate dev → prod + re-enrol:** dump the dev project's
   `poi`, `face_embeddings`, and storage bucket contents, restore into
-  Frankfurt, then run:
+  the production project, then run:
   ```sh
   ML_BASE_URL=https://chaw-ml.onrender.com \
-    DATABASE_DIRECT_URL=postgresql://postgres:<PW>@db.<FRANKFURT_REF>.supabase.co:5432/postgres \
-    SUPABASE_URL=https://<FRANKFURT_REF>.supabase.co \
-    SUPABASE_SERVICE_ROLE_KEY=<FRANKFURT_SERVICE_ROLE> \
+    DATABASE_DIRECT_URL=postgresql://postgres:<PW>@db.<PROD_REF>.supabase.co:5432/postgres \
+    SUPABASE_URL=https://<PROD_REF>.supabase.co \
+    SUPABASE_SERVICE_ROLE_KEY=<PROD_SERVICE_ROLE> \
     pnpm tsx scripts/re-enroll-all.ts
   ```
   The script logs `cos(old, new)` per row — typical values are 0.0–0.3
@@ -220,7 +220,7 @@ The defence runs once. Cleanup is mostly "delete the rentals":
    stay or be pointed at a parking page.
 2. **Render:** Delete `chaw-server`, `chaw-ml`, `chaw-redis`. Stops
    billing immediately (pro-rated).
-3. **Supabase Frankfurt:** Settings → Pause project (free, keeps the
+3. **Supabase production project:** Settings → Pause project (free, keeps the
    data) or Delete Project (irreversible). For a uni-defence
    timeframe, Pause is fine.
 4. **Mittwald DNS:** drop the Vercel records or repoint to a "demo
@@ -231,8 +231,8 @@ If something fails mid-deploy and you need to abort:
 - **CORS errors** in the browser console → Render env panel,
   `CORS_ORIGINS` is missing the right host, save + redeploy.
 - **502 from chaw-server** → Render logs likely show `ML_BASE_URL`
-  unreachable or DB pool DNS-failed; check the env vars + Frankfurt
-  pooler region matches `eu-central-1`.
+  unreachable or DB pool DNS-failed; check the env vars + the
+  Supabase pooler hostname matches `aws-1-ap-south-1.pooler.supabase.com`.
 - **OOM on chaw-ml** → bump to Standard (1GB) and revert
   `INSIGHTFACE_MODEL_PACK` to `buffalo_l` if you want the genauer
   Modell. The Dockerfile is unchanged; only the env var differs.
@@ -246,8 +246,8 @@ If something fails mid-deploy and you need to abort:
 ### Vercel (Production scope)
 
 ```
-VITE_SUPABASE_URL             https://<FRANKFURT_REF>.supabase.co
-VITE_SUPABASE_ANON_KEY        <FRANKFURT_ANON>
+VITE_SUPABASE_URL             https://<PROD_REF>.supabase.co
+VITE_SUPABASE_ANON_KEY        <PROD_ANON>
 VITE_API_URL                  https://chaw-server.onrender.com
 ```
 
@@ -257,12 +257,12 @@ VITE_API_URL                  https://chaw-server.onrender.com
 NODE_ENV                       production
 LOG_LEVEL                      info
 CORS_ORIGINS                   https://project-chaw.net,https://www.project-chaw.net
-SUPABASE_URL                   https://<FRANKFURT_REF>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY      <FRANKFURT_SERVICE_ROLE>
-SUPABASE_JWT_SECRET            <FRANKFURT_JWT_SECRET>
-SUPABASE_DB_PASSWORD           <FRANKFURT_DB_PW>
-DATABASE_URL                   postgresql://postgres.<FRANKFURT_REF>:<PW>@aws-1-eu-central-1.pooler.supabase.com:6543/postgres
-DATABASE_DIRECT_URL            postgresql://postgres:<PW>@db.<FRANKFURT_REF>.supabase.co:5432/postgres
+SUPABASE_URL                   https://<PROD_REF>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY      <PROD_SERVICE_ROLE>
+SUPABASE_JWT_SECRET            <PROD_JWT_SECRET>
+SUPABASE_DB_PASSWORD           <PROD_DB_PW>
+DATABASE_URL                   postgresql://postgres.<PROD_REF>:<PW>@aws-1-ap-south-1.pooler.supabase.com:6543/postgres
+DATABASE_DIRECT_URL            postgresql://postgres:<PW>@db.<PROD_REF>.supabase.co:5432/postgres
 ML_BASE_URL                    https://chaw-ml.onrender.com
 ML_TIMEOUT_MS                  15000
 REDIS_URL                      <Render Internal Redis URL>
