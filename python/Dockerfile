@@ -18,12 +18,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     INSIGHTFACE_MODEL_PACK=buffalo_s
 
-# Minimum runtime system libs. opencv-python-headless does NOT need
-# libgl1 / libglib2.0-0 (that's the whole point of the headless build);
-# we only need libgomp1 for onnxruntime's OpenMP runtime + curl for
-# the HEALTHCHECK probe.
+# Runtime system libs:
+#   libgomp1 — onnxruntime's OpenMP runtime
+#   curl     — HEALTHCHECK probe
+# Build-time deps (purged after pip install):
+#   build-essential — insightface ships a Cython extension
+#                     (face3d.mesh.cython.mesh_core_cython) with no
+#                     pre-built wheel for linux/amd64 + py3.11, so pip
+#                     falls back to compiling from source.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libgomp1 curl \
+ && apt-get install -y --no-install-recommends \
+        libgomp1 curl build-essential \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -33,7 +38,9 @@ WORKDIR /app
 # keep us inside the insightface 0.7.3 ABI window.
 COPY pyproject.toml ./
 RUN pip install --upgrade pip setuptools wheel \
- && pip install -e .
+ && pip install -e . \
+ && apt-get purge -y --auto-remove build-essential \
+ && rm -rf /root/.cache/pip
 
 # Copy the application source AFTER deps so re-builds don't reinstall
 # pip every time only argus_ml/*.py changes.
