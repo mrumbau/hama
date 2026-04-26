@@ -35,10 +35,21 @@ const schema = z.object({
 
   // External APIs (server-only — frontend never sees these).
   SERPAPI_KEY: z.string().min(20),
+  SERPAPI_BASE_URL: z.string().url().default("https://serpapi.com"),
+  SERPAPI_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   PICARTA_API_KEY: z.string().min(10),
+  PICARTA_BASE_URL: z.string().url().default("https://picarta.ai/api/v1"),
+  PICARTA_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   REALITY_DEFENDER_API_KEY: z.string().min(20),
   REALITY_DEFENDER_BASE_URL: z.string().url().default("https://api.prd.realitydefender.xyz"),
   REALITY_DEFENDER_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
+
+  // Per-Sniper-call costs charged against the cost guard (Tag 8b, ADR-6).
+  // Conservative estimates — refined when each provider's billing reports
+  // arrive. The numbers can be adjusted via env without touching code.
+  LAYER_COST_WEB_PRESENCE_EUR: z.coerce.number().nonnegative().default(0.02),
+  LAYER_COST_GEOGRAPHIC_EUR: z.coerce.number().nonnegative().default(0.01),
+  LAYER_COST_AUTHENTICITY_EUR: z.coerce.number().nonnegative().default(0.10),
   // Default TRUE — protects the 50/month free-tier quota. Must be set to
   // explicit "false"/"0" to call the real Reality Defender API.
   // Tag 5 enrolment + tests run against the deterministic mock.

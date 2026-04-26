@@ -79,7 +79,8 @@ sniperRouter.post(
       res.status(201).json({
         report_id: result.reportId,
         query_storage_path: result.queryStoragePath,
-        layer1: result.layer1,
+        final_status: result.finalStatus,
+        layers: result.layers,
       });
     } catch (err) {
       logger.error({ err, operatorId }, "sniper: run failed");

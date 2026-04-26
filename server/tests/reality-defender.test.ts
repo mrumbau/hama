@@ -82,22 +82,138 @@ describe("Reality Defender — mock mode (default)", () => {
   });
 });
 
-describe("Reality Defender — RD_MOCK_MODE=false safety", () => {
-  it("real-mode invocation throws a clear not-implemented error", async () => {
-    // env.ts caches its parsed environment in a module-level variable. To
-    // test the toggle, reset the entire module graph, set the env var,
-    // and re-import. The fresh copy of reality-defender.ts re-resolves env.
+describe("Reality Defender — RD_MOCK_MODE=false real mode (Tag 8b)", () => {
+  it("walks the presigned-upload + poll flow and maps AUTHENTIC", async () => {
     vi.resetModules();
     process.env.RD_MOCK_MODE = "false";
+    process.env.REALITY_DEFENDER_TIMEOUT_MS = "5000";
+
+    // Stub fetch with a 3-call sequence: presign → S3 PUT → poll (one shot).
+    let callIndex = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL, init?: RequestInit) => {
+        const u = String(url);
+        callIndex += 1;
+        if (callIndex === 1) {
+          // Presign request
+          expect(u).toContain("/api/files/aws-presigned");
+          expect(init?.method).toBe("POST");
+          return new Response(
+            JSON.stringify({
+              response: { signedUrl: "https://s3.example/presigned-url" },
+              requestId: "rid-789",
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
+        }
+        if (callIndex === 2) {
+          // S3 PUT
+          expect(u).toBe("https://s3.example/presigned-url");
+          expect(init?.method).toBe("PUT");
+          return new Response("", { status: 200 });
+        }
+        // Poll
+        expect(u).toContain("/api/media/users/rid-789");
+        return new Response(
+          JSON.stringify({
+            status: "AUTHENTIC",
+            resultsSummary: { status: "AUTHENTIC", metadata: { finalScore: 0.04 } },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }),
+    );
 
     type RdModule = typeof import("../src/external/reality-defender.js");
     const fresh = (await import("../src/external/reality-defender.js")) as RdModule;
 
-    await expect(fresh.checkAuthenticity(SAMPLE)).rejects.toThrow(
-      /reality_defender_real_mode_not_implemented_yet/,
+    const r = await fresh.checkAuthenticity(SAMPLE);
+    expect(r.source).toBe("real");
+    expect(r.verdict).toBe("authentic");
+    expect(r.authentic).toBe(true);
+    expect(r.score).toBeCloseTo(1 - 0.04, 4);
+    expect(r.sha256).toMatch(/^[a-f0-9]{64}$/);
+
+    vi.unstubAllGlobals();
+    process.env.RD_MOCK_MODE = "true";
+    vi.resetModules();
+  });
+
+  it("maps RD 'FAKE' status to deepfake verdict", async () => {
+    vi.resetModules();
+    process.env.RD_MOCK_MODE = "false";
+    process.env.REALITY_DEFENDER_TIMEOUT_MS = "5000";
+
+    let callIndex = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        callIndex += 1;
+        if (callIndex === 1) {
+          return new Response(
+            JSON.stringify({
+              response: { signedUrl: "https://s3.example/x" },
+              requestId: "rid-fake",
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
+        }
+        if (callIndex === 2) return new Response("", { status: 200 });
+        return new Response(
+          JSON.stringify({
+            status: "FAKE",
+            resultsSummary: { status: "FAKE", metadata: { finalScore: 0.97 } },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }),
     );
 
-    // Restore so the rest of the suite continues in mock mode.
+    const fresh = await import("../src/external/reality-defender.js");
+    const r = await fresh.checkAuthenticity(SAMPLE);
+    expect(r.verdict).toBe("deepfake");
+    expect(r.authentic).toBe(false);
+    expect(r.score).toBeCloseTo(0.97, 4);
+
+    vi.unstubAllGlobals();
+    process.env.RD_MOCK_MODE = "true";
+    vi.resetModules();
+  });
+
+  it("times out cleanly when the poll never returns a terminal status", async () => {
+    vi.resetModules();
+    process.env.RD_MOCK_MODE = "false";
+    // Tight timeout so the test doesn't drag.
+    process.env.REALITY_DEFENDER_TIMEOUT_MS = "1500";
+
+    let callIndex = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        callIndex += 1;
+        if (callIndex === 1) {
+          return new Response(
+            JSON.stringify({
+              response: { signedUrl: "https://s3.example/x" },
+              requestId: "rid-slow",
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
+        }
+        if (callIndex === 2) return new Response("", { status: 200 });
+        // Polls always say still ANALYZING.
+        return new Response(JSON.stringify({ status: "ANALYZING" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+
+    const fresh = await import("../src/external/reality-defender.js");
+    await expect(fresh.checkAuthenticity(SAMPLE)).rejects.toThrow(/rd_poll_timeout/);
+
+    vi.unstubAllGlobals();
     process.env.RD_MOCK_MODE = "true";
     vi.resetModules();
   });

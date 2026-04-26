@@ -93,43 +93,135 @@ export async function checkAuthenticity(buf: Buffer): Promise<AuthenticityCheck>
   return realCheckAuthenticity(buf, sha256, t0);
 }
 
-// ── Real client (stub) ──────────────────────────────────────────────────────
+// ── Real client (Tag 8b — presigned upload + polling) ──────────────────────
 //
-// Tag 5 ships only the mock. The real client is sketched here so that
-// turning RD_MOCK_MODE=false fails loudly at the call site instead of
-// silently hitting an unfinished code path. The full implementation
-// (presigned-upload + polling) is a Tag 8 concern when Sniper Layer 4
-// goes live.
+// Reality Defender's async flow:
+//   1. POST /api/files/aws-presigned        → signedUrl + requestId
+//   2. PUT  signedUrl (image bytes, mime)
+//   3. POLL GET /api/media/users/<requestId> until status != "ANALYZING"
+//   4. Map result → AuthenticityCheck
+//
+// We bound the total wall-clock at REALITY_DEFENDER_TIMEOUT_MS. Inside
+// that window we poll every RD_POLL_INTERVAL_MS (1s default) — RD's
+// inference latency is typically < 5 s for a face-sized image, so the
+// 20 s default is comfortable.
+
+const RD_POLL_INTERVAL_MS = 1_000;
 
 async function realCheckAuthenticity(
-  _buf: Buffer,
+  buf: Buffer,
   sha256: string,
-  _t0: number,
+  t0: number,
 ): Promise<AuthenticityCheck> {
-  // Sketch of the production flow, pinned for Tag 8 implementation:
-  //
-  //   1. POST `${env.REALITY_DEFENDER_BASE_URL}/api/files/aws-presigned`
-  //        headers: { "X-API-KEY": env.REALITY_DEFENDER_API_KEY }
-  //        body:    { fileName, fileSize }
-  //        → { signedUrl, requestId }
-  //
-  //   2. PUT signedUrl with the image bytes (Content-Type: <mime>).
-  //
-  //   3. Poll GET `${env.REALITY_DEFENDER_BASE_URL}/api/media/users/${requestId}`
-  //      every 1 s until `status !== "ANALYZING"`. Cap at REALITY_DEFENDER_TIMEOUT_MS.
-  //
-  //   4. Map RD's response (`status`, `resultsSummary.status`, `score`,
-  //      per-model probabilities) to AuthenticityCheck.
-  //
-  // Until Tag 8: no network call — fail fast so the caller cannot accidentally
-  // treat an undefined return value as `authentic`. The error message points
-  // directly at the env-var fix.
-  logger.warn(
-    { sha256 },
-    "rd: real-mode invoked but client not yet implemented — set RD_MOCK_MODE=true",
+  // ── 1. Request a presigned upload URL ────────────────────────────────
+  const presignRes = await fetch(`${env.REALITY_DEFENDER_BASE_URL}/api/files/aws-presigned`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-KEY": env.REALITY_DEFENDER_API_KEY,
+    },
+    body: JSON.stringify({ fileName: `${sha256}.jpg` }),
+    signal: AbortSignal.timeout(env.REALITY_DEFENDER_TIMEOUT_MS),
+  });
+  if (!presignRes.ok) {
+    const text = await presignRes.text();
+    throw new Error(`rd_presign_failed_${presignRes.status}: ${text.slice(0, 200)}`);
+  }
+  const presign = (await presignRes.json()) as {
+    response?: { signedUrl?: string };
+    requestId?: string;
+  };
+  const signedUrl = presign.response?.signedUrl;
+  const requestId = presign.requestId;
+  if (!signedUrl || !requestId) {
+    throw new Error("rd_presign_malformed: missing signedUrl/requestId");
+  }
+
+  // ── 2. PUT bytes to S3 ───────────────────────────────────────────────
+  const uploadRes = await fetch(signedUrl, {
+    method: "PUT",
+    headers: { "Content-Type": "image/jpeg" },
+    body: buf,
+    signal: AbortSignal.timeout(env.REALITY_DEFENDER_TIMEOUT_MS),
+  });
+  if (!uploadRes.ok) {
+    throw new Error(`rd_upload_failed_${uploadRes.status}`);
+  }
+
+  // ── 3. Poll for completion ───────────────────────────────────────────
+  const deadline = t0 + env.REALITY_DEFENDER_TIMEOUT_MS;
+  let result: RdResult | null = null;
+  while (Date.now() < deadline) {
+    const pollRes = await fetch(
+      `${env.REALITY_DEFENDER_BASE_URL}/api/media/users/${requestId}`,
+      {
+        method: "GET",
+        headers: { "X-API-KEY": env.REALITY_DEFENDER_API_KEY },
+        signal: AbortSignal.timeout(env.REALITY_DEFENDER_TIMEOUT_MS),
+      },
+    );
+    if (pollRes.ok) {
+      const r = (await pollRes.json()) as RdResult;
+      // RD signals "still working" via status === "ANALYZING" at the top
+      // level OR resultsSummary.status === "ANALYZING".
+      const status = r.status ?? r.resultsSummary?.status;
+      if (status && status !== "ANALYZING") {
+        result = r;
+        break;
+      }
+    }
+    await sleep(RD_POLL_INTERVAL_MS);
+  }
+  if (!result) {
+    throw new Error("rd_poll_timeout: still analysing after deadline");
+  }
+
+  // ── 4. Map to AuthenticityCheck ──────────────────────────────────────
+  // RD returns top-level status one of:
+  //   "FAKE" → deepfake
+  //   "AUTHENTIC" → authentic
+  //   "ARTIFICIAL" → synthetic / GAN-derived → treat as deepfake
+  //   anything else → uncertain
+  const rdStatus = result.resultsSummary?.status ?? result.status ?? "UNKNOWN";
+  const verdict: AuthenticityVerdict =
+    rdStatus === "AUTHENTIC"
+      ? "authentic"
+      : rdStatus === "FAKE" || rdStatus === "ARTIFICIAL" || rdStatus === "MANIPULATED"
+        ? "deepfake"
+        : "uncertain";
+
+  // RD reports a fake-confidence; convert to authentic-confidence (1 - fake).
+  const fakeScore = result.resultsSummary?.metadata?.finalScore ?? result.finalScore ?? 0;
+  const score = verdict === "authentic" ? 1 - fakeScore : fakeScore;
+
+  logger.info(
+    { sha256, rd_status: rdStatus, verdict, score, request_id: requestId },
+    "rd: real-mode verdict",
   );
-  throw new Error(
-    "reality_defender_real_mode_not_implemented_yet (Tag 8). " +
-      "Set RD_MOCK_MODE=true to use the deterministic mock.",
-  );
+
+  return {
+    authentic: verdict === "authentic",
+    score,
+    verdict,
+    source: "real",
+    sha256,
+    latency_ms: Date.now() - t0,
+  };
+}
+
+// ── Internal types + helpers ────────────────────────────────────────────────
+
+interface RdResult {
+  status?: string;
+  finalScore?: number;
+  resultsSummary?: {
+    status?: string;
+    metadata?: {
+      finalScore?: number;
+    };
+  };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
