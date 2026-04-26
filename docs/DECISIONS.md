@@ -182,3 +182,51 @@ project. Tag 14 SECURITY.md documents the choice and the path to
 strict verification (bundle a CA cert in production builds).
 
 ---
+
+## D-009 — Auth verification migrated from HS256 + SUPABASE_JWT_SECRET to JWKS + ES256/RS256
+
+**Date:** 2026-04-25 (same-day fix-forward of the Tag 3 implementation)
+**What the plan said:** Plan §13 Tag 3 referenced "JWT-Middleware"
+without pinning the algorithm. ADR-2 consequences mentioned
+`SUPABASE_JWT_SECRET` as the verification key. The Tag 3 commit
+implemented HS256 against `SUPABASE_JWT_SECRET` using `jsonwebtoken`.
+**What I did:** Discarded the HS256 path. Rewrote
+`server/src/auth/jwt.ts` to use `jose.jwtVerify` against
+`createRemoteJWKSet` pointed at
+`${SUPABASE_URL}/auth/v1/.well-known/jwks.json`, with `algorithms:
+["RS256", "ES256"]`. Made `SUPABASE_JWT_SECRET` optional in `env.ts`.
+Replaced `jsonwebtoken` with `jose` in `server/package.json`. Rewrote
+`server/tests/jwt.test.ts` to generate a local ES256 keypair, expose
+the public half via `createLocalJWKSet`, and inject it via a new
+`setJwksForTests()` hook on the middleware.
+**Why:** Supabase rotated to JWT Signing Keys (asymmetric, ES256
+default, RS256 optional) in 2024-Q4. The legacy HS256 secret is still
+dashboard-visible but no longer signs new access tokens. Live smoke
+test of the Tag 3 middleware returned 401 for every real session
+token; standalone `jwtVerify` against the JWKS picked up the correct
+kid and accepted the same tokens — proving the verification key, not
+the logic, was the problem. See ADR-9.
+**Trade-off:** First request after a cold server start triggers a
+JWKS fetch (~50–200 ms over the public internet). jose's built-in
+cache makes this a one-time cost per server boot. The 30 s cooldown
+on unknown kids means an upstream key rotation costs up to one
+cooldown window of 401s for inflight users — acceptable for an
+operator system whose users are already signed in via persistent
+Supabase sessions and will retry. The legacy secret remains in
+`env.ts` as optional only because deleting it would force a fresh
+`.env` rotation for every developer with no benefit.
+
+**Verification (curl /api/me, post-fix)**
+
+```
+$ curl /api/me -H "Authorization: Bearer ${ACCESS_TOKEN}"
+{"sub":"2ec6c43e-f378-4295-b39e-2d3a30bbee0f",
+ "email":"hawramimohammed@gmail.com",
+ "role":"authenticated"}
+HTTP_CODE: 200
+```
+
+9/9 server tests passing (5 JWT via local ES256 JWKS, 4 RLS via live
+Supabase).
+
+---

@@ -227,6 +227,112 @@ trigger when Supabase Auth signs a new user up, defaulting to
 
 ---
 
+## ADR-9 — Auth verification via Supabase JWT Signing Keys (asymmetric, JWKS)
+
+**Status:** accepted (2026-04-25). Supersedes the HS256 / `SUPABASE_JWT_SECRET`
+verification path declared in ADR-2 consequences and implemented on Tag 3.
+
+### Context
+
+Tag 3 implemented the Express auth middleware against `SUPABASE_JWT_SECRET`
+using `jsonwebtoken` and `algorithms: ["HS256"]`. The middleware passed
+all unit tests (we signed our own HS256 tokens with the same secret) and
+the RLS suite passed. Live smoke-test against the Supabase project
+failed: every real session token returned `401 invalid_token`.
+
+Investigation: in 2024-Q4 Supabase rotated the entire access-token
+signing infrastructure to **JWT Signing Keys** — asymmetric keypairs
+(ES256 by default, RS256 optional) whose **public** halves are exposed
+at:
+
+```
+${SUPABASE_URL}/auth/v1/.well-known/jwks.json
+```
+
+The legacy `SUPABASE_JWT_SECRET` HMAC value is still visible in the
+project dashboard but is **no longer used to sign new sessions**. It
+survives only for internal Supabase service-to-service signing on
+legacy projects. Verification on every Supabase project that has
+migrated to JWT Signing Keys must read the JWKS and verify against
+the public key whose `kid` matches the access token's header.
+
+### Decision
+
+Verify access tokens with **`jose.jwtVerify`** against
+**`createRemoteJWKSet`** pointing at the project's JWKS URL. Algorithms
+allowed: `["RS256", "ES256"]`.
+
+```ts
+const jwks = createRemoteJWKSet(new URL("/auth/v1/.well-known/jwks.json", env.SUPABASE_URL), {
+  cooldownDuration: 30_000,
+  cacheMaxAge: 600_000,
+  timeoutDuration: 5_000,
+});
+
+const { payload } = await jwtVerify(token, jwks, {
+  algorithms: ["RS256", "ES256"],
+});
+```
+
+`createRemoteJWKSet` ships a built-in cache (10-min default) and a
+30-second cooldown for unknown `kid` values. A single key rotation
+upstream therefore costs at most one cooldown window of `unknown_kid`
+failures. No external cache infrastructure (Redis) is involved on the
+auth hot path.
+
+`SUPABASE_JWT_SECRET` becomes **optional** in the environment schema.
+It is not consulted by any code path in the production verification
+flow. It survives in `env.ts` as a documentation breadcrumb only — for
+the unlikely case that Supabase offers reverse-migration to HS256, or
+that dual-stack verification becomes desirable.
+
+### Test strategy
+
+Production verifies against `createRemoteJWKSet`. Tests inject a
+`createLocalJWKSet` over an in-memory ES256 keypair via the
+`setJwksForTests()` hook in `auth/jwt.ts`. Two keypairs are generated:
+one whose public half is in the test JWKS (positive case), one whose
+public half is not (proves `kid` mismatch is rejected). Five tests
+cover: valid token accepted, foreign-key rejected, expired rejected,
+malformed payload rejected, missing bearer rejected.
+
+The local JWKS pattern means no fetch interception, no MSW, no nock —
+just two functions from `jose`. Setup is 30 lines.
+
+### Consequences
+
+- Removed `jsonwebtoken` and `@types/jsonwebtoken` from server deps.
+  Added `jose` (~30 KB minified, native crypto, zero runtime deps).
+- The middleware is now `async`. Express 5 handles async middleware
+  natively, but errors must still go through `try/catch`.
+- First request after server start triggers a JWKS fetch (logged once).
+  All subsequent requests reuse the in-memory cache.
+- Error classification distinguishes `token_expired` ·
+  `invalid_signature` · `unknown_kid` · `jwks_unreachable` ·
+  `invalid_claims` · `invalid_token_payload` · `invalid_token` · each
+  maps to a specific `joseErrors` subclass.
+
+### Verification (post-fix smoke test, 2026-04-25)
+
+Sign-in via `POST ${SUPABASE_URL}/auth/v1/token?grant_type=password` on
+the live project returns an access token with header
+`alg=ES256, kid=58b16d1a-2ee7-4508-b9cc-920767d27e75, typ=JWT`. The
+JWKS endpoint publishes that exact `kid`
+(`alg=ES256, kty=EC, crv=P-256, use=sig`).
+
+```
+$ curl /api/me -H "Authorization: Bearer ${ACCESS_TOKEN}"
+{"sub":"2ec6c43e-f378-4295-b39e-2d3a30bbee0f",
+ "email":"hawramimohammed@gmail.com",
+ "role":"authenticated"}
+HTTP_CODE: 200
+```
+
+All 9 server tests pass (5 JWT against local JWKS, 4 RLS against live
+Supabase).
+
+---
+
 ## ADR-8 — Vanilla CSS Modules + Radix primitives over Tailwind / shadcn
 
 **Status:** accepted (2026-04-25)

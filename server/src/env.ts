@@ -14,10 +14,15 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(5000),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
 
-  // Supabase — three keys, never mix them.
+  // Supabase — three concerns, never mix them.
   SUPABASE_URL: z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(40),
-  SUPABASE_JWT_SECRET: z.string().min(20),
+  // Legacy HS256 secret. Optional since 2024-Q4: Supabase rotated to
+  // asymmetric JWT signing keys, and new sessions are signed with ES256
+  // keys exposed via /auth/v1/.well-known/jwks.json. Verification path is
+  // JWKS — see ADR-9. The secret is kept here only as a fallback for
+  // potential reverse-migration or emergency dual-verification.
+  SUPABASE_JWT_SECRET: z.string().min(20).optional(),
 
   // Postgres — pooled URL for runtime, direct URL for migrations.
   DATABASE_URL: z.string().regex(/^postgres(?:ql)?:\/\//, "must start with postgres://"),
