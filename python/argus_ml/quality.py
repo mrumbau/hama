@@ -1,15 +1,20 @@
 """Quality gate.
 
-Plan §3 (POI enrolment): face size ≥ 112px, blur < threshold, pose-yaw
-< 45°. We additionally surface "no_face" and "multiple_faces" so the
-operator UI can react with a precise message instead of a generic 422.
+Plan §3 (POI enrolment) implemented as a layered gate: face count,
+face size, pose, and detector confidence. The Laplacian-blur axis was
+iteratively narrowed (D-015 v1 / D-015 v2 / D-016) and finally
+**removed** from the gate path in D-017 — it had a discriminative
+range of only ~5-15 points between sharp and slightly-soft modern
+smartphone selfies, while `det_score` discriminates much more cleanly
+on the same inputs. The eye-region blur variance is still computed
+and reported in `metrics["blur_var"]` for the Tag 13 FIQA benchmark
+(EVALUATION.md), but it does NOT contribute to the reasons list.
 
 Reason codes (stable strings — used by the Tag 5 enrolment UI to
 choose a specific copy block):
   no_face                    no face detected at any score
   multiple_faces             more than one face detected
   face_too_small             short bbox edge < QUALITY_MIN_FACE_PX
-  too_blurry                 Laplacian variance < QUALITY_MIN_BLUR_VAR
   pose_extreme               |yaw| > QUALITY_MAX_POSE_YAW_DEG
   low_confidence_detection   det_score < DETECTOR_QUALITY_MIN
 """
@@ -63,12 +68,12 @@ def check_quality(faces: list[DetectedFace]) -> QualityResult:
 
     if f.bbox.short_edge < s.QUALITY_MIN_FACE_PX:
         reasons.append("face_too_small")
-    if f.blur_var < s.QUALITY_MIN_BLUR_VAR:
-        reasons.append("too_blurry")
     if abs(f.yaw_deg) > s.QUALITY_MAX_POSE_YAW_DEG:
         reasons.append("pose_extreme")
     if f.det_score < s.DETECTOR_QUALITY_MIN:
         reasons.append("low_confidence_detection")
+    # NOTE: D-017 removed the `too_blurry` axis. `f.blur_var` remains in
+    # the metrics dict below for the Tag 13 FIQA benchmark.
 
     return QualityResult(
         passes=not reasons,

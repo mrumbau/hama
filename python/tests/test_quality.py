@@ -5,12 +5,21 @@ instances or feeds a synthetic ndarray to the helpers. Confirms:
   * Reason-code surface is stable and complete.
   * Central-60%-of-bbox crop math (legacy fallback path for D-015 v1).
   * Eye-region crop math + Portrait-Mode robustness (D-015 v2).
+
+Note: D-017 disabled the Laplacian-blur axis on the gate path. The
+former gate tests (`test_too_blurry`, the synthetic Gaussian-blur
+end-to-end test) are kept under @pytest.mark.skip so they remain
+runnable for the Tag 13 FIQA benchmark, where they get re-enabled
+against a learned face-image-quality score. The eye-region helper
+tests stay live — they verify the metric computation, which still
+runs for the metrics dict.
 """
 
 from __future__ import annotations
 
 import cv2
 import numpy as np
+import pytest
 
 from argus_ml.config import get_settings
 from argus_ml.face import (
@@ -75,6 +84,7 @@ def test_face_too_small():
     assert "face_too_small" in res.reasons
 
 
+@pytest.mark.skip(reason="disabled per D-017, kept for Tag 13 FIQA benchmark")
 def test_too_blurry():
     s = get_settings()
     res = check_quality([make_face(blur_var=s.QUALITY_MIN_BLUR_VAR - 1)])
@@ -97,12 +107,13 @@ def test_pose_extreme_negative_yaw():
 
 
 def test_multiple_reasons_combined():
+    """Three-axis violation. The blur axis was removed in D-017; this
+    is the post-D-017 reason set."""
     s = get_settings()
     res = check_quality(
         [
             make_face(
                 short_edge=s.QUALITY_MIN_FACE_PX - 10,
-                blur_var=s.QUALITY_MIN_BLUR_VAR - 10,
                 yaw_deg=s.QUALITY_MAX_POSE_YAW_DEG + 10,
                 det_score=s.DETECTOR_QUALITY_MIN - 0.1,
             )
@@ -111,10 +122,20 @@ def test_multiple_reasons_combined():
     assert res.passes is False
     assert set(res.reasons) == {
         "face_too_small",
-        "too_blurry",
         "pose_extreme",
         "low_confidence_detection",
     }
+
+
+def test_blur_var_does_not_drive_gate_post_d017():
+    """A face that would have failed the D-016 gate (blur_var below the
+    old 30 floor) but passes everything else is now accepted. Locks in
+    the D-017 contract."""
+    res = check_quality([make_face(blur_var=5.0)])
+    assert res.passes is True
+    assert "too_blurry" not in res.reasons
+    # blur_var still surfaces in metrics for the FIQA benchmark.
+    assert res.metrics["blur_var"] == 5.0
 
 
 def test_low_confidence_detection():
@@ -300,6 +321,7 @@ def test_eye_region_clips_to_image_bounds_when_face_partially_off_screen():
     assert val >= 0.0
 
 
+@pytest.mark.skip(reason="disabled per D-017, kept for Tag 13 FIQA benchmark")
 def test_gaussian_blurred_eye_region_drives_gate_to_too_blurry():
     """End-to-end synthetic regression for D-016. Build an image where
     the eye region is heavily Gaussian-blurred (sigma=15), measure

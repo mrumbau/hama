@@ -73,12 +73,21 @@ demo verifies the budget holds.
 
 ## Quality-gate blur metric — robustness to modern smartphone modes
 
+> **Status (D-017):** the Laplacian-blur axis is **disabled on the
+> gate path**. Iteration concluded — Laplacian variance was deemed
+> unsuitable for computational-photography era smartphone inputs (the
+> discriminative range between "sharp" and "slightly soft" measured
+> ~5–15 variance points, too narrow for a robust hard-reject). The
+> eye-region helper still runs and the variance still lands in
+> `metrics["blur_var"]` for the Tag 13 FIQA benchmark; this section
+> is retained as historical context for the iteration ladder. See
+> DECISIONS.md D-017 for the full retirement rationale.
+
 The blur metric used by `quality.py` was iteratively hardened against
-the failure modes of real-world phone-camera output. The current
-implementation (D-015 v2) measures Laplacian variance on the
-**eye region** — a rectangle of size `1.6 × iod × 1.0 × iod` centred
-on the midpoint of the two eye landmarks (`iod` = inter-eye distance
-in pixels).
+the failure modes of real-world phone-camera output. The post-D-015 v2
+implementation measured Laplacian variance on the **eye region** — a
+rectangle of size `1.6 × iod × 1.0 × iod` centred on the midpoint of
+the two eye landmarks (`iod` = inter-eye distance in pixels).
 
 ### Why eye-region beats bbox-based metrics
 
@@ -104,6 +113,7 @@ bbox metric incorrectly rejected.
 | D-015 v1 | Central 60% × 60%              | 40                     | Smartphone selfies were rejected at 80; the central crop excluded hair/wall edges that inflated variance                                                                                    |
 | D-015 v2 | Eye region (1.6×iod × 1.0×iod) | 150                    | Portrait Mode bokeh contaminated even the central-60% crop; the eye region is guaranteed in-focus                                                                                           |
 | D-016    | Eye region (unchanged)         | 30                     | Real iPhone computational-photography selfies measure ~80–200 on the eye region — 150 was rejecting visually sharp faces. Algorithm kept; threshold drops to fit the empirical distribution |
+| **D-017**    | **disabled**                       | **0.0**                    | **Iteration concluded — Laplacian deemed unsuitable for computational-photography era smartphone inputs. Ground-truth datapoint: clean iPhone selfie scores `blur_var = 35`, only 5 points above the post-D-016 threshold. `det_score` (0.81 for the same photo) covers the same failure modes with a wider margin.** |
 
 Two further enrolment-side thresholds were added in D-016 alongside
 the blur drop:
@@ -113,25 +123,28 @@ the blur drop:
 | `QUALITY_MAX_POSE_YAW_DEG` | 55    | Up from 45. Admits natural near-frontal angles; ArcFace 512-D is robust at this bound. Tighter than near-profile, which hurts embedding quality. |
 | `DETECTOR_QUALITY_MIN`     | 0.75  | New. Quality-gate floor on RetinaFace `det_score`. Catches mis-detections (hands, occluded faces, low light) before they enrol. Distinct from `DETECTOR_MIN_SCORE = 0.5` which is the admission floor inside `detect_faces` and stays permissive so Patrol still sees marginal frames. |
 
-Tag 13 substitutes the heuristic 30 (and the other three thresholds)
-with an empirical CDF over a 30-selfie histogram — see EVALUATION.md
-backlog "Quality-gate calibration". Production-grade alternative
-remains SDD-FIQA / CR-FIQA (also documented in EVALUATION.md).
+Tag 13 EVALUATION.md backlog "Quality-gate calibration" replaces
+`blur_var` on the gate with **CR-FIQA** (production-grade learned
+face-image-quality score), evaluated against a `det_score`-only
+baseline on the 30-selfie corpus. If CR-FIQA shows a materially
+wider FRR/FAR margin than `det_score` alone, the gate gets that
+axis back — as a learned score, not as a Laplacian threshold.
 
 ### Operator-facing reason copy
 
-The reason-code surface to the UI is `too_blurry`, mapped in
-`client/src/lib/qualityReasons.ts` to:
+Post-D-017 reason codes surfaced to the UI:
 
-> **Eye region looks soft.** Argus measures sharpness on the eye
-> region — the depth plane that should always be in focus. Common
-> causes: motion at the moment of capture, focus point landing on
-> the background instead of the face, or thick glasses reflecting
-> the light source.
+| Code                       | Meaning                                                  |
+| -------------------------- | -------------------------------------------------------- |
+| `no_face`                  | RetinaFace returned no detections                        |
+| `multiple_faces`           | More than one face in an enrolment photo                 |
+| `face_too_small`           | Short bbox edge < 112 px                                 |
+| `pose_extreme`             | \|yaw\| > 55°                                            |
+| `low_confidence_detection` | RetinaFace `det_score` < 0.75                            |
 
-The pre-v2 copy ("smartphone front-cams apply heavy smoothing that
-the blur gate reads as out-of-focus") was a workaround for the
-bbox metric's false-positive on Portrait Mode and is obsolete.
+The legacy `too_blurry` code is retired with D-017 — the server no
+longer emits it. The client's `describeReason` fallback surfaces
+the raw code if it ever appears in an old fusion report.
 
 ---
 

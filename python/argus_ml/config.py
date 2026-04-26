@@ -42,16 +42,16 @@ class Settings(BaseSettings):
     # ── Quality gate (rejected enrolment photos = a hard 422) ────────────
     # Minimum face size in pixels (shorter bbox edge).
     QUALITY_MIN_FACE_PX: int = Field(default=112, gt=0)
-    # Minimum Laplacian variance on the EYE REGION (1.6×iod horizontal ×
-    # 1.0×iod vertical, centred on the eye midpoint). 30 is the final
-    # iteration after empirical observation on real iPhone computational-
-    # photography selfies, which produce eye-region variance ~80–200
-    # despite passing visual inspection. Earlier values (150 in v2, 40 in
-    # v1, 80 in Tag 4) were too strict for modern smartphone output.
-    # See DECISIONS.md D-016 for the full calibration history; Tag 13
-    # substitutes with an empirical threshold from a 30-selfie histogram
-    # (EVALUATION.md backlog "Quality-gate calibration").
-    QUALITY_MIN_BLUR_VAR: float = Field(default=30.0, gt=0)
+    # Laplacian-variance gate disabled per D-017. Default 0.0 means the
+    # `too_blurry` reason never triggers — `_eye_region_blur_var` still
+    # runs and the result lands in the metrics dict for the Tag 13 FIQA
+    # benchmark, but it is not a gate dimension anymore. The full
+    # iteration history (Tag 4 full-bbox / D-015 v1 central-60% / D-015
+    # v2 eye-region / D-016 threshold-relax / D-017 disabled) lives in
+    # DECISIONS.md. Set > 0 only to re-enable for legacy DSLR-class
+    # inputs where the discriminative range is wider than the ~5–15
+    # points we measure on modern smartphone output.
+    QUALITY_MIN_BLUR_VAR: float = Field(default=0.0, ge=0)
     # Maximum absolute yaw in degrees (0 = frontal; ±90 = profile).
     # 55° gives more pose tolerance than the conservative 45° default
     # without admitting near-profile shots that hurt embedding quality.

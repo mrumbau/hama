@@ -724,3 +724,102 @@ exactly what the Tag 13 EVALUATION.md backlog and the production
 FIQA recommendation are scoped against.
 
 ---
+
+## D-017 — Laplacian-blur axis removed from the quality gate (final)
+
+**Date:** 2026-04-26 (same-day amendment to D-016)
+**Ground-truth datapoint that decided it:** A clean, frontal,
+well-lit iPhone enrolment selfie — visually indistinguishable from
+any defensible reference photo — measures `blur_var = 35` on the
+eye region. The post-D-016 threshold sits at 30. The same selfie
+measures `det_score = 0.81`, comfortably above the 0.75 quality
+floor introduced in D-016.
+
+**The full iteration ladder:**
+
+| Iteration | Crop region                    | `QUALITY_MIN_BLUR_VAR` | What it tried to fix                                                                  |
+| --------- | ------------------------------ | ---------------------- | ------------------------------------------------------------------------------------- |
+| Tag 4     | Full bbox                      | 80                     | Initial DSLR-calibrated heuristic                                                     |
+| D-015 v1  | Central 60% × 60%              | 40                     | Hair / wall edges in the bbox margin inflated variance independently of face sharpness |
+| D-015 v2  | Eye region (1.6×iod × 1.0×iod) | 150                    | Portrait-Mode bokeh contaminated even the central-60% crop                            |
+| D-016     | Eye region (unchanged)         | 30                     | Real iPhone computational-photography selfies measure ~80–200; 150 was over-rejecting |
+| **D-017** | **disabled**                   | **0.0**                | **The discriminative range is too narrow to be a useful classifier on this input distribution** |
+
+**Why D-016's threshold was the wrong tool, not the wrong number:**
+Each iteration narrowed the algorithm against the previous failure
+mode and lowered the threshold to compensate. By D-016 the threshold
+sat at 30, and the ground-truth observation made the underlying
+problem visible: the **range** of `blur_var` between "sharp,
+visually unimpeachable" (35) and "slightly soft, would not enrol"
+(20-25 in the same operator's hand-labelled set) is only ~5–15
+points. That is not a robust classification boundary — it is a
+boundary that would flip on noise, on cropping resolution, on JPEG
+quantisation. The Laplacian variance of an eye-region crop carries
+real information about sharpness, but on the modern computational-
+photography input distribution the **signal-to-noise ratio of the
+threshold decision** is too low for a hard reject.
+
+By contrast `det_score` separates the same operator's labelled set
+with a much wider margin: 0.81+ for clean enrolment selfies, sub-0.6
+for hand / occluded / extreme-low-light frames the gate should
+actually reject. The D-016 floor at 0.75 already covers every
+failure mode the blur axis was reaching for — only with a wider
+margin and without the false-positive risk on real selfies.
+
+**What I changed:**
+
+1. **`QUALITY_MIN_BLUR_VAR` set to 0.0** in `argus_ml/config.py`
+   with `ge=0` (was `gt=0`). 0.0 is a sentinel: the gate check
+   `f.blur_var < s.QUALITY_MIN_BLUR_VAR` can now never fire because
+   `blur_var ≥ 0` by construction. Set the env var to a positive
+   value to re-enable the gate for legacy DSLR-class inputs where
+   the discriminative range is wider.
+
+2. **`quality.py` reasons-list path no longer appends `too_blurry`.**
+   The `_eye_region_blur_var` helper still runs inside `_to_detected`
+   in `face.py` and the resulting variance still lands in
+   `metrics["blur_var"]` for every enrolment attempt. That metric
+   feeds the Tag 13 FIQA benchmark — we keep the data flowing so the
+   replacement evaluation has empirical material.
+
+3. **`qualityReasons.ts` drops the `too_blurry` entry.** The server
+   no longer emits this code; the existing `describeReason` fallback
+   surfaces any legacy code that might appear in old fusion reports.
+
+4. **Tests.** `test_too_blurry` and
+   `test_gaussian_blurred_eye_region_drives_gate_to_too_blurry` are
+   `@pytest.mark.skip(reason="disabled per D-017, kept for Tag 13
+   FIQA benchmark")` — they will be re-enabled in the FIQA
+   evaluation against a learned face-image-quality score.
+   `test_multiple_reasons_combined` is updated to the post-D-017
+   reason set (face_too_small + pose_extreme +
+   low_confidence_detection). A new
+   `test_blur_var_does_not_drive_gate_post_d017` locks in the
+   contract that a low `blur_var` no longer fails the gate but still
+   surfaces in metrics.
+
+**The remaining gate is layered:** face count, face size,
+pose-yaw, det_score. All four have wider discriminative margins
+than the Laplacian variance had on the same input distribution.
+
+**Defence framing.** _"The quality gate iterated through three
+algorithmic variants of the Laplacian blur measurement (full bbox,
+central-60% crop, eye-region crop) and three threshold values before
+I had ground-truth measurements showing the discriminative range was
+~5–15 variance points between accepted and rejected examples. That
+is too narrow to be a useful classifier on the modern computational-
+photography input distribution; the same failure modes are caught by
+`det_score` with a much wider margin. The blur metric is retained as
+a metric in the report — it feeds the Tag 13 evaluation against
+CR-FIQA, where the question is whether a learned face-image-quality
+network has a wider discriminative margin than `det_score` alone on
+the same inputs."_
+
+**What gets re-enabled and when:** Tag 13 EVALUATION.md, "Quality-
+gate calibration", evaluates CR-FIQA on the 30-selfie corpus,
+with ROC against a `det_score`-only baseline. If CR-FIQA shows a
+materially better FRR/FAR trade-off than `det_score` alone, the
+gate gets that extra axis back — but as a learned score, not as a
+hand-tuned Laplacian threshold.
+
+---

@@ -14,16 +14,34 @@ verified.
 
 ---
 
-## [BACKLOG] Quality-gate calibration (Tag 13, drives D-015 closure)
+## [BACKLOG] CR-FIQA evaluation vs `det_score`-only baseline (Tag 13, drives D-017 closure)
 
 ### Why it exists
 
-The quality gate's three thresholds — `QUALITY_MIN_FACE_PX=112`,
-`QUALITY_MIN_BLUR_VAR=40` (post-D-015), `QUALITY_MAX_POSE_YAW_DEG=45`
-— are heuristics. The blur threshold in particular was originally
-tuned for DSLR-class sources and over-rejected smartphone selfies
-that ArcFace embeds robustly. D-015 lowered the default from 80 to
-40 based on a small sample; Tag 13 substitutes empirical evidence.
+The Laplacian-blur axis was retired in **D-017** after four
+iterations (Tag 4 full-bbox / D-015 v1 central-60% / D-015 v2
+eye-region / D-016 threshold-relax) all converged on the same
+ceiling: the discriminative range between "sharp" and "slightly
+soft" on modern computational-photography output is only ~5–15
+variance points — too narrow for a hard-reject classifier. The
+post-D-017 gate keeps four layered axes: `face_size`, `pose_yaw`,
+`det_score`, and the implicit `face_count` check.
+
+The open question for Tag 13 is whether a **learned face-image-
+quality network** has a wider discriminative margin on the same
+input distribution than `det_score` alone. If yes, the gate gets a
+fifth axis — but as a learned score, not as a hand-tuned Laplacian
+threshold.
+
+### Candidate replacement
+
+- **CR-FIQA** (Certainty-Ratio FIQA, CVPR 2023) — predicts the
+  certainty ratio of a face's similarity to its own class against
+  impostor classes. Outperforms SDD-FIQA at fixed FAR on the
+  standard FIQA benchmarks. ~5-10 MB ONNX, runs in the same Python
+  worker alongside buffalo_l.
+- **SDD-FIQA** (Stochastic Embedding Robustness, FG 2021) —
+  predecessor; included as a secondary baseline for the ROC plot.
 
 ### Method
 
@@ -32,49 +50,45 @@ that ArcFace embeds robustly. D-015 lowered the default from 80 to
    indoor + outdoor, with-glasses and without, range of skin tones
    and ages.
 2. For each photo, log:
-   - `blur_var` from `face._laplacian_blur_var` on the central-60%
-     bbox crop (the post-D-015 metric)
+   - `det_score` from RetinaFace
+   - `blur_var` from `face._eye_region_blur_var` (already in
+     `metrics["blur_var"]` post-D-017 — kept for this exact purpose)
+   - **CR-FIQA score** from the loaded ONNX model
+   - **SDD-FIQA score** for comparison
    - operator's manual label: "good photo" vs "I would not enrol this"
    - downstream cosine similarity to a paired reference photo of
      the same person (proxy for ArcFace robustness)
-3. Plot the histogram of `blur_var` per label class. Pick the
-   threshold at the 5th percentile of the "good" class — minimises
-   FRR (false-reject rate) on photos a human operator wants to
-   enrol.
-4. Cross-check: the rejected "bad" photos must also show degraded
-   cosine similarity (`< 0.7`) — otherwise the gate is rejecting
-   photos the recogniser would have handled fine.
+3. Plot ROC curves on the binary "good vs bad" task for four
+   classifiers:
+   - `det_score`-only (the post-D-017 baseline)
+   - `blur_var`-only (the retired Laplacian axis, for reference)
+   - `cr_fiqa`-only
+   - `sdd_fiqa`-only
+4. **Decision criterion.** CR-FIQA must beat the `det_score`
+   baseline by a measurable margin (AUC ≥ +0.03, or FRR @ FAR=1%
+   reduced by ≥ 25%) to justify adding it to the gate. If CR-FIQA
+   only matches `det_score`, the gate stays at four axes — the cost
+   of a new model load is not worth a marginal AUC improvement.
 
 ### Output artefacts (committed to `docs/figures/`)
 
-- `quality_blur_histogram.png` — overlaid histograms of
-  `blur_var` per label, with the chosen threshold drawn as a
-  vertical line.
-- `quality_blur_vs_cosine.png` — scatter of `blur_var` against
-  cosine-similarity-to-reference. Confirms the chosen threshold
-  is on the correct side of the recogniser-robustness drop-off.
+- `quality_roc_per_axis.png` — overlaid ROC curves for the four
+  candidate signals on the operator-labelled set. Headline figure.
+- `quality_score_vs_cosine.png` — scatter of each candidate score
+  against cosine-similarity-to-reference. Confirms the score is on
+  the correct side of the recogniser-robustness drop-off.
+- `quality_axis_decision.md` — one-paragraph defence note recording
+  the AUC / FRR numbers and the resulting gate decision (axis added
+  vs declined).
 
-### Production alternative (defence-of-the-defence)
+### Production framing (defence-of-the-defence)
 
-A heuristic Laplacian variance is the simplest face-quality signal
-that runs without a model. Production-grade recognition systems use
-**face-image-quality** networks trained end-to-end against
-recogniser robustness:
-
-- **SDD-FIQA** (Stochastic Embedding Robustness, FG 2021) — small
-  net that scores a cropped face on its expected ArcFace robustness.
-  Trained using stochastic embedding sampling — no human label
-  needed.
-- **CR-FIQA** (Certainty-Ratio FIQA, CVPR 2023) — successor that
-  predicts the certainty ratio of a face's similarity to its own
-  class against impostor classes; has lower FRR than SDD-FIQA at
-  fixed FAR on the standard benchmarks.
-
-Either of these would replace `_laplacian_blur_var` + the
-`QUALITY_MIN_BLUR_VAR` threshold with a single predicted score.
-They are model-based (~5-10 MB ONNX), so they would land alongside
-buffalo_l in the InsightFace folder and run in the same Python
-worker. See D-015 for the architectural acceptance.
+This is the explicit "iterate until you have evidence to commit"
+loop the project plan §13 calls for. Four heuristic iterations on
+Laplacian variance produced enough data to falsify the approach;
+the next change is gated on a learned score outperforming the
+existing `det_score` axis on real measurements, not on intuition
+about which algorithm "should" be better.
 
 ---
 
