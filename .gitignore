@@ -8,7 +8,7 @@
 node_modules/
 dist/
 .turbo/
-.tsbuildinfo
+*.tsbuildinfo
 *.log
 npm-debug.log*
 yarn-debug.log*
