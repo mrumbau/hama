@@ -160,6 +160,73 @@ This means the frontend has **two channels**:
 
 ---
 
+## ADR-5 — RLS as the second line of defence
+
+**Status:** accepted (2026-04-25)
+
+### Context
+
+Plan §4 puts the frontend on two channels: `supabase-js` with the anon key
+for "boring" reads/writes, and `fetch /api/*` with a Supabase JWT for
+anything that needs ML inference, external APIs, or business logic. The
+Express orchestrator authenticates with the **service-role key**, which
+bypasses RLS, so the orchestrator can write any row on behalf of any
+operator.
+
+This means the anon key reaches the browser. It is in the bundled JS, in
+DevTools, in the Network tab. We must assume an attacker has it.
+
+### Decision
+
+**Every public-schema table runs with `ENABLE ROW LEVEL SECURITY` and
+`FORCE ROW LEVEL SECURITY`.** The default behaviour is therefore deny.
+Policies are written one per concern, scoped to the `authenticated` role
+explicitly:
+
+| Table             | SELECT                                  | INSERT / UPDATE / DELETE                                                                |
+| ----------------- | --------------------------------------- | --------------------------------------------------------------------------------------- |
+| `profiles`        | authenticated (read all)                | INSERT via on-signup trigger only · UPDATE own only, cannot self-promote · DELETE never |
+| `poi`             | authenticated (active rows + admin all) | service-role only                                                                       |
+| `face_embeddings` | authenticated (read all)                | service-role only                                                                       |
+| `events`          | authenticated (read all)                | UPDATE only `operator_id = auth.uid()` or admin · INSERT/DELETE service-role            |
+| `fusion_reports`  | authenticated (own + admin all)         | service-role only                                                                       |
+| `fusion_layers`   | authenticated, gated by parent report   | service-role only                                                                       |
+| `storage.objects` | authenticated (the three Argus buckets) | service-role only                                                                       |
+
+A SECURITY-DEFINER `is_admin()` function inside the policies reads the
+caller's `profiles.role`. Profiles are auto-created by an `on_auth_user_created`
+trigger when Supabase Auth signs a new user up, defaulting to
+`role = 'operator'` — never `admin`.
+
+### Consequences
+
+- A compromised anon key cannot insert face_embeddings, write events, or
+  read another operator's fusion reports. The blast radius is reduced to
+  what authenticated reads expose, which is intentional (the operator UI
+  reads the same shared data via supabase-js for realtime).
+- A compromised authenticated session (an operator stolen via XSS) can
+  only resolve their own pending events, not someone else's, and cannot
+  read someone else's sniper reports.
+- The Express service-role connection bypasses RLS by design. RLS is not
+  meant to defend against the orchestrator — the orchestrator is the
+  privileged actor. RLS defends the _path through the browser_.
+- This is testable. `tests/rls.test.ts` runs against the live Supabase
+  project on every `pnpm test`, attempts INSERTs with the anon-key client,
+  and asserts they fail. If a future migration adds a table without a
+  policy, the failing test catches it.
+
+### Verification (Tag 3 gate, completed 2026-04-25)
+
+- 8 RLS policies installed across 6 tables + 1 storage policy.
+- HNSW index `face_embeddings_hnsw_cosine` present.
+- 4 RLS tests passing against live Supabase: anon cannot insert
+  face_embeddings, events, poi; anon SELECT poi returns no rows.
+- 5 JWT middleware unit tests passing: valid token accepted, wrong-secret
+  rejected, expired rejected, malformed payload rejected, missing bearer
+  rejected.
+
+---
+
 ## ADR-8 — Vanilla CSS Modules + Radix primitives over Tailwind / shadcn
 
 **Status:** accepted (2026-04-25)
@@ -249,6 +316,5 @@ Listed here so the table of contents matches the plan.
 
 - ADR-3 — Track-then-Recognize over frame-by-frame recognition (Tag 7)
 - ADR-4 — Multiple embeddings per POI, median-of-top-K voting (Tag 5)
-- ADR-5 — RLS as second line of defence (Tag 3)
 - ADR-6 — Layer fanout with circuit breaker and cost guard (Tag 8)
 - ADR-7 — Supabase Realtime as the only push channel, also for Sniper layer streaming (Tag 9)

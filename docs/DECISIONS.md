@@ -116,3 +116,69 @@ The cost is small; the diff is loud and explicit so the deletion cannot
 be missed.
 
 ---
+
+## D-006 — Drop `auth.users` cross-schema reference from Drizzle, hand-write FKs
+
+**Date:** 2026-04-25
+**What the plan said:** Plan §7 declares FKs from `profiles.id`,
+`poi.created_by`, `events.operator_id`, `fusion_reports.requested_by` to
+`auth.users(id)`.
+**What I did:** Removed `pgSchema("auth").table("users", …)` and all
+`.references(() => authUsers.id, …)` chains from `shared/schema.ts`.
+Replaced with raw `uuid("operator_id")` etc. The FK constraints + ON DELETE
+behaviour are hand-written in `supabase/migrations/0003_foreign_keys.sql`.
+**Why:** drizzle-kit emits a `CREATE TABLE "auth"."users" ("id" uuid …)`
+when it sees the cross-schema reference, which conflicts with Supabase's
+existing `auth.users` table on `db push`. Splitting the FK out into a
+hand-written follow-up migration is cleaner than post-processing the
+generated SQL.
+**Trade-off:** The Drizzle TypeScript layer no longer knows that
+`operatorId` is FK-bound to `auth.users`. This is a documentation loss
+only — the database still enforces it, and the only consumer of the
+relationship is the SQL itself.
+
+---
+
+## D-007 — Migration runner is hand-written `scripts/db-push.ts`, not `drizzle-kit migrate`
+
+**Date:** 2026-04-25
+**What the plan said:** Plan §13 Tag 3 implies `drizzle-kit migrate`
+("`001_schema.sql` generated", "`supabase db push`").
+**What I did:** Wrote a small idempotent runner in `scripts/db-push.ts`
+that applies every `supabase/migrations/*.sql` file in lexicographic
+order, tracking applied filenames + sha256 in a `__argus_migrations`
+journal table. Re-running is a no-op; content drift on an already-applied
+file fails fast.
+**Why:** Half of the migrations are hand-written (extensions, FK to
+auth.users, RLS policies, HNSW index, storage buckets) and drizzle-kit
+only owns the schema diff. Two journals fighting each other is worse
+than one runner that owns everything.
+**Trade-off:** No automatic down-migrations (the runner is forward-only).
+For a uni project this is fine — the demo's reset path is "drop the
+Supabase project, re-create, re-run db-push.ts". The migration set
+takes ~3 seconds to re-apply against a fresh Supabase project.
+
+---
+
+## D-008 — `pg.Pool` connects with `ssl: { rejectUnauthorized: false }`
+
+**Date:** 2026-04-25
+**What the plan said:** Nothing explicit; plan §9 lists three Supabase
+keys and rate-limit posture but does not pin TLS verification mode.
+**What I did:** `server/src/db.ts` constructs the pool with
+`ssl: { rejectUnauthorized: false }`. Connection still uses TLS, but the
+client does not verify the certificate chain.
+**Why:** Supabase's pooler ships an intermediate cert chain that Node's
+default trust store does not include, and bundling Supabase's CA in-repo
+is brittle (rotates). Without this setting, the server fails to reach
+Postgres on Node 20+/25 with `self-signed certificate in certificate
+chain`. The connection string already carries the password, so a passive
+MITM cannot decrypt traffic.
+**Trade-off:** An active MITM with the ability to sit between the server
+and Supabase could, in theory, intercept traffic. In our deployment
+topology (server runs in Docker, talks to Supabase over the public
+internet), this is the same threat profile as `psql` against the same
+project. Tag 14 SECURITY.md documents the choice and the path to
+strict verification (bundle a CA cert in production builds).
+
+---

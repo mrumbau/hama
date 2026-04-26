@@ -19,20 +19,26 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "depcheck": "pnpm -r exec depcheck",
-    "test": "pnpm -r run test"
+    "test": "pnpm -r run test",
+    "db:push": "tsx scripts/db-push.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@types/node": "^20.19.27",
+    "@types/pg": "^8.11.10",
     "depcheck": "^1.4.7",
+    "dotenv": "^17.3.1",
     "eslint": "^9.17.0",
     "eslint-plugin-react": "^7.37.4",
     "eslint-plugin-react-hooks": "^5.1.0",
     "globals": "^15.14.0",
     "husky": "^9.1.7",
     "lint-staged": "^15.3.0",
+    "pg": "^8.18.0",
     "prettier": "^3.4.2",
     "stylelint": "^16.12.0",
     "stylelint-config-standard": "^36.0.1",
+    "tsx": "^4.21.0",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.2"
   },

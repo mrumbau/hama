@@ -1,0 +1,137 @@
+/* Custom login form — explicitly NOT @supabase/auth-ui-react. data-theme="light". */
+
+.page {
+  min-height: 100dvh;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+}
+
+.card {
+  width: 100%;
+  max-width: 24rem;
+  background: var(--color-bg-raised);
+  border: var(--border-hairline) solid var(--color-border);
+  border-radius: var(--radius-2);
+  padding: var(--space-7);
+  display: grid;
+  gap: var(--space-6);
+}
+
+.brand {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-fg-subtle);
+}
+
+.title {
+  font-family: var(--font-serif);
+  font-size: var(--text-2xl);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+  margin: 0;
+}
+
+.form {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-fg-muted);
+}
+
+.input {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  padding: var(--space-3);
+  background: var(--color-bg);
+  color: var(--color-fg);
+  border: var(--border-hairline) solid var(--color-border);
+  border-radius: var(--radius-1);
+  transition: border-color var(--motion-normal) var(--ease-out);
+}
+
+.input:hover {
+  border-color: var(--color-border-strong);
+}
+
+.input:focus-visible {
+  outline: 0;
+  border-color: var(--color-fg);
+}
+
+.fieldError {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--color-status-fail);
+  margin: 0;
+}
+
+.submit {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: var(--text-base);
+  padding: var(--space-3);
+  background: var(--color-fg);
+  color: var(--color-bg);
+  border: 0;
+  border-radius: var(--radius-2);
+  cursor: pointer;
+  transition:
+    transform var(--motion-fast) var(--ease-out),
+    background-color var(--motion-normal) var(--ease-out);
+}
+
+.submit:hover:not(:disabled) {
+  background: var(--mono-700);
+}
+
+.submit:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.submit:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+.formError {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--color-status-fail);
+  background: transparent;
+  border-left: var(--border-strong) solid var(--color-status-fail);
+  padding-left: var(--space-3);
+  margin: 0;
+}
+
+.backLink {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-fg-subtle);
+  text-decoration: none;
+  text-align: center;
+  display: block;
+  margin-top: var(--space-2);
+  transition: color var(--motion-normal) var(--ease-out);
+}
+
+.backLink:hover {
+  color: var(--color-fg);
+}

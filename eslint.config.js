@@ -50,4 +50,12 @@ export default [
       globals: { ...globals.node },
     },
   },
+
+  {
+    // CLI scripts use console output as their UX. Allow it explicitly.
+    files: ["scripts/**/*.ts"],
+    rules: {
+      "no-console": "off",
+    },
+  },
 ];

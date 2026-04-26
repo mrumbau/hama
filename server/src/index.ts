@@ -1,25 +1,93 @@
-// Argus server bootstrap.
-//
-// Day 1 stub: enough to start, prove the workspace boots, prove env loading works.
-// Tag 3 replaces this with full middleware pipeline:
-//   helmet · pino-http · cors · JWT verify · /api/* routers · error handler.
+/**
+ * Argus server bootstrap.
+ *
+ * Tag 3: foundational middleware pipeline + auth wiring + /api/health,
+ * /api/me. Tag 5+ adds the routers (poi, recognize, sniper, events).
+ */
 
-import "dotenv/config";
 import express from "express";
+import helmet from "helmet";
+import pinoHttp from "pino-http";
+
+import { env } from "./env.js";
+import { logger } from "./lib/pino.js";
+import { pingDb } from "./db.js";
+import { requireAuth } from "./auth/jwt.js";
 
 const app = express();
-const PORT = Number(process.env.PORT ?? 5000);
 
-app.get("/api/health", (_req, res) => {
+// ── Security & logging ─────────────────────────────────────────────────────
+app.use(helmet());
+app.use(
+  pinoHttp({
+    logger,
+    customLogLevel: (_req, res) =>
+      res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info",
+    serializers: {
+      req: (req) => ({ id: req.id, method: req.method, url: req.url }),
+      res: (res) => ({ statusCode: res.statusCode }),
+    },
+  }),
+);
+
+// ── Body parsers ───────────────────────────────────────────────────────────
+// Plan §9 tightens the JSON limit relative to the predecessor (25MB →
+// reasonable values per route). Fusion-report image uploads go straight to
+// Supabase Storage, never through Express. JSON requests stay small.
+app.use(express.json({ limit: "1mb" }));
+
+// ── Public endpoints (no auth) ─────────────────────────────────────────────
+app.get("/api/health", async (_req, res) => {
+  try {
+    const ping = await pingDb();
+    res.json({
+      ok: true,
+      service: "argus-server",
+      day: 3,
+      env: env.NODE_ENV,
+      db: ping,
+    });
+  } catch (err) {
+    logger.error({ err }, "health: db ping failed");
+    res.status(503).json({ ok: false, error: "db_unreachable" });
+  }
+});
+
+// ── Authenticated endpoints ────────────────────────────────────────────────
+app.use("/api", requireAuth);
+
+app.get("/api/me", (req, res) => {
   res.json({
-    ok: true,
-    service: "argus-server",
-    version: process.env.npm_package_version ?? "0.1.0",
-    day: 1,
+    sub: req.auth!.sub,
+    email: req.auth!.email,
+    role: req.auth!.role,
   });
 });
 
-app.listen(PORT, "127.0.0.1", () => {
-  // eslint-disable-next-line no-console
-  console.log(`[argus-server] listening on http://127.0.0.1:${PORT}`);
+// ── 404 + error handler ────────────────────────────────────────────────────
+app.use("/api", (_req, res) => {
+  res.status(404).json({ error: "not_found" });
 });
+
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  logger.error({ err }, "unhandled error");
+  res.status(500).json({ error: "internal_error" });
+});
+
+// ── Listen ─────────────────────────────────────────────────────────────────
+const server = app.listen(env.PORT, "127.0.0.1", () => {
+  logger.info({ port: env.PORT }, "argus-server listening");
+});
+
+// ── Graceful shutdown ──────────────────────────────────────────────────────
+function shutdown(signal: string) {
+  logger.info({ signal }, "shutting down");
+  server.close(() => {
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(1), 5_000).unref();
+}
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+
+export { app };
