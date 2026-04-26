@@ -994,3 +994,130 @@ greppable, testable, and reviewable on its own.
   scope).
 
 ---
+
+## D-020 — Tag 8b: Sniper external layers + parallel fan-out + Reality Defender real-mode
+
+**Date:** 2026-04-26
+**Why a D-entry:** ADR-6 records the parallel fan-out architecture;
+D-020 records the **shape** of each external layer's wire contract,
+the per-call cost numbers, and the breaker-failure-counting decision
+that wasn't obvious from the architecture diagram alone.
+
+### What landed in 8b
+
+1. **External clients**
+   - `external/serpapi.ts` — Google Lens reverse-image search.
+     One call per Sniper run with `engine=google_lens`. The query
+     image is passed as a 5-minute Supabase signed URL (server-side
+     fetch by SerpAPI; even if the URL leaks the TTL beats abuse).
+   - `external/picarta.ts` — `/api/v1/picarta` POST with image
+     base64 + `TOP_K=5`. Maps `ai_country/region/city/gps/confidence`
+     plus `topk[]` to the `GeographicPayload` schema.
+   - `external/reality-defender.ts` — real-mode promoted from the
+     "throws not_implemented" stub to the full async flow:
+     `POST /api/files/aws-presigned` → S3 PUT → poll
+     `GET /api/media/users/{requestId}` until status leaves
+     `ANALYZING`. Total wall-clock bounded by `REALITY_DEFENDER_
+     TIMEOUT_MS` (default 20 s); poll cadence 1 s. Status mapping:
+     `AUTHENTIC → authentic`, `FAKE | ARTIFICIAL | MANIPULATED →
+     deepfake`, anything else `→ uncertain`.
+
+2. **Layer modules**
+   - `orchestrator/layers/web-presence.ts` — wraps
+     `googleLensReverseSearch`, maps to `WebPresencePayload.hits[]`.
+   - `orchestrator/layers/geographic.ts` — wraps
+     `predictLocation`, maps to `GeographicPayload`.
+   - `orchestrator/layers/authenticity.ts` — wraps
+     `checkAuthenticity` (hits the existing mock-or-real switch),
+     maps to `AuthenticityPayload`.
+
+3. **Orchestrator parallel fan-out**
+   `runSniperReport` now dispatches all four layers via
+   `Promise.allSettled`. Layer 1 keeps the direct path
+   (`runWithStateUpdate`) — no breaker, no cost guard. Layers 2-4
+   route through `runGuardedExternalLayer`, which:
+   - checks `getCircuitBreaker(service).inspect()` — if `open`, skip
+     the upstream and record `error_message="circuit_open"`;
+   - calls `chargeOrReject(operatorId, service, costEur)` — if
+     rejected, skip and record
+     `error_message="cost_guard_exceeded:0.30/0.50eur"` (numbers
+     surface to the operator UI for budget transparency);
+   - invokes the layer through `breaker.run` with a wrapper that
+     **converts `kind: "failed"` returns into thrown errors** so the
+     breaker counts a single failure regardless of whether the layer
+     module signalled the problem by throwing or by returning a typed
+     failure outcome. Without this wrapper, only thrown exceptions
+     would have counted, and a SerpAPI 502 → SerpApiError →
+     `kind: "failed"` would have left the breaker oblivious.
+
+4. **Per-call cost defaults** in `env.ts` (overridable via env):
+   - `LAYER_COST_WEB_PRESENCE_EUR=0.02` — SerpAPI's $50/month for
+     5,000 queries works out to ~$0.01/query; charging 2× builds in
+     headroom for billing-time price drift.
+   - `LAYER_COST_GEOGRAPHIC_EUR=0.01` — Picarta's free 10 credits
+     plus pay-as-you-go are sub-cent per call; conservative.
+   - `LAYER_COST_AUTHENTICITY_EUR=0.10` — Reality Defender pricing
+     is enterprise-quoted; €0.10/scan is a placeholder until we have
+     the real bill.
+
+### Tactical decisions worth recording
+
+1. **The `breaker.run` wrapper that throws on `kind: "failed"`.** The
+   layer-module contract returns `LayerOutcome<T>` (kind: done|failed)
+   for ergonomics — no try/catch noise at the call site. But that
+   contract hides upstream failures from the breaker, which only
+   counts thrown exceptions. The wrapper bridges the two: layer
+   modules stay clean, the breaker still trips after N upstream
+   failures. The escape hatch (`LayerFailedError` carries the
+   layer's reason + latency) keeps the recorded `error_message`
+   honest about what actually went wrong.
+2. **`Promise.allSettled` over `Promise.all`.** A single layer's
+   thrown exception cannot poison the report. Each per-layer
+   dispatcher catches internally and records to the `fusion_layers`
+   row before returning. `allSettled` is a defence in depth — if a
+   dispatcher itself crashes, the others still finish.
+3. **5-minute signed URL for SerpAPI**, not a longer one. Trade-off
+   between leak resistance and SerpAPI's internal retry budget. 5
+   min is comfortable for the documented retry behaviour and short
+   enough that a leaked URL becomes worthless before any abuser can
+   re-fetch.
+4. **Picarta input is base64 in JSON, not multipart.** Their docs
+   show both. JSON is one less dependency (no FormData handling
+   server-side) and the few-hundred-KB images fit in the Express
+   1 MB JSON limit comfortably (Picarta accepts the image as a
+   string field).
+5. **RD failed-status mapping treats `ARTIFICIAL` as deepfake.** RD
+   distinguishes "GAN-derived artificial" from "manipulated real
+   photo" but the operator UI doesn't need that resolution — both
+   should fail enrolment. `MANIPULATED` is the same. `UNKNOWN` /
+   anything else falls through to `uncertain` so a partial RD
+   response doesn't masquerade as authentic.
+
+### What did NOT land in 8b (intentional)
+
+- **Bing reverse + Google Reverse engines.** Layer 2 currently runs
+  only Google Lens. Adding the other two engines is one fetch each;
+  deferred to Tag 13 (or a Tag 9 Sniper UI iteration) once we know
+  which signals matter for the demo. The cost-guard charge would
+  triple (3× €0.02 = €0.06) so the headroom math also moves.
+- **Reality Defender circuit-breaker calibration.** RD has a longer
+  inherent latency (poll up to 20 s) than SerpAPI/Picarta. The same
+  `CIRCUIT_BREAKER_FAILURE_THRESHOLD=3` applies; if false-trips
+  happen in the demo we'll bump RD's threshold higher via per-
+  service overrides. Not a blocker today.
+- **Sniper UI** (Tag 9 — the four-column dashboard). The backend
+  contract is now stable — Tag 9 reads from Realtime + the GET
+  endpoint and renders.
+
+### Tests
+
+- 5 SerpAPI + 3 Picarta + 3 new RD-real-mode (5 existing mock-mode
+  preserved) + 2 sniper integration (happy path + partial-failure
+  via stubbed SerpAPI 502).
+- Total: **56 vitest passed**, up from 45 pre-Tag-8b.
+- The partial-failure test is the audit-correctness anchor: it
+  proves the report finalises to `failed` when one layer fails but
+  the other three layers' results are still recorded with full
+  payloads — no all-or-nothing dropout.
+
+---

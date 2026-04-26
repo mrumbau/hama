@@ -148,19 +148,32 @@ the raw code if it ever appears in an old fusion report.
 
 ---
 
-## External API cost ceilings (Tag 8a — DB-backed)
+## External API cost ceilings (Tag 8b — live)
 
-The cost guard (Tag 8a, ADR-6) caps each operator's per-UTC-day
-external-API spend at `COST_GUARD_DAILY_EUR` (server/.env, default
-**€2.00**). The library is wired (`lib/cost-guard.ts`) and tested but
-no orchestrator path calls it yet — Tag 8b's Layer 2/3/4 dispatch
-will be the first caller.
+The cost guard (ADR-6) caps each operator's per-UTC-day external-API
+spend at `COST_GUARD_DAILY_EUR` (server/.env, default **€2.00**).
+Every Sniper-Mode Layer 2/3/4 call routes through `chargeOrReject`
+before the upstream is invoked; rejection marks the layer
+`failed` with `error_message="cost_guard_exceeded:<spent>/<cap>eur"`.
 
-| Service          | Free tier            | Cost-guard service id | Default per-call cost |
-| ---------------- | -------------------- | --------------------- | --------------------- |
-| Reality Defender | 50 scans / month     | `reality_defender`    | mock = 0.00 € · real  |
-| SerpAPI          | 100 searches / month | `serpapi`             | TBD (Tag 8b)          |
-| Picarta          | 10 free credits      | `picarta`             | TBD (Tag 8b)          |
+| Service          | Free tier            | Layer | Cost-guard service id | Per-call default              |
+| ---------------- | -------------------- | ----- | --------------------- | ----------------------------- |
+| SerpAPI          | 100 searches / month | 2     | `serpapi`             | `LAYER_COST_WEB_PRESENCE_EUR=0.02` |
+| Picarta          | 10 free credits      | 3     | `picarta`             | `LAYER_COST_GEOGRAPHIC_EUR=0.01`   |
+| Reality Defender | 50 scans / month     | 4     | `reality_defender`    | `LAYER_COST_AUTHENTICITY_EUR=0.10` |
+
+At default cap and default per-call cost, an operator can issue
+~15 Sniper runs/day before the cap rejects (€0.02 + €0.01 + €0.10 =
+€0.13 per run × 15 ≈ €1.95). Adjust the per-call env vars or
+`COST_GUARD_DAILY_EUR` per the actual provider invoices.
+
+### Reality Defender mode toggle
+
+`RD_MOCK_MODE=true` (server/.env default) routes Layer 4 to the
+deterministic mock — no network, no quota burn. Set to
+`false` to use the real RD presigned-upload + poll flow
+(`external/reality-defender.ts`, Tag 8b). The poll cadence is 1 s,
+total wall-clock bounded by `REALITY_DEFENDER_TIMEOUT_MS=20_000`.
 
 ### Runtime behaviour
 
