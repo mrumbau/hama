@@ -639,3 +639,88 @@ without adding model weight. The gate stays a single function in
 `quality.py`, so the FIQA swap remains a one-file change.
 
 ---
+
+## D-016 — Quality-gate thresholds finalised on real smartphone photography (algorithm kept, threshold relaxed, det-score floor added)
+
+**Date:** 2026-04-26
+**Diagnosis:** Across all three earlier iterations (Tag 4: full bbox @ 80,
+D-015 v1: central-60% @ 40, D-015 v2: eye region @ 150) the
+**algorithm** improvement was real, but the **threshold** I picked each
+time was set in isolation against synthetic / DSLR-style references
+and did not match the variance distribution of modern iPhone /
+Samsung computational-photography output. On the user's actual test
+selfies the eye-region helper measures Laplacian variance in the
+**~80–200 range** for visually sharp faces — well above the v1 = 40
+threshold but well below the v2 = 150 threshold. v2 was rejecting
+photos that any human reviewer would call sharp.
+
+The earlier rejections also weren't always blur-related at all. Some
+were RetinaFace mis-detections (hand, occluded face, low light)
+returning a low-confidence bbox that the quality gate then judged as
+if it were a real face — wasting downstream embedding capacity on
+something that wasn't a face to begin with.
+
+**What I changed (final iteration):**
+
+1. **`QUALITY_MIN_BLUR_VAR` recalibrated 150 → 30.** The eye-region
+   _algorithm_ from D-015 v2 is geometrically correct (it crops the
+   in-focus depth plane regardless of Portrait / Cinematic Mode bokeh)
+   and stays. Only the threshold drops, to fit the empirically observed
+   eye-region variance distribution of real iPhone selfies. 30 is still
+   strict enough to catch deliberate motion blur — proved by the new
+   `test_gaussian_blurred_eye_region_drives_gate_to_too_blurry` test,
+   which Gaussian-blurs the eye-region rect with σ=15 and confirms the
+   gate rejects with `too_blurry`.
+
+2. **`QUALITY_MAX_POSE_YAW_DEG` 45 → 55.** Slightly more pose
+   tolerance for natural enrolment angles, without admitting near-
+   profile shots that hurt embedding quality. ArcFace 512-D is robust
+   to ±55° in our tests; we only enrol 3–5 photos per POI so a single
+   permissive pose still leaves the embedding bank well-conditioned.
+
+3. **New `DETECTOR_QUALITY_MIN = 0.75`** in `argus_ml/config.py` and a
+   matching `low_confidence_detection` reason in `quality.py`. This
+   is a separate axis from `DETECTOR_MIN_SCORE = 0.5` (the
+   admission floor inside `detect_faces` — kept permissive so Patrol
+   Mode still sees marginal webcam frames). The new floor only
+   applies inside the enrolment quality gate: any face detected at
+   `det_score ∈ [0.5, 0.75)` is admitted by the detector (visible to
+   Patrol) but rejected for enrolment. Closes the gap that all three
+   earlier blur iterations left open: a hand or partial occlusion
+   could still pass if its Laplacian variance happened to be high.
+
+4. **Operator copy.** New `qualityReasons.ts` entry for
+   `low_confidence_detection`: _"Detector unsure about face. Causes:
+   partial occlusion (mask, hand, hair across the face), extreme
+   angle, very low light, or heavy compression artifacts. Try a
+   different photo with the face fully visible and well-lit."_ The
+   `pose_extreme` hint is updated for the new ±55° bound.
+
+**Defence framing.** This is the final calibration iteration before
+Tag 13 substitutes the heuristic with an empirical CDF over a 30-
+selfie corpus (EVALUATION.md backlog). The defensible story for the
+oral defence: _"Quality gate is layered — eye-region sharpness
+(geometric + Laplacian, robust to Portrait Mode), pose tolerance
+(yaw from 5-point landmarks), face-size floor, and detector
+confidence (rejects mis-detections before they pollute the embedding
+bank). All four thresholds are heuristics calibrated against real
+smartphone output; production-grade replacement is SDD-FIQA / CR-FIQA
+as a learned face-image-quality score."_
+
+**Tests:** the synthetic GaussianBlur end-to-end test
+(`test_gaussian_blurred_eye_region_drives_gate_to_too_blurry`) plus
+two new det-score tests (`test_low_confidence_detection`,
+`test_high_confidence_detection_passes_floor`) plus the extended
+`test_multiple_reasons_combined` that exercises all four reasons
+simultaneously. All earlier eye-region tests stay green — the
+algorithm did not change.
+
+**Why not just keep raising / lowering the threshold:** I now have
+the full ladder in front of me — Tag 4 → D-015 v1 → D-015 v2 → D-016
+— and any further single-threshold change will trade FRR for FAR
+the same way. The next material improvement is replacing the
+heuristic with a learned signal, not nudging the constant. That is
+exactly what the Tag 13 EVALUATION.md backlog and the production
+FIQA recommendation are scoped against.
+
+---

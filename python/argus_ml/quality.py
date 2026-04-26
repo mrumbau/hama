@@ -6,11 +6,12 @@ operator UI can react with a precise message instead of a generic 422.
 
 Reason codes (stable strings — used by the Tag 5 enrolment UI to
 choose a specific copy block):
-  no_face            no face detected at any score
-  multiple_faces     more than one face detected
-  face_too_small     short bbox edge < QUALITY_MIN_FACE_PX
-  too_blurry         Laplacian variance < QUALITY_MIN_BLUR_VAR
-  pose_extreme       |yaw| > QUALITY_MAX_POSE_YAW_DEG
+  no_face                    no face detected at any score
+  multiple_faces             more than one face detected
+  face_too_small             short bbox edge < QUALITY_MIN_FACE_PX
+  too_blurry                 Laplacian variance < QUALITY_MIN_BLUR_VAR
+  pose_extreme               |yaw| > QUALITY_MAX_POSE_YAW_DEG
+  low_confidence_detection   det_score < DETECTOR_QUALITY_MIN
 """
 
 from __future__ import annotations
@@ -66,6 +67,8 @@ def check_quality(faces: list[DetectedFace]) -> QualityResult:
         reasons.append("too_blurry")
     if abs(f.yaw_deg) > s.QUALITY_MAX_POSE_YAW_DEG:
         reasons.append("pose_extreme")
+    if f.det_score < s.DETECTOR_QUALITY_MIN:
+        reasons.append("low_confidence_detection")
 
     return QualityResult(
         passes=not reasons,

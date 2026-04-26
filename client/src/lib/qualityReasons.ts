@@ -34,7 +34,11 @@ export const QUALITY_REASON_COPY: Record<string, QualityReasonCopy> = {
   },
   pose_extreme: {
     title: "Head turned too far",
-    hint: "Look directly at the camera. The gate accepts up to ±45° yaw — hold a frontal angle.",
+    hint: "Look directly at the camera. The gate accepts up to ±55° yaw — hold a near-frontal angle.",
+  },
+  low_confidence_detection: {
+    title: "Detector unsure about face",
+    hint: "Causes: partial occlusion (mask, hand, hair across the face), extreme angle, very low light, or heavy compression artifacts. Try a different photo with the face fully visible and well-lit.",
   },
 };
 

@@ -98,16 +98,25 @@ bbox metric incorrectly rejected.
 
 ### Threshold drift across iterations
 
-| Day      | Crop region                    | `QUALITY_MIN_BLUR_VAR` | Reason for the change                                                                                    |
-| -------- | ------------------------------ | ---------------------- | -------------------------------------------------------------------------------------------------------- |
-| Tag 4    | Full bbox                      | 80                     | Initial DSLR-calibrated heuristic                                                                        |
-| D-015 v1 | Central 60% × 60%              | 40                     | Smartphone selfies were rejected at 80; the central crop excluded hair/wall edges that inflated variance |
-| D-015 v2 | Eye region (1.6×iod × 1.0×iod) | 150                    | Portrait Mode bokeh contaminated even the central-60% crop; the eye region is guaranteed in-focus        |
+| Day      | Crop region                    | `QUALITY_MIN_BLUR_VAR` | Reason for the change                                                                                                                                                                       |
+| -------- | ------------------------------ | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tag 4    | Full bbox                      | 80                     | Initial DSLR-calibrated heuristic                                                                                                                                                           |
+| D-015 v1 | Central 60% × 60%              | 40                     | Smartphone selfies were rejected at 80; the central crop excluded hair/wall edges that inflated variance                                                                                    |
+| D-015 v2 | Eye region (1.6×iod × 1.0×iod) | 150                    | Portrait Mode bokeh contaminated even the central-60% crop; the eye region is guaranteed in-focus                                                                                           |
+| D-016    | Eye region (unchanged)         | 30                     | Real iPhone computational-photography selfies measure ~80–200 on the eye region — 150 was rejecting visually sharp faces. Algorithm kept; threshold drops to fit the empirical distribution |
 
-Tag 13 substitutes the heuristic 150 with an empirical threshold
-derived from a 30-selfie histogram — see EVALUATION.md backlog
-"Quality-gate calibration". Production-grade alternative remains
-SDD-FIQA / CR-FIQA (also documented in EVALUATION.md).
+Two further enrolment-side thresholds were added in D-016 alongside
+the blur drop:
+
+| Constant                  | Value | Purpose                                                                                                                                  |
+| ------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `QUALITY_MAX_POSE_YAW_DEG` | 55    | Up from 45. Admits natural near-frontal angles; ArcFace 512-D is robust at this bound. Tighter than near-profile, which hurts embedding quality. |
+| `DETECTOR_QUALITY_MIN`     | 0.75  | New. Quality-gate floor on RetinaFace `det_score`. Catches mis-detections (hands, occluded faces, low light) before they enrol. Distinct from `DETECTOR_MIN_SCORE = 0.5` which is the admission floor inside `detect_faces` and stays permissive so Patrol still sees marginal frames. |
+
+Tag 13 substitutes the heuristic 30 (and the other three thresholds)
+with an empirical CDF over a 30-selfie histogram — see EVALUATION.md
+backlog "Quality-gate calibration". Production-grade alternative
+remains SDD-FIQA / CR-FIQA (also documented in EVALUATION.md).
 
 ### Operator-facing reason copy
 

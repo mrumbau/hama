@@ -104,11 +104,34 @@ def test_multiple_reasons_combined():
                 short_edge=s.QUALITY_MIN_FACE_PX - 10,
                 blur_var=s.QUALITY_MIN_BLUR_VAR - 10,
                 yaw_deg=s.QUALITY_MAX_POSE_YAW_DEG + 10,
+                det_score=s.DETECTOR_QUALITY_MIN - 0.1,
             )
         ]
     )
     assert res.passes is False
-    assert set(res.reasons) == {"face_too_small", "too_blurry", "pose_extreme"}
+    assert set(res.reasons) == {
+        "face_too_small",
+        "too_blurry",
+        "pose_extreme",
+        "low_confidence_detection",
+    }
+
+
+def test_low_confidence_detection():
+    """det_score below the enrolment-quality floor fails the gate even
+    when every other dimension (size, blur, pose) passes. Catches
+    RetinaFace mis-detections on hands or occluded faces (D-016)."""
+    s = get_settings()
+    res = check_quality([make_face(det_score=s.DETECTOR_QUALITY_MIN - 0.05)])
+    assert res.passes is False
+    assert "low_confidence_detection" in res.reasons
+
+
+def test_high_confidence_detection_passes_floor():
+    """A face exactly at the floor passes (boundary is inclusive)."""
+    s = get_settings()
+    res = check_quality([make_face(det_score=s.DETECTOR_QUALITY_MIN)])
+    assert "low_confidence_detection" not in res.reasons
 
 
 def test_metrics_always_present_when_face_detected():
@@ -275,6 +298,36 @@ def test_eye_region_clips_to_image_bounds_when_face_partially_off_screen():
     val = _eye_region_blur_var(img, kps)
     # Result is well-defined (≥ 0) and the function returned without raising.
     assert val >= 0.0
+
+
+def test_gaussian_blurred_eye_region_drives_gate_to_too_blurry():
+    """End-to-end synthetic regression for D-016. Build an image where
+    the eye region is heavily Gaussian-blurred (sigma=15), measure
+    eye_var with the production helper, plug that into a DetectedFace,
+    and confirm `check_quality` rejects with `too_blurry`. Proves the
+    final-iteration threshold (30) still catches deliberately blurred
+    photos despite being permissive enough to admit modern smartphone
+    computational-photography output."""
+    s = get_settings()
+
+    rng = np.random.default_rng(11)
+    h_img = w_img = 600
+    img = rng.integers(0, 256, size=(h_img, w_img, 3), dtype=np.uint8)
+    blur_x0, blur_x1 = 220, 380
+    blur_y0, blur_y1 = 250, 350
+    sub = img[blur_y0:blur_y1, blur_x0:blur_x1]
+    img[blur_y0:blur_y1, blur_x0:blur_x1] = cv2.GaussianBlur(sub, (31, 31), 15)
+
+    kps = _eye_kps(cx=300.0, cy=300.0, iod=80.0)
+    eye_var = _eye_region_blur_var(img, kps)
+    assert eye_var < s.QUALITY_MIN_BLUR_VAR, (
+        f"Synthetic Gaussian-blurred eye region scored {eye_var:.2f}; "
+        f"expected < {s.QUALITY_MIN_BLUR_VAR} so the gate would reject."
+    )
+
+    res = check_quality([make_face(blur_var=eye_var)])
+    assert res.passes is False
+    assert "too_blurry" in res.reasons
 
 
 def test_eye_region_dimensions_match_specification():
