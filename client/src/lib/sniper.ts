@@ -103,7 +103,8 @@ export const sniperApi = {
     const fd = new FormData();
     fd.append("image", file);
 
-    const res = await fetch("/api/sniper/run", {
+    const apiBase = import.meta.env.VITE_API_URL ?? "";
+    const res = await fetch(`${apiBase}/api/sniper/run`, {
       method: "POST",
       body: fd,
       headers: token ? { Authorization: `Bearer ${token}` } : {},

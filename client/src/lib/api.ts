@@ -7,9 +7,19 @@
  * Plan §4: there are exactly two channels — supabase-js (anon, RLS-gated)
  * and this. Anything that requires ML inference, external APIs, or
  * orchestration goes through here.
+ *
+ * Base URL resolution:
+ *   * Dev:  empty → relative `/api/...` → Vite proxy forwards to :5000.
+ *   * Prod: VITE_API_URL=https://chaw-server.onrender.com → absolute URL.
+ *
+ * The dev path also works when the operator runs the prod build against
+ * the local server (e.g. `vite preview`); Vite preserves VITE_API_URL
+ * as empty if not set, falling back to the same-origin relative path.
  */
 
 import { supabase } from "./supabase";
+
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -42,7 +52,8 @@ export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Pro
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const url = path.startsWith("/api") ? path : `/api${path.startsWith("/") ? "" : "/"}${path}`;
+  const apiPath = path.startsWith("/api") ? path : `/api${path.startsWith("/") ? "" : "/"}${path}`;
+  const url = `${API_BASE}${apiPath}`;
 
   const res = await fetch(url, {
     method,

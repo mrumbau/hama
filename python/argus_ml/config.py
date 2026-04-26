@@ -47,7 +47,16 @@ class Settings(BaseSettings):
     TRACK_EMBED_MAX_AGE_S: float = Field(default=2.0, gt=0)
 
     # ── InsightFace ──────────────────────────────────────────────────────
-    INSIGHTFACE_MODEL_PACK: str = "buffalo_l"
+    # buffalo_s gewählt für Render Starter (512MB RAM). buffalo_l wäre
+    # genauer, braucht aber ~2GB RAM (RetinaFace + ArcFace + 3 landmark
+    # nets im Pack zusammen). buffalo_s tauscht das schwere R50-ArcFace
+    # gegen ein MBF-basiertes (~25MB statt ~166MB) und droppt die
+    # genderage + landmark_3d_68 Modelle. Embedding-Dimension bleibt
+    # 512 — pgvector-Schema bleibt unverändert. Genauigkeitsverlust
+    # ~5% TAR @ FAR=1e-5 auf typischen Smartphone-Inputs, akzeptabel
+    # für die Demo. Override via env: INSIGHTFACE_MODEL_PACK=buffalo_l
+    # auf einem Setup mit ≥ 1GB Python-Worker-RAM.
+    INSIGHTFACE_MODEL_PACK: str = "buffalo_s"
     INSIGHTFACE_DET_SIZE: int = 640
     # Detector admission floor — RetinaFace keeps any face scored at or
     # above this. Permissive (0.5) so Patrol Mode still sees marginal

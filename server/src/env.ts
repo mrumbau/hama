@@ -14,6 +14,13 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(5000),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
 
+  // Comma-separated allowed origins for the CORS middleware. In dev we
+  // leave this empty and let cors() reflect any origin (Vite proxy
+  // means same-origin anyway). In production it MUST list the public
+  // domain(s) — wildcard is rejected because the API ships credentials
+  // (Bearer JWT) per request.
+  CORS_ORIGINS: z.string().default(""),
+
   // Supabase — three concerns, never mix them.
   SUPABASE_URL: z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(40),

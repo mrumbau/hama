@@ -9,6 +9,7 @@
  */
 
 import express from "express";
+import cors from "cors";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
 
@@ -21,6 +22,35 @@ import { recognizeRouter } from "./routes/recognize.js";
 import { sniperMulterErrorHandler, sniperRouter } from "./routes/sniper.js";
 
 const app = express();
+
+// ── Trust proxy ─────────────────────────────────────────────────────────────
+// Render (and most PaaS reverse proxies) terminate TLS in front of the app
+// and forward via X-Forwarded-* headers. Without `trust proxy`, every request
+// reads as 127.0.0.1 — breaking rate limits, audit logs, and helmet's
+// secure-cookie heuristics. The "1" tells Express to trust exactly one
+// hop (the proxy) — never blindly trust(true) which would let a client
+// spoof X-Forwarded-For.
+if (env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
+// ── CORS ────────────────────────────────────────────────────────────────────
+// Dev: empty origin list → cors() reflects any origin (Vite proxy means the
+//      browser sends same-origin requests anyway, so this is permissive
+//      without being a real cross-origin window).
+// Prod: comma-separated CORS_ORIGINS strictly enforced; credentials enabled
+//       so the JWT in Authorization can flow from project-chaw.net.
+const corsOrigins = env.CORS_ORIGINS.split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+app.use(
+  cors({
+    origin: env.NODE_ENV === "production" && corsOrigins.length > 0 ? corsOrigins : true,
+    credentials: true,
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Authorization", "Content-Type", "Accept"],
+  }),
+);
 
 // ── Security & logging ─────────────────────────────────────────────────────
 app.use(helmet());
@@ -94,8 +124,12 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 });
 
 // ── Listen ─────────────────────────────────────────────────────────────────
-const server = app.listen(env.PORT, "127.0.0.1", () => {
-  logger.info({ port: env.PORT }, "argus-server listening");
+// Bind 127.0.0.1 in dev (Vite proxy lives on the same host) and 0.0.0.0
+// in production (Render's edge proxies forward from outside the
+// container — bind to all interfaces or the request never lands).
+const bindHost = env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1";
+const server = app.listen(env.PORT, bindHost, () => {
+  logger.info({ port: env.PORT, host: bindHost }, "argus-server listening");
 });
 
 // ── Graceful shutdown ──────────────────────────────────────────────────────

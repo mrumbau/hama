@@ -1,0 +1,40 @@
+# Don't ship test fixtures, build artefacts, venvs, or eval scripts to
+# the production image. The Dockerfile only COPYs pyproject.toml +
+# argus_ml/, so most of this is defence-in-depth.
+
+# Python build / cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Local virtual env (~700MB on disk; would dominate the build context)
+.venv/
+venv/
+
+# Test surface
+tests/
+
+# Eval / one-shot scripts
+scripts/
+
+# Local secrets — never reach the image
+.env
+.env.local
+.env.*.local
+
+# IDE / OS noise
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git internals
+.git/
+.gitignore
