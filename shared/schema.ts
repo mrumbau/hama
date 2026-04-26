@@ -19,11 +19,14 @@
 import { sql } from "drizzle-orm";
 import {
   customType,
+  date,
   index,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   real,
   text,
   timestamp,
@@ -243,6 +246,29 @@ export const fusionLayers = pgTable(
   (t) => ({
     fusionLayersReportIdx: index("fusion_layers_report_idx").on(t.reportId),
     fusionLayersUniq: uniqueIndex("fusion_layers_report_layer_uniq").on(t.reportId, t.layer),
+  }),
+);
+
+// ── daily_cost_ledger (Tag 8, ADR-6) ───────────────────────────────────────
+// Per-operator daily spend tracker for the three paid external APIs.
+// FK to auth.users + RLS + service constraint live in
+// supabase/migrations/0008_cost_guard.sql.
+
+export const dailyCostLedger = pgTable(
+  "daily_cost_ledger",
+  {
+    operatorId: uuid("operator_id").notNull(),
+    dayUtc: date("day_utc").notNull(),
+    service: text("service").notNull(), // 'serpapi' | 'picarta' | 'reality_defender'
+    spentEur: numeric("spent_eur", { precision: 8, scale: 4 }).notNull().default("0"),
+    callCount: integer("call_count").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.operatorId, t.dayUtc, t.service] }),
+    operatorDayIdx: index("daily_cost_ledger_operator_day_idx").on(t.operatorId, t.dayUtc),
   }),
 );
 

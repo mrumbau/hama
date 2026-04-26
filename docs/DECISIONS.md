@@ -895,3 +895,102 @@ Tag 13 EVALUATION.md backlog "tracking speedup + visual stability"
 runs the empirical 5–8× claim against a recorded session.
 
 ---
+
+## D-019 — Tag 8a: Sniper backbone landed (Layer 1 + Cost Guard + Circuit Breaker)
+
+**Date:** 2026-04-26
+**Why a D-entry alongside ADR-6:** ADR-6 records the architecture
+(parallel layer fan-out, cost guard, circuit breakers). D-019 records
+the **scoping decision**: Tag 8 splits into two halves so each is
+greppable, testable, and reviewable on its own.
+
+### What landed in 8a
+
+1. **Database**
+   - Migration 0008 creates `daily_cost_ledger` (PK
+     `(operator_id, day_utc, service)`, FK to auth.users with
+     ON DELETE CASCADE, RLS so operators read only their own row).
+   - Drizzle schema mirror in `shared/schema.ts`.
+2. **Libraries**
+   - `lib/circuit-breaker.ts` — pure-logic class with closed / open /
+     half-open states, named-instance registry, injectable clock for
+     testing. 8 pure-logic tests in `circuit-breaker.test.ts` cover
+     every transition including half-open-failure-bounces-to-open.
+   - `lib/cost-guard.ts` — `chargeOrReject(operatorId, service, eur)`
+     in a single CTE round-trip; atomic against concurrent calls
+     (post-increment total computed inside the same statement).
+     `dailySummary(operatorId)` for the Tag 9 budget headroom widget.
+3. **Orchestrator**
+   - `orchestrator/sniper.ts::runSniperReport` uploads the query to
+     the `sniper-queries` bucket, inserts the report + 4 layer rows
+     atomically, runs Layer 1 synchronously, calls `finalizeReport`
+     which keeps the report in `processing` because Layers 2-4 are
+     still `pending`. Tag 8b's parallel-fanout will be the
+     `finalizeReport` caller that promotes status to `complete`.
+   - `orchestrator/layers/identity.ts::runIdentityLayer` is the
+     Tag 6 kNN pipeline widened to K=10 + grouped output (every POI
+     in the top-10 surfaced with votes + median similarity + the
+     POI's own configured threshold).
+4. **HTTP**
+   - `routes/sniper.ts` wires `POST /api/sniper/run` (multipart
+     upload, 10 MB cap matching the bucket) and `GET /api/sniper/:id`
+     (polling fallback for the Tag 9 UI when Realtime drops).
+5. **Layer payload schemas** in `shared/fusion.ts`:
+   `identityPayloadSchema`, plus pre-declared placeholders for
+   `webPresence` / `geographic` / `authenticity` so Tag 9 can render
+   against fixed shapes ahead of Tag 8b.
+
+### Tactical decisions worth recording
+
+1. **Cost-ledger column type.** `numeric(8, 4)` not `real` — euros
+   need exact decimal arithmetic for an audit trail; floats would
+   eventually drift on accumulation. The 8-digit precision covers
+   four digits before the decimal (≤ €9999) and four after (sub-cent
+   resolution per call), comfortably above what any single operator
+   will spend per day.
+2. **Day boundary in UTC.** Picked because all three external
+   services document their billing cycles in UTC, and a single
+   timezone keeps the dashboard query (`WHERE day_utc = (now() AT
+   TIME ZONE 'utc')::date`) trivial.
+3. **Service column is text-with-CHECK rather than enum.** Adding a
+   fourth provider is a one-line ALTER TABLE updating the CHECK
+   constraint — no enum dance.
+4. **Tag 8a finalizeReport stays in 'processing'**. The status-
+   promotion logic only runs `complete` if all 4 layers reach a
+   terminal state. Tag 8a only decides Layer 1 → so reports stay
+   processing until 8b lands. The DB stays self-consistent in the
+   meantime.
+5. **Sniper test fixture:** `server/tests/fixtures/t1.jpg` is a
+   committed copy of InsightFace's bundled t1.jpg group photo
+   (210 KB). Generated via `python -c "..."` in the venv; same
+   image the Python tests use. Keeping it as a binary fixture rather
+   than re-generating it per test run avoids depending on the venv
+   being installed when only TS tests run.
+6. **Vitest alias surface.** Added `@argus/shared/fusion` to
+   `server/vitest.config.ts` aliases. Vite's prefix-matching would
+   otherwise route the import to `shared/index.ts` and the dynamic
+   resolution failed at runtime.
+
+### What's NOT done in 8a (deferred to 8b, intentional)
+
+- Layers 2-4 stay 'pending' forever until 8b. The orchestrator
+  doesn't even *try* to run them — no stub that fails immediately
+  with `not_implemented_yet`, because that would generate confusing
+  "failed" rows in the audit log. Pending is the honest state.
+- The cost guard isn't wired to anything yet. The library is in
+  place + tested, but no orchestrator path calls it because Layer 1
+  has no upstream cost.
+- The circuit breaker is registered but never named-resolved by
+  any caller. Same reason.
+- No Reality Defender real-mode promotion — the existing stub
+  remains. 8b lands the presigned-upload + polling client per
+  the sketch in `external/reality-defender.ts:104-135`.
+
+### Tests
+
+- 8 circuit-breaker, 3 cost-guard (DB-bound, skips without
+  DATABASE_URL), 1 sniper end-to-end (DB + ML-bound).
+- Total: 45 vitest passed (was 33 pre-Tag-8a, plus 12 new from this
+  scope).
+
+---

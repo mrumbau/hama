@@ -433,6 +433,145 @@ allows fewer for partial enrolment but recognition treats <3 as
 
 ---
 
+## ADR-6 — Sniper Mode fan-out: layer parallelism + cost guard + circuit breakers
+
+**Status:** accepted (2026-04-26, Tag 8a — backbone landed; Tag 8b
+extends with Layers 2-4)
+
+### Context
+
+Plan §3 / §10 specifies the Sniper Mode contract: one face photo in,
+four independent identity layers out, surfaced to the operator in a
+single fusion report. Layer 1 (Identity) is internal — pgvector kNN
+against the POI bank, free + fast. Layers 2-4 hit paid external APIs
+(SerpAPI, Picarta, Reality Defender), each with its own latency
+profile, free-tier quota, and failure modes. The orchestration design
+needs to:
+
+1. Run the four layers in **parallel**, not serial — Layer 2 should
+   not wait on Layer 4 to finish, because the slowest path
+   determines total report latency.
+2. Bound the **cost** per operator per UTC day so a runaway loop or a
+   compromised account cannot drain the free-tier quota or the
+   shared budget.
+3. Tolerate **partial failure** — if Picarta is down, Layer 3 fails
+   but the report still surfaces Layers 1, 2, 4 successfully. The
+   operator sees the gap without the whole report being marked
+   failed.
+4. **Resist sustained upstream failure** — if SerpAPI returns 502
+   for the third call in a row, the breaker trips and subsequent
+   Sniper runs skip Layer 2 entirely for `CIRCUIT_BREAKER_OPEN_MS`,
+   saving 60 s of latency + cost-guard budget per call. The operator
+   sees Layer 2 marked failed with reason `circuit_open` instead of
+   waiting for the upstream timeout.
+
+### Decision
+
+The Sniper orchestrator is a single Express function
+(`server/src/orchestrator/sniper.ts::runSniperReport`) that owns:
+
+- **Database row creation** (one `fusion_reports` + four
+  `fusion_layers`) so the operator UI can subscribe before any layer
+  finishes — Tag 9's Sniper page renders the four-column dashboard
+  the moment the POST returns.
+- **Per-layer state-machine helpers**
+  (`updateLayer{Running,Done,Failed}`) that issue UPDATE statements
+  whose Realtime push is the operator UI's data source (per ADR-7).
+  No polling on the happy path.
+- **Layer dispatch** as four `Promise.allSettled` calls (Tag 8b),
+  each one wrapped in its named circuit breaker and gated by a
+  cost-guard charge. Layer 1 is the only one that runs in Tag 8a;
+  Layers 2-4 stay 'pending' until 8b lands their implementations.
+
+Two cross-cutting libraries enforce the cost + reliability story:
+
+- **`lib/cost-guard.ts`** — DB-backed daily-spend ledger
+  (`daily_cost_ledger` table, migration 0008). One row per
+  `(operator_id, day_utc, service)`. The orchestrator calls
+  `chargeOrReject(operatorId, service, costEur)` *before* the
+  upstream API call; the function performs an atomic UPSERT inside a
+  CTE that aborts when the post-charge daily total would exceed
+  `COST_GUARD_DAILY_EUR` (server/.env, default €2.00). The ledger
+  doubles as the audit trail Tag 14 reads for the dashboard
+  "spent today" indicator.
+- **`lib/circuit-breaker.ts`** — pure-in-memory state machine per
+  named upstream (`closed` → `open` after `failureThreshold`
+  consecutive failures; `open` → `half_open` after `openMs`;
+  half-open success → `closed`, half-open failure → `open` again).
+  No Redis: the demo runs as a single Express process. A horizontal
+  scale-out would need a Redis-backed variant but the contract
+  surface (`run<T>(fn) → typed result`) wouldn't change.
+
+The orchestrator threads these together as:
+
+```text
+for each layer in {web_presence, geographic, authenticity}:
+    breaker = getCircuitBreaker(layer.service, env-driven opts)
+    if breaker.state === "open":   layer = failed("circuit_open")
+    elif !cost_guard.charge(...):  layer = failed("cost_guard_exceeded")
+    else:                          layer = breaker.run(layer.invoke)
+```
+
+Layer 1 (Identity) skips the cost-guard + breaker because it has no
+external upstream — the only failure modes are ML-service
+unreachable (already covered by the existing MlError semantics) or
+pgvector lookup failure.
+
+### Consequences
+
+- **Audit-correct cost story.** Every cent of external-API spend is
+  attributable to a named operator and a UTC day. The `is_admin()`
+  RLS policy lets admins read everyone's row; operators see only
+  their own.
+- **Bounded blast radius.** A SerpAPI outage costs at most one
+  full timeout per opening of the circuit (≤ ML_TIMEOUT_MS) plus
+  zero subsequent calls for the breaker's open window. Without the
+  breaker, every Sniper run during the outage would incur the full
+  timeout.
+- **Soft-fail UX.** The operator UI receives layer rows as they
+  flip status (Realtime push). A failed layer renders as "—" with
+  the error reason in a tooltip; the rest of the report is
+  consumable. The 30-min defence demo has a defensible answer to
+  "what happens if SerpAPI is down" — namely "Layer 2 fails;
+  Layers 1/3/4 still surface."
+- **Plan §10 audit story trivially satisfied.** Every Sniper run
+  yields one report row + four layer rows + n cost-ledger
+  increments. Joining these answers "what did the operator do
+  today, what did it cost, which layers worked" in one query.
+- **Implementation complexity is honest.** The orchestrator is one
+  function calling Layer-N helpers. No Bull, no Redis-queues, no
+  workers — the layers are pure async/await against external APIs,
+  and `Promise.allSettled` does the parallelism. A production
+  variant would push to a real queue for the layers that take
+  > 30 s; for the demo's 4 layers all under the configured
+  ML_TIMEOUT_MS, the in-process variant is sufficient and easier to
+  reason about.
+- **Layer payload shapes are versioned in `shared/fusion.ts`.** The
+  zod schemas validate every payload before insert; the operator UI
+  imports the same types. Schema drift would fail at the orchestrator,
+  not silently produce a half-rendered card.
+
+### Alternatives considered
+
+- **Background workers (BullMQ + Redis).** Rejected for Tag 8.
+  Adds infrastructure (Redis already in use for ByteTrack — would
+  need to be promoted from a cache to a queue) and complicates the
+  defence story without a clear win at four layers per report. Worth
+  revisiting if a fifth layer with > 30 s latency joins (e.g. an
+  expensive video-OSINT layer).
+- **Per-call cost reservation in Redis.** Strictly faster than the
+  DB-backed UPSERT (~5 ms vs ~400 ms RTT to hosted Mumbai), but the
+  ledger is a *persistence* concern, not a *cache* one — Tag 14's
+  cost dashboard reads the same rows. A Redis layer in front would
+  be a second source of truth.
+- **Blanket retry on circuit-open.** Rejected because it would
+  defeat the whole purpose of the breaker. The orchestrator marks
+  the layer failed with `reason="circuit_open"` and lets the next
+  Sniper run try again after the breaker auto-transitions to
+  `half_open` per its timer.
+
+---
+
 ## ADR-9 — Auth verification via Supabase JWT Signing Keys (asymmetric, JWKS)
 
 **Status:** accepted (2026-04-25). Supersedes the HS256 / `SUPABASE_JWT_SECRET`

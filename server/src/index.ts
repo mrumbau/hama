@@ -18,6 +18,7 @@ import { pingDb } from "./db.js";
 import { requireAuth } from "./auth/jwt.js";
 import { poiMulterErrorHandler, poiRouter } from "./routes/poi.js";
 import { recognizeRouter } from "./routes/recognize.js";
+import { sniperMulterErrorHandler, sniperRouter } from "./routes/sniper.js";
 
 const app = express();
 
@@ -76,6 +77,11 @@ app.use("/api/poi", poiMulterErrorHandler);
 // (~30-80 KB → ~110 KB base64) at 2-4 fps; the global 1mb JSON parser
 // is comfortable. Tag 7 ByteTrack reduces frequency further.
 app.use("/api/recognize", recognizeRouter);
+
+// Sniper Mode: 4-layer fusion engine (ADR-6). Tag 8a backbone runs
+// Layer 1 synchronously; Layers 2-4 parallel-fanout lands in Tag 8b.
+app.use("/api/sniper", sniperRouter);
+app.use("/api/sniper", sniperMulterErrorHandler);
 
 // ── 404 + error handler ────────────────────────────────────────────────────
 app.use("/api", (_req, res) => {

@@ -22,6 +22,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, "../shared/schema.ts"),
       },
       {
+        find: "@argus/shared/fusion",
+        replacement: path.resolve(__dirname, "../shared/fusion.ts"),
+      },
+      {
         find: "@argus/shared",
         replacement: path.resolve(__dirname, "../shared/index.ts"),
       },

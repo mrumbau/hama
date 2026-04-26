@@ -148,23 +148,53 @@ the raw code if it ever appears in an old fusion report.
 
 ---
 
-## External API cost ceilings
+## External API cost ceilings (Tag 8a — DB-backed)
 
-Tag 8 (Sniper Mode fanout) implements a per-operator daily cost guard
-in Postgres. Until then, the rate limits below are enforced
-client-side via `RD_MOCK_MODE` defaults and SerpAPI key revocation
-in case of abuse. Numbers are updated as the integrations land.
+The cost guard (Tag 8a, ADR-6) caps each operator's per-UTC-day
+external-API spend at `COST_GUARD_DAILY_EUR` (server/.env, default
+**€2.00**). The library is wired (`lib/cost-guard.ts`) and tested but
+no orchestrator path calls it yet — Tag 8b's Layer 2/3/4 dispatch
+will be the first caller.
 
-| Service          | Free tier            | Cap (per operator / day)              | Toggle                           |
-| ---------------- | -------------------- | ------------------------------------- | -------------------------------- |
-| Reality Defender | 50 scans / month     | mock by default (`RD_MOCK_MODE=true`) | env var                          |
-| SerpAPI          | 100 searches / month | 5 / minute                            | server-side rate limiter (Tag 8) |
-| Picarta          | 10 free credits      | 5 / minute                            | server-side rate limiter (Tag 8) |
+| Service          | Free tier            | Cost-guard service id | Default per-call cost |
+| ---------------- | -------------------- | --------------------- | --------------------- |
+| Reality Defender | 50 scans / month     | `reality_defender`    | mock = 0.00 € · real  |
+| SerpAPI          | 100 searches / month | `serpapi`             | TBD (Tag 8b)          |
+| Picarta          | 10 free credits      | `picarta`             | TBD (Tag 8b)          |
 
-`COST_GUARD_DAILY_EUR=2.0` (server/.env) is the upper bound a single
-operator can spend across paid services per UTC day. Exceeded calls
-return 429 and the corresponding fusion layer is marked `failed` in
-the report.
+### Runtime behaviour
+
+- `chargeOrReject(operatorId, service, costEur)` runs as a single
+  CTE-wrapped UPSERT against `daily_cost_ledger`. The post-charge
+  total is computed inside the same statement, so two concurrent
+  Sniper runs cannot both squeak past the cap.
+- Rejection: the layer is marked `failed` with
+  `error_message = "cost_guard_exceeded"`. The report still includes
+  the other layers' results (per ADR-6's partial-failure framing).
+- Reset cadence: rows are not deleted at end-of-day. The query
+  filter `day_utc = (now() AT TIME ZONE 'utc')::date` rolls the
+  budget over naturally. Old rows accumulate and form the audit log
+  the Tag 14 admin dashboard reads.
+- Read access: operators see their own row via the
+  `daily_cost_ledger_select_own_or_admin` RLS policy. Admins see
+  every operator's via `is_admin()`. Service-role writes only.
+
+### Circuit breakers
+
+Per-service in-process state machines
+(`lib/circuit-breaker.ts`). Defaults from `server/.env`:
+
+- `CIRCUIT_BREAKER_FAILURE_THRESHOLD = 3` consecutive failures trip
+  the breaker.
+- `CIRCUIT_BREAKER_OPEN_MS = 60_000` — open window. After 60 s the
+  next call is a half-open probe; success resets to closed,
+  failure stays open and restarts the timer.
+
+A tripped breaker rejects without invoking the upstream — the layer
+is marked `failed` with `error_message = "circuit_open"`. The
+operator sees an explicit "upstream cooling down" badge instead of
+waiting for the upstream timeout (which would be ML_TIMEOUT_MS plus
+fetch overhead per attempt).
 
 ---
 
