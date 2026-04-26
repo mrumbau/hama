@@ -1,0 +1,8 @@
+/* Day 1 stub — Phase 1 (Tag 2) replaces with modern-normalize import + brutalist reset. */
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}

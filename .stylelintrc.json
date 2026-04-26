@@ -1,0 +1,54 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "rules": {
+    "selector-class-pattern": "^[a-z][a-zA-Z0-9_-]*$",
+    "no-descending-specificity": null,
+    "declaration-no-important": true,
+    "color-no-hex": [true, { "message": "Use var(--color-*) tokens, not raw hex codes." }],
+    "unit-allowed-list": [
+      "%",
+      "rem",
+      "em",
+      "fr",
+      "vh",
+      "vw",
+      "vmin",
+      "vmax",
+      "deg",
+      "ms",
+      "s",
+      "ch"
+    ],
+    "length-zero-no-unit": true
+  },
+  "overrides": [
+    {
+      "files": ["client/src/styles/tokens.css"],
+      "rules": {
+        "color-no-hex": null,
+        "unit-allowed-list": null
+      }
+    },
+    {
+      "files": ["client/src/styles/reset.css", "client/src/styles/app.css"],
+      "rules": {
+        "color-no-hex": null,
+        "unit-allowed-list": [
+          "%",
+          "rem",
+          "em",
+          "fr",
+          "vh",
+          "vw",
+          "vmin",
+          "vmax",
+          "deg",
+          "ms",
+          "s",
+          "ch",
+          "px"
+        ]
+      }
+    }
+  ]
+}

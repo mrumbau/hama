@@ -1,0 +1,7 @@
+/* Day 1 stub — Tag 2 replaces this with the full token table per plan §6 / DESIGN.md.
+   Single source of truth for every color, space, type and motion value in the app.
+   Until Tag 2, downstream component CSS does not exist. */
+
+:root {
+  --argus-day1-marker: 1;
+}

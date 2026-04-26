@@ -1,0 +1,56 @@
+# Argus local stack — three self-hosted services, Supabase external (hosted free tier).
+#
+# Day 1: scaffolding only. `docker compose up` will work after Tag 4 (ML) and Tag 8 (server).
+# For now the file documents the topology so the architecture diagram has a code anchor.
+
+name: argus
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  ml:
+    build:
+      context: ./python
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    restart: unless-stopped
+    env_file:
+      - ./python/.env
+    ports:
+      - "${ML_PORT:-8001}:8001"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      # Cache InsightFace model downloads across container rebuilds.
+      - insightface-cache:/root/.insightface
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./server/.env
+    environment:
+      ML_BASE_URL: http://ml:8001
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "${SERVER_PORT:-5000}:5000"
+    depends_on:
+      ml:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
+volumes:
+  insightface-cache:

@@ -1,10 +1,17 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import "./styles/reset.css";
+import "./styles/tokens.css";
+import "./styles/app.css";
 
-createRoot(document.getElementById('root')!).render(
+const rootEl = document.getElementById("root");
+if (!rootEl) throw new Error("Argus: #root not found");
+
+createRoot(rootEl).render(
   <StrictMode>
-    <App />
+    <main>
+      <h1>Argus</h1>
+      <p>Day 1 scaffolding. Phase 1+2 (tokens + brutalist/minimalist specs) lands tomorrow.</p>
+    </main>
   </StrictMode>,
-)
+);
