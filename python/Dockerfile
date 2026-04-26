@@ -1,11 +1,12 @@
 # syntax=docker/dockerfile:1.7
-# Argus ML service — Render Starter (512MB RAM).
+# Project Chaw ML service — Render Standard (2GB RAM).
 #
-# Single-stage on python:3.11-slim. Python deps ship pre-compiled
-# wheels for linux/amd64 (numpy, opencv-python-headless, onnxruntime),
-# so no build-tools / multi-stage is required. The buffalo_s InsightFace
-# pack is downloaded at build time and baked into the image so cold-start
-# does not pull ~30MB on every Render boot.
+# Single-stage on python:3.11-slim. Most Python deps ship pre-compiled
+# wheels for linux/amd64 (numpy, opencv-python-headless, onnxruntime);
+# insightface itself needs build-essential for its Cython extension,
+# which we purge in the same layer to keep the image lean. The
+# buffalo_l InsightFace pack is downloaded at build time and baked
+# into the image so cold-start does not pull ~280MB on every Render boot.
 #
 # Pin to linux/amd64 for ONNX Runtime + InsightFace reproducibility on
 # Apple Silicon hosts.
@@ -16,7 +17,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    INSIGHTFACE_MODEL_PACK=buffalo_s
+    INSIGHTFACE_MODEL_PACK=buffalo_l
 
 # Runtime system libs:
 #   libgomp1 — onnxruntime's OpenMP runtime
@@ -46,20 +47,21 @@ RUN pip install --upgrade pip setuptools wheel \
 # pip every time only argus_ml/*.py changes.
 COPY argus_ml ./argus_ml
 
-# Bake the buffalo_s pack into the image at build time. InsightFace
+# Bake the buffalo_l pack into the image at build time. InsightFace
 # downloads under $HOME/.insightface/models/ — we trigger the prepare()
-# call once and let it cache. The download is ~30MB and goes through
-# the InsightFace mirror, so build-time network access is required
-# (Render build runners always have it). Cold-start at runtime skips
-# the download entirely.
+# call once and let it cache. The download is ~280MB (R50-ArcFace +
+# RetinaFace + landmark/genderage nets) and goes through the InsightFace
+# mirror, so build-time network access is required (Render build runners
+# always have it). Cold-start at runtime skips the download entirely.
 RUN python -c "from insightface.app import FaceAnalysis; \
-    FaceAnalysis(name='buffalo_s', providers=['CPUExecutionProvider']) \
+    FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider']) \
         .prepare(ctx_id=0, det_size=(640, 640))" \
- && ls -la /root/.insightface/models/buffalo_s/
+ && ls -la /root/.insightface/models/buffalo_l/
 
-# Render Starter is single-vCPU; one uvicorn worker fits the 512MB
-# tier comfortably. Two workers double the InsightFace memory and
-# trade off blocking-CPU time rather than gaining real concurrency.
+# Render Standard ships single-vCPU + 2GB RAM. One uvicorn worker keeps
+# the resident set at ~1.2–1.5GB with buffalo_l loaded; two workers
+# would double the InsightFace memory and run out of headroom while
+# only trading off blocking-CPU time, not gaining real concurrency.
 ENV ML_HOST=0.0.0.0 \
     ML_PORT=8001 \
     ML_WORKERS=1

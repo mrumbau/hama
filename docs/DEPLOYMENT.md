@@ -17,15 +17,16 @@ browser-side checklist.
 | ----------------- | ------------------- | ------------------------------------ | ----------------------------- |
 | Frontend (SPA)    | Vercel              | `https://project-chaw.net`           | Hobby (free)                  |
 | Express API       | Render              | `https://chaw-server.onrender.com`   | Starter ($7/mo, 512MB)        |
-| Python ML         | Render              | `https://chaw-ml.onrender.com`       | Starter ($7/mo, 512MB)        |
+| Python ML         | Render              | `https://chaw-ml.onrender.com`       | Standard ($25/mo, 2GB)        |
 | Redis (tracker)   | Render Key-Value    | injected as `REDIS_URL`              | Free (25MB)                   |
 | Postgres + Auth + Storage + Realtime | Supabase | Mumbai (`ap-south-1`) | Free                  |
 | DNS               | Mittwald            | `project-chaw.net` → Vercel CNAME    | Existing                      |
 
-Cost: ~$14/mo for the two Render web services. Everything else is free
-tier. Cleanup after the defence: delete the two Render services + the
-production Supabase project; DNS records can stay pointing at Vercel
-(returns 404 once the project is deleted).
+Cost: ~$32/mo for the two Render web services (chaw-ml on Standard for
+buffalo_l RAM headroom; see §3.3). Everything else is free tier. Cleanup
+after the defence: delete the two Render services + the production
+Supabase project; DNS records can stay pointing at Vercel (returns 404
+once the project is deleted).
 
 ---
 
@@ -90,13 +91,20 @@ others — the URLs and secrets stay stable.
    - Dockerfile path: `python/Dockerfile`
    - Docker Build Context: `python` (the repo subdirectory)
    - Health Check Path: `/health`
-   - Plan: Starter (512MB)
+   - Plan: **Standard (2GB)** — required for `buffalo_l`. The pack's
+     R50-ArcFace + RetinaFace + landmark/genderage nets sit at
+     ~1.2–1.5GB resident with one uvicorn worker, which won't fit
+     Starter's 512MB. Historical context: ran `buffalo_s` on Starter
+     during the pre-upgrade window (D-025); reverted on the Standard
+     upgrade because `buffalo_l` gives ~5% TAR @ FAR=1e-5 improvement
+     on cross-camera-domain recognition, which is meaningful for the
+     defence demo.
 3. **Environment** (paste from `python/.env.production.example`):
    - `REDIS_URL` = the Internal Redis URL from §3.2
    - All other values can use the file's defaults — no secrets needed
      because the ML service is internal-only.
-4. **Deploy**. First build ~6-8 min (downloads buffalo_s + bakes into
-   the image). Watch logs for `argus-ml ready`. Hit
+4. **Deploy**. First build ~8-10 min (downloads + bakes the ~280MB
+   buffalo_l pack into the image). Watch logs for `argus-ml ready`. Hit
    `https://chaw-ml.onrender.com/health` from your laptop to confirm
    external reachability.
 
@@ -167,9 +175,12 @@ others — the URLs and secrets stay stable.
 
 ## 4. One-shot post-deploy: Re-enrol the existing POIs
 
-The model switch `buffalo_l` → `buffalo_s` (D-025) makes the existing
-dev-corpus embeddings useless against fresh probes — the production
-project starts empty. Two options:
+Production currently runs `buffalo_l` (reverted on the Render Standard
+upgrade — see §3.3). Any model-pack switch (`buffalo_l ↔ buffalo_s`)
+makes existing embeddings useless against fresh probes because the two
+packs share the 512-d output dimension but produce different embedding
+*spaces* — old vectors are mathematically orthogonal to new ones. Two
+options when the production project is being rebuilt:
 
 - **Empty start (recommended for the open demo):** the demo operators
   enrol fresh photos via the UI, no migration needed.
@@ -233,9 +244,11 @@ If something fails mid-deploy and you need to abort:
 - **502 from chaw-server** → Render logs likely show `ML_BASE_URL`
   unreachable or DB pool DNS-failed; check the env vars + the
   Supabase pooler hostname matches `aws-1-ap-south-1.pooler.supabase.com`.
-- **OOM on chaw-ml** → bump to Standard (1GB) and revert
-  `INSIGHTFACE_MODEL_PACK` to `buffalo_l` if you want the genauer
-  Modell. The Dockerfile is unchanged; only the env var differs.
+- **OOM on chaw-ml** → already on Standard (2GB) with `buffalo_l`,
+  resident set ~1.2–1.5GB. If you see OOM kills, drop to `buffalo_s`
+  (override `INSIGHTFACE_MODEL_PACK=buffalo_s` in the Render env panel
+  — no rebuild needed) and re-run `scripts/re-enroll-all.ts`. Trade-off
+  is ~5% accuracy loss on cross-camera-domain recognition.
 - **Cost Guard saturation** in the demo → manual SQL:
   `DELETE FROM daily_cost_ledger WHERE day_utc = (now() AT TIME ZONE 'utc')::date;`
 
@@ -285,7 +298,7 @@ POI_PHOTOS_MAX_PER_REQUEST     1
 ```
 ML_HOST                        0.0.0.0
 ML_WORKERS                     1
-INSIGHTFACE_MODEL_PACK         buffalo_s
+INSIGHTFACE_MODEL_PACK         buffalo_l
 INSIGHTFACE_DET_SIZE           640
 REDIS_URL                      <Render Internal Redis URL>
 QUALITY_MIN_FACE_PX            112

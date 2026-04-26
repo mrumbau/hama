@@ -2,11 +2,13 @@
  * Re-enroll every active face_embeddings row through the new ML pipeline.
  *
  * Why:
- *   The model switch buffalo_l → buffalo_s (Tag 14, deployment prep)
- *   produces a different embedding space. Existing rows are buffalo_l-
- *   derived and mathematically meaningless against new probes — every
- *   recognition would either match nothing or match the wrong POI.
- *   Run this once after switching INSIGHTFACE_MODEL_PACK in production.
+ *   Switching INSIGHTFACE_MODEL_PACK (e.g. buffalo_l ↔ buffalo_s)
+ *   produces a different embedding space. Existing rows are derived
+ *   from the old pack and mathematically meaningless against new
+ *   probes — every recognition would either match nothing or match
+ *   the wrong POI. Run this once after every model-pack switch in
+ *   production. The script is direction-agnostic; it re-embeds against
+ *   whatever model the ML service is currently serving.
  *
  * What it does:
  *   1. Reads every face_embeddings row joined to a non-deleted POI.

@@ -47,16 +47,17 @@ class Settings(BaseSettings):
     TRACK_EMBED_MAX_AGE_S: float = Field(default=2.0, gt=0)
 
     # ── InsightFace ──────────────────────────────────────────────────────
-    # buffalo_s gewählt für Render Starter (512MB RAM). buffalo_l wäre
-    # genauer, braucht aber ~2GB RAM (RetinaFace + ArcFace + 3 landmark
-    # nets im Pack zusammen). buffalo_s tauscht das schwere R50-ArcFace
-    # gegen ein MBF-basiertes (~25MB statt ~166MB) und droppt die
-    # genderage + landmark_3d_68 Modelle. Embedding-Dimension bleibt
-    # 512 — pgvector-Schema bleibt unverändert. Genauigkeitsverlust
-    # ~5% TAR @ FAR=1e-5 auf typischen Smartphone-Inputs, akzeptabel
-    # für die Demo. Override via env: INSIGHTFACE_MODEL_PACK=buffalo_l
-    # auf einem Setup mit ≥ 1GB Python-Worker-RAM.
-    INSIGHTFACE_MODEL_PACK: str = "buffalo_s"
+    # buffalo_l reactivated after Render Standard Plan upgrade (2GB RAM).
+    # Provides ~5% accuracy improvement over buffalo_s on cross-camera-
+    # domain recognition (TAR @ FAR=1e-5 on typical smartphone inputs).
+    # Pack contains R50-ArcFace (~166MB) + RetinaFace + landmark/genderage
+    # nets; total resident set ~1.2–1.5GB with one uvicorn worker.
+    # Embedding dimension is 512 for both packs — pgvector schema is
+    # unchanged, but the embedding spaces are mathematically distinct,
+    # so existing rows MUST be re-enrolled (scripts/re-enroll-all.ts).
+    # Historical context: ran on buffalo_s during the Render Starter
+    # (512MB) period — see DEPLOYMENT.md.
+    INSIGHTFACE_MODEL_PACK: str = "buffalo_l"
     INSIGHTFACE_DET_SIZE: int = 640
     # Detector admission floor — RetinaFace keeps any face scored at or
     # above this. Permissive (0.5) so Patrol Mode still sees marginal
