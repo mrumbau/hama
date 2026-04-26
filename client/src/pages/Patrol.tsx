@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Webcam from "react-webcam";
 
 import { recognizeApi, type RecognizeFace, type RecognizeResponse } from "../lib/recognize";
@@ -7,7 +7,10 @@ import { cn } from "../lib/cn";
 import styles from "./Patrol.module.css";
 
 const CAMERA_ID = "webcam-0";
-const FRAME_INTERVAL_MS = 350; // ~3 fps; Tag 7 ByteTrack pushes the cap higher
+// Tag 7 (ADR-3): ByteTrack + Redis embedding cache cuts the per-frame
+// ML cost on stable tracks (recycle path skips ArcFace inference). The
+// frame interval drops accordingly — 150ms ≈ 6-7 fps target.
+const FRAME_INTERVAL_MS = 150;
 const FRAME_WIDTH = 640;
 const FRAME_HEIGHT = 480;
 const FEED_LIMIT = 8;
@@ -41,6 +44,18 @@ export default function Patrol() {
     w: FRAME_WIDTH,
     h: FRAME_HEIGHT,
   });
+
+  // Per-page-mount session id so ByteTrack state on the ML service
+  // resets cleanly when the operator reloads the page. Without this
+  // the previous session's track_ids would persist in Redis and the
+  // first event would dedup against a stale row.
+  const trackerStateKey = useMemo(() => {
+    const session =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2, 10);
+    return `${CAMERA_ID}:${session}`;
+  }, []);
 
   // ── Realtime events feed (always on, regardless of patrol running state) ─
   useEffect(() => {
@@ -87,7 +102,7 @@ export default function Patrol() {
       // Strip the data:image/jpeg;base64, prefix — the server accepts both
       // but the prefix wastes bytes per frame.
       const b64 = dataUrl.includes("base64,") ? dataUrl.split("base64,", 2)[1] : dataUrl;
-      const result = await recognizeApi.recognize(b64, CAMERA_ID);
+      const result = await recognizeApi.recognize(b64, CAMERA_ID, trackerStateKey);
       if (cancelled) return;
       if (result) {
         setLast(result);
@@ -125,7 +140,7 @@ export default function Patrol() {
       cancelled = true;
       if (timer !== null) window.clearTimeout(timer);
     };
-  }, [running]);
+  }, [running, trackerStateKey]);
 
   return (
     <div className={styles.page}>
@@ -190,6 +205,14 @@ export default function Patrol() {
             ml: detect <span className={styles.statusValue}>{last.latency_ms.detect}ms</span> · knn{" "}
             <span className={styles.statusValue}>{last.latency_ms.knn}ms</span> · total{" "}
             <span className={styles.statusValue}>{last.latency_ms.total}ms</span>
+            {last.ml_metrics && (
+              <>
+                {" · embeds "}
+                <span className={styles.statusValue}>
+                  {last.ml_metrics.embeds_fresh ?? 0}f/{last.ml_metrics.embeds_recycled ?? 0}r
+                </span>
+              </>
+            )}
           </span>
         )}
       </div>
@@ -238,7 +261,7 @@ function BboxOverlay({
 }) {
   return (
     <div className={styles.overlay}>
-      {faces.map((f, i) => {
+      {faces.map((f) => {
         const left = `${(f.bbox.x / frameW) * 100}%`;
         const top = `${(f.bbox.y / frameH) * 100}%`;
         const width = `${(f.bbox.w / frameW) * 100}%`;
@@ -251,8 +274,13 @@ function BboxOverlay({
           height,
           "--bbox-color": color,
         } as CSSProperties;
+        // key=track_id keeps the same DOM node across consecutive
+        // frames for the same person — React reuses the rectangle
+        // instead of unmount+remount, which is what makes the colour
+        // and label hold steady ("cyan stays cyan") through ByteTrack
+        // re-association across small bbox shifts.
         return (
-          <div key={i} className={styles.bbox} style={style}>
+          <div key={f.track_id} className={styles.bbox} style={style}>
             <span className={styles.bboxLabel}>
               {f.match
                 ? `${f.match.full_name.toUpperCase()} · ${f.match.similarity.toFixed(2)}`

@@ -52,6 +52,36 @@ export interface MlQualityResponse {
   face: MlFace | null;
 }
 
+// ── /recognize-tracked (Tag 7, ADR-3) ───────────────────────────────────────
+
+export interface MlTrackedFace {
+  bbox: MlBbox;
+  det_score: number;
+  yaw_deg: number;
+  blur_var: number;
+  landmarks: number[][];
+  /** 512-D ArcFace vector. Always populated for tracked faces. */
+  embedding: number[];
+  /** ByteTrack-assigned id, stable across consecutive Patrol-Mode frames. */
+  track_id: number;
+  /** True when the embedding came from Redis cache (Tag 7 speedup path). */
+  embedding_recycled: boolean;
+  /** 0 for a fresh embedding; positive for cached ones (cache age). */
+  embedding_age_ms: number;
+}
+
+export interface MlRecognizeTrackedResponse {
+  faces: MlTrackedFace[];
+  image: { width: number; height: number };
+  tracker_state_key: string;
+  metrics: {
+    detections?: number;
+    tracked?: number;
+    embeds_fresh?: number;
+    embeds_recycled?: number;
+  };
+}
+
 // ── Errors ──────────────────────────────────────────────────────────────────
 
 export class MlError extends Error {
@@ -133,4 +163,17 @@ export const ml = {
     }),
   embed: (imageB64: string) => call<MlEmbedResponse>("/embed", { image_b64: imageB64 }),
   quality: (imageB64: string) => call<MlQualityResponse>("/quality", { image_b64: imageB64 }),
+  /**
+   * Tag 7 hot path: detect → ByteTrack → cache-or-embed.
+   *
+   * `trackerStateKey` is what the ML service uses as the per-camera
+   * Redis state slot. Recommended: `${camera_id}` (one tracker per
+   * physical camera) or `${camera_id}:${session_uuid}` for clean
+   * per-session resets.
+   */
+  recognizeTracked: (imageB64: string, trackerStateKey: string) =>
+    call<MlRecognizeTrackedResponse>("/recognize-tracked", {
+      image_b64: imageB64,
+      tracker_state_key: trackerStateKey,
+    }),
 };

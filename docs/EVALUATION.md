@@ -151,29 +151,89 @@ showing what each layer contributes to total report latency.
 
 ---
 
-## [BACKLOG] Tracking speedup (Tag 13)
+## [BACKLOG] Tracking speedup + visual stability (Tag 13, drives ADR-3 closure)
 
-### Method
+### Why both axes
 
-1. Record 60 s of webcam footage with one face in frame, one
-   walk-out / walk-in, one second face.
-2. Run the recording through `/api/recognize` two ways:
-   - Tag 6 path: detect+embed+kNN every frame.
-   - Tag 7 path: ByteTrack-gated, embed only on new tracks.
-3. Compare wall-clock total + cumulative event count. Tracking
-   should reduce embed calls by ~80% and free CPU for higher fps.
+ADR-3's two value claims are independent and must both be measured:
 
-### Expected outcome
+1. **Speedup** — the ArcFace inference + pgvector kNN cost gets
+   skipped on cache hits, so the same Patrol session should sustain
+   a higher frame rate (or the same frame rate at lower CPU). The
+   numerical claim is **5–8×** reduction in ArcFace calls per stable
+   second-of-track.
+2. **Visual stability** — the bbox overlay is React-keyed by
+   `track_id` and the per-track embedding cache means the
+   match-status doesn't flicker frame-to-frame. The qualitative
+   claim is **"cyan stays cyan"** through small RetinaFace bbox
+   reorderings that the Tag 6 path rendered as colour flicker.
 
-5–8× reduction in `embed` calls; total fps cap rises from ~3 fps
-to ≥ 8 fps for 1–2 faces.
+### Method (speedup)
 
-### Output artefacts
+1. Record 60 s of webcam footage covering: one face, one walk-out /
+   walk-back-in, one second face entering, both faces leaving.
+   Save the raw frames as a numbered JPEG sequence so both runs see
+   identical input.
+2. Replay the sequence through `/api/recognize` twice:
+   - **Tag 6 baseline** — checkout the pre-Tag-7 commit that runs
+     `ml.detect(with_embeddings=true)` + 30 s time-window debounce.
+   - **Tag 7 ADR-3 path** — current `master`, `ml.recognizeTracked`
+     + per-track cache + track-keyed dedup.
+3. For each run, log per-frame:
+   - `latency_ms.{detect, knn, total}` (already in the response)
+   - `ml_metrics.{embeds_fresh, embeds_recycled}` (Tag 7 only —
+     Tag 6 reports `embeds_fresh = faces` always)
+4. Aggregate:
+   - Total ArcFace inferences per run = `Σ embeds_fresh`.
+     Speedup = `baseline_count / tag7_count`. Target ≥ 5×.
+   - Mean per-frame total latency. Tag 7 should be lower on the
+     stable-track frames, identical on cache-miss frames.
+   - Sustained fps on a fixed CPU budget (run with the frame loop
+     emitting as fast as it can; report end-to-end fps).
 
-- `tracking_speedup.png` — bar chart of frames-per-second
-  with vs without tracking.
-- `tracking_dedup.png` — event count comparison (without =
-  saturated by debounce, with = clean per-track).
+### Method (visual stability)
+
+1. Pick the same recording. Run both Tag 6 and Tag 7 paths against
+   the live Patrol UI and capture screen recordings.
+2. For each recording, count colour transitions on the rendered
+   bbox over a 30 s clip — every cyan→white→cyan or
+   confirmed→unknown→confirmed flicker is a transition. Tag 7 should
+   show **0 spurious transitions** under stable tracking; Tag 6
+   shows ≥ N (estimated 5-15 per minute on a moving subject).
+3. Side-effect check: the `event_id` field in `RecognizeFace.match`
+   is non-null exactly once per `(poi, track)`. Subsequent frames
+   for the same track return `event_id: null` (dedup hit). Tag 6
+   on the same recording produces 1 event then nothing for 30 s,
+   then the cycle repeats — track-keyed dedup makes this audit-
+   correct without timing assumptions.
+
+### Output artefacts (committed to `docs/figures/`)
+
+- `tracking_speedup.png` — stacked bar: ArcFace-call count and
+  mean per-frame ms, Tag 6 vs Tag 7. Headline figure for the
+  speedup claim.
+- `tracking_fps.png` — sustained fps (line chart over 60 s) on a
+  fixed-CPU run, Tag 6 vs Tag 7.
+- `tracking_dedup.png` — event-row timeline for both runs. Tag 6
+  shows the time-window saw-tooth; Tag 7 shows clean per-track
+  edges.
+- `tracking_visual_stability.md` — frame-grab + transition-count
+  table from the screen recordings. Defends the qualitative
+  "cyan stays cyan" claim with a hard number.
+
+### Decision criterion
+
+ADR-3 is "validated" when:
+
+- ArcFace-call reduction ≥ 5× on the stable-track segment of the
+  recording (i.e. excluding the walk-out/walk-back-in transitions).
+- Track-keyed dedup is "audit-correct": each distinct track entry
+  produces exactly one event row.
+- Visual transition count under stable tracking is 0.
+
+If any criterion fails, the ADR-3 follow-up issue is:
+"investigate cache TTL / lost_track_buffer / IoU threshold tuning"
+before claiming the Tag 7 contract holds.
 
 ---
 

@@ -15,6 +15,10 @@ dependencies = [
     "onnxruntime>=1.20",
     "insightface>=0.7.3",
     "redis>=5.2",
+    # Pinned to ==0.22.0 — supervision >= 0.25 transitively pulls numpy 2.x
+    # via opencv-python, which breaks insightface 0.7.3 ABI. 0.22 keeps
+    # ByteTrack while staying numpy-1.x-compatible.
+    "supervision==0.22.0",
     "pillow>=11.0",
     "python-multipart>=0.0.20",
     "python-dotenv>=1.0",
@@ -26,6 +30,7 @@ dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "httpx>=0.28",
+    "fakeredis>=2.35",
     "ruff>=0.8",
     "mypy>=1.13",
 ]

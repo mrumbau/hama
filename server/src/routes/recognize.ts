@@ -1,20 +1,24 @@
 /**
- * Recognize router — Patrol Mode hot path.
+ * Recognize router — Patrol Mode hot path (Tag 7, ADR-3).
  *
  * Flow per frame
- *   1. ml.detect(image_b64, with_embeddings=true) — RetinaFace + ArcFace
- *      in one round-trip. Empty face list → respond {faces: []}, no DB.
- *   2. For each face whose ArcFace vector survives RetinaFace's
- *      DETECTOR_MIN_SCORE: pgvector kNN k=5 + median-of-top-K voting
- *      (lib/recognize.ts).
- *   3. If similarity > poi.threshold AND no event in the last
- *      EVENT_DEBOUNCE_MS for the same (poi_id, camera_id): INSERT into
- *      events. Supabase Realtime pushes the row to subscribed clients.
+ *   1. ml.recognizeTracked(image_b64, tracker_state_key)
+ *      ML service detects faces with RetinaFace, runs ByteTrack on the
+ *      detections, and either reuses a cached ArcFace embedding for an
+ *      existing track or computes a fresh one. Returns each face with a
+ *      stable `track_id` and its 512-D vector.
+ *   2. For each tracked face: pgvector kNN k=5 + median-of-top-K voting.
+ *   3. If similarity > poi.threshold AND no event already exists for the
+ *      same (poi_id, camera_id, track_id): INSERT into events. The
+ *      track-keyed dedup is *lifelong per track* — a person walking out
+ *      and back in is assigned a new track and therefore produces a new
+ *      event row, which the D-012 30s time-window debounce could not.
  *
- * The frontend posts at 2-4 fps (Tag 7 ByteTrack pushes the cap to
- * 8 fps via track-then-recognize). Without tracking, the same person
- * standing in frame would generate one event per frame — the debounce
- * keeps the audit trail tractable until ByteTrack lands.
+ * The `tracker_state_key` decouples the in-memory tracker slot from the
+ * camera label — clients that want a clean per-session reset can pass
+ * `${camera_id}:${session_uuid}` and the ML service will allocate a
+ * fresh ByteTrack instance. For the Patrol UI we just use the camera_id
+ * directly.
  */
 
 import { Router, type Request, type Response } from "express";
@@ -28,18 +32,24 @@ import { rankCandidates, type KnnCandidate } from "../lib/recognize.js";
 
 export const recognizeRouter = Router();
 
-// Tag 7 (ByteTrack) replaces this with track-keyed dedup.
-const EVENT_DEBOUNCE_MS = 30_000;
 const KNN_K = 5;
 
 const recognizeBody = z.object({
   image_b64: z.string().min(32),
   camera_id: z.string().min(1).max(64).default("webcam-0"),
+  /**
+   * Optional. Defaults to camera_id. Provide a per-session value when
+   * the operator wants the ByteTrack state to reset between Patrol page
+   * loads (typically `${cameraId}:${sessionUuid}`).
+   */
+  tracker_state_key: z.string().min(1).max(128).optional(),
 });
 
 interface MatchedFace {
   bbox: { x: number; y: number; w: number; h: number };
   det_score: number;
+  track_id: number;
+  embedding_recycled: boolean;
   match: {
     poi_id: string;
     full_name: string;
@@ -47,7 +57,7 @@ interface MatchedFace {
     similarity: number;
     threshold: number;
     votes: number;
-    event_id: string | null; // null when debounced
+    event_id: string | null; // null when track-dedup'd or below threshold
   } | null;
 }
 
@@ -58,7 +68,12 @@ recognizeRouter.post("/", async (req: Request, res: Response): Promise<void> => 
     return;
   }
   const operatorId = req.auth!.sub;
-  const { image_b64: imageB64, camera_id: cameraId } = parsed.data;
+  const {
+    image_b64: imageB64,
+    camera_id: cameraId,
+    tracker_state_key: explicitTrackerKey,
+  } = parsed.data;
+  const trackerStateKey = explicitTrackerKey ?? cameraId;
 
   const t0 = Date.now();
   let detectMs = 0;
@@ -68,7 +83,7 @@ recognizeRouter.post("/", async (req: Request, res: Response): Promise<void> => 
   let detection;
   try {
     const t = Date.now();
-    detection = await ml.detect(imageB64, true);
+    detection = await ml.recognizeTracked(imageB64, trackerStateKey);
     detectMs = Date.now() - t;
   } catch (err) {
     if (err instanceof MlError) {
@@ -90,36 +105,47 @@ recognizeRouter.post("/", async (req: Request, res: Response): Promise<void> => 
       image: detection.image,
       latency_ms: { total: Date.now() - t0, detect: detectMs, knn: 0, insert: 0 },
       camera_id: cameraId,
+      tracker_state_key: trackerStateKey,
+      ml_metrics: detection.metrics,
     });
     return;
   }
 
   const out: MatchedFace[] = [];
   for (const face of detection.faces) {
-    if (!face.embedding) {
-      out.push({ bbox: face.bbox, det_score: face.det_score, match: null });
-      continue;
-    }
     const knnT = Date.now();
     const candidates = await runKnn(face.embedding, KNN_K);
     knnMs += Date.now() - knnT;
 
     const winner = rankCandidates(candidates);
     if (!winner) {
-      out.push({ bbox: face.bbox, det_score: face.det_score, match: null });
+      out.push({
+        bbox: face.bbox,
+        det_score: face.det_score,
+        track_id: face.track_id,
+        embedding_recycled: face.embedding_recycled,
+        match: null,
+      });
       continue;
     }
 
     const poi = await loadPoiForMatch(winner.poi_id);
     if (!poi || winner.similarity < poi.threshold) {
-      out.push({ bbox: face.bbox, det_score: face.det_score, match: null });
+      out.push({
+        bbox: face.bbox,
+        det_score: face.det_score,
+        track_id: face.track_id,
+        embedding_recycled: face.embedding_recycled,
+        match: null,
+      });
       continue;
     }
 
     const insertT = Date.now();
-    const eventId = await insertEventDebounced({
+    const eventId = await insertEventTrackKeyed({
       poiId: winner.poi_id,
       cameraId,
+      trackId: face.track_id,
       operatorId,
       similarity: winner.similarity,
       bbox: face.bbox,
@@ -129,6 +155,8 @@ recognizeRouter.post("/", async (req: Request, res: Response): Promise<void> => 
     out.push({
       bbox: face.bbox,
       det_score: face.det_score,
+      track_id: face.track_id,
+      embedding_recycled: face.embedding_recycled,
       match: {
         poi_id: winner.poi_id,
         full_name: poi.full_name,
@@ -146,6 +174,8 @@ recognizeRouter.post("/", async (req: Request, res: Response): Promise<void> => 
     image: detection.image,
     latency_ms: { total: Date.now() - t0, detect: detectMs, knn: knnMs, insert: insertMs },
     camera_id: cameraId,
+    tracker_state_key: trackerStateKey,
+    ml_metrics: detection.metrics,
   });
 });
 
@@ -187,30 +217,34 @@ async function loadPoiForMatch(poiId: string): Promise<PoiForMatch | null> {
     : null;
 }
 
-// ── Event insert with per-(poi, camera) debounce ───────────────────────────
+// ── Event insert with per-(poi, camera, track) lifelong dedup ──────────────
 
-async function insertEventDebounced(opts: {
+async function insertEventTrackKeyed(opts: {
   poiId: string;
   cameraId: string;
+  trackId: number;
   operatorId: string;
   similarity: number;
   bbox: { x: number; y: number; w: number; h: number };
 }): Promise<string | null> {
-  const { poiId, cameraId, operatorId, similarity, bbox } = opts;
+  const { poiId, cameraId, trackId, operatorId, similarity, bbox } = opts;
 
-  // The WHERE-NOT-EXISTS guard is the debounce. Tag 7 ByteTrack will
-  // replace it with track-id-keyed dedup that is robust to a person
-  // walking out and back in within the window.
+  // The WHERE-NOT-EXISTS guard is the dedup. Track-keyed: one event per
+  // (poi, camera, track) for the lifetime of the track. Once ByteTrack
+  // forgets the track and assigns a new id (e.g. person walks back in
+  // after lost_track_buffer expires), a fresh event row is created.
+  // The supporting partial index is in 0007_track_id_dedup.sql.
   type EventRow = { id: string } & Record<string, unknown>;
   const result = await db.execute<EventRow>(sql`
-    INSERT INTO events (poi_id, kind, camera_id, score, bbox, operator_id, status)
-    SELECT ${poiId}, 'recognition'::event_kind, ${cameraId}, ${similarity}::real,
-           ${JSON.stringify(bbox)}::jsonb, ${operatorId}, 'pending'::event_status
+    INSERT INTO events (poi_id, kind, camera_id, track_id, score, bbox, operator_id, status)
+    SELECT ${poiId}, 'recognition'::event_kind, ${cameraId}, ${trackId}::integer,
+           ${similarity}::real, ${JSON.stringify(bbox)}::jsonb, ${operatorId},
+           'pending'::event_status
     WHERE NOT EXISTS (
       SELECT 1 FROM events
       WHERE poi_id = ${poiId}
         AND camera_id = ${cameraId}
-        AND created_at > now() - (${EVENT_DEBOUNCE_MS} || ' milliseconds')::interval
+        AND track_id = ${trackId}
     )
     RETURNING id
   `);

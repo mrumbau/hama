@@ -79,3 +79,58 @@ class QualityResponse(BaseModel):
     reasons: list[str]
     metrics: dict[str, float]
     face: FaceOut | None
+
+
+# ── /recognize-tracked (Tag 7, ADR-3) ───────────────────────────────────
+
+
+class RecognizeTrackedInput(BaseModel):
+    """Patrol Mode hot-path request.
+
+    `tracker_state_key` is a free-form string — the Express orchestrator
+    typically uses `${camera_id}` (one tracker per physical camera) or
+    `${camera_id}:${session_uuid}` if it wants per-page-session state.
+    Anything goes as long as the same key reaches the ML service across
+    consecutive frames; ByteTrack's stable `track_id`s only persist
+    within one key's state blob.
+    """
+
+    image_b64: str = Field(
+        ...,
+        min_length=32,
+        description="Base64 string. Optionally prefixed with `data:<mime>;base64,`.",
+    )
+    tracker_state_key: str = Field(..., min_length=1, max_length=128)
+
+
+class TrackedFaceOut(BaseModel):
+    """One detection annotated with ByteTrack's stable id and ArcFace
+    embedding (either freshly computed or recycled from the per-track
+    cache, marked by `embedding_recycled`)."""
+
+    bbox: BboxOut
+    det_score: float
+    yaw_deg: float
+    blur_var: float
+    landmarks: list[list[float]]
+    embedding: list[float]  # always populated — recognition is the whole point
+    track_id: int
+    embedding_recycled: bool = Field(
+        ...,
+        description="True if served from cache; False if a fresh ArcFace pass ran this frame.",
+    )
+    embedding_age_ms: int = Field(
+        ...,
+        description="0 for a fresh embedding; positive for cached entries.",
+    )
+
+
+class RecognizeTrackedResponse(BaseModel):
+    faces: list[TrackedFaceOut]
+    image: dict[str, int]  # {"width": int, "height": int}
+    tracker_state_key: str
+    metrics: dict[str, int] = Field(
+        default_factory=dict,
+        description="Counters for the Tag 13 speedup measurement: "
+        "`embeds_fresh`, `embeds_recycled`, `detections`, `tracked`.",
+    )

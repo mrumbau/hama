@@ -137,6 +137,76 @@ def test_invalid_base64_returns_422(client):
     assert r.status_code == 422
 
 
+# ── /recognize-tracked (Tag 7, ADR-3) ───────────────────────────────────────
+
+
+def test_recognize_tracked_returns_track_ids_and_caches_embeddings(client, single_face_b64):
+    """End-to-end Track-then-Recognize:
+      * Frame 1 returns one face with a fresh embedding (cache miss).
+      * Frame 2 (same image, same state_key) returns one face with a
+        recycled embedding (cache hit). The 512-D vector matches frame 1
+        bit-for-bit.
+
+    Depends on real Redis being unavailable in CI: we override the
+    tracking module's client with fakeredis at the start of this test
+    so it doesn't try to reach a localhost server.
+    """
+    import fakeredis
+
+    from argus_ml.tracking import _set_redis_for_tests
+
+    _set_redis_for_tests(fakeredis.FakeRedis(decode_responses=False))
+    try:
+        body = {"image_b64": single_face_b64, "tracker_state_key": "test-cam-1"}
+        r1 = client.post("/recognize-tracked", json=body)
+        assert r1.status_code == 200, r1.text
+        d1 = r1.json()
+        assert len(d1["faces"]) == 1
+        f1 = d1["faces"][0]
+        assert f1["track_id"] >= 1
+        assert f1["embedding_recycled"] is False
+        assert len(f1["embedding"]) == 512
+        assert d1["metrics"]["embeds_fresh"] == 1
+        assert d1["metrics"]["embeds_recycled"] == 0
+
+        r2 = client.post("/recognize-tracked", json=body)
+        d2 = r2.json()
+        f2 = d2["faces"][0]
+        assert f2["track_id"] == f1["track_id"]  # stable across frames
+        assert f2["embedding_recycled"] is True
+        assert d2["metrics"]["embeds_fresh"] == 0
+        assert d2["metrics"]["embeds_recycled"] == 1
+        # Recycled embedding equals the freshly computed one.
+        for a, b in zip(f1["embedding"], f2["embedding"]):
+            assert abs(a - b) < 1e-9
+    finally:
+        _set_redis_for_tests(None)
+
+
+def test_recognize_tracked_isolates_state_per_key(client, single_face_b64):
+    """Two different `tracker_state_key` values must not share track ids
+    or embedding cache slots."""
+    import fakeredis
+
+    from argus_ml.tracking import _set_redis_for_tests
+
+    _set_redis_for_tests(fakeredis.FakeRedis(decode_responses=False))
+    try:
+        a = client.post(
+            "/recognize-tracked",
+            json={"image_b64": single_face_b64, "tracker_state_key": "cam-A"},
+        ).json()
+        b = client.post(
+            "/recognize-tracked",
+            json={"image_b64": single_face_b64, "tracker_state_key": "cam-B"},
+        ).json()
+        # Both report a freshly-computed embedding (each key was a cache miss).
+        assert a["faces"][0]["embedding_recycled"] is False
+        assert b["faces"][0]["embedding_recycled"] is False
+    finally:
+        _set_redis_for_tests(None)
+
+
 def test_empty_image_returns_422(client):
     r = client.post("/embed", json={"image_b64": "                                  "})
     # Either pydantic min_length blocks, or our decoder reports empty_image.

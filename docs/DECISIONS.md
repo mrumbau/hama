@@ -823,3 +823,75 @@ gate gets that extra axis back — but as a learned score, not as a
 hand-tuned Laplacian threshold.
 
 ---
+
+## D-018 — Tag 7: Track-then-Recognize landed; D-012 superseded
+
+**Date:** 2026-04-26
+**Why this is a D-entry, not just an ADR-3 cross-reference:** the
+implementation pulled in three small decisions that are too tactical
+for the architecture doc but matter for future readers.
+
+1. **`supervision==0.22.0` pinned, not `>=`.** The transitive
+   dependency chain on supervision ≥ 0.25 pulls `opencv-python`
+   instead of `opencv-python-headless`, which in turn upgrades numpy
+   to 2.x. Insightface 0.7.3's compiled ABI links against numpy 1.x;
+   numpy 2 breaks `face_align` at import. Pinning to 0.22.0 is a
+   compatibility decision for as long as we run insightface 0.7.x.
+   When insightface ships a numpy-2-clean release we can unpin.
+
+2. **`tracker_state_key = ${camera_id}:${session_uuid}`** on the
+   client, generated once per Patrol page mount with `crypto.
+   randomUUID()`. Server-side default falls back to `${camera_id}`
+   when the client doesn't supply one — keeps `curl` smoke-tests
+   simple. The session suffix is the cleanest fix for "same camera_id
+   across reloads picks up stale ByteTrack state from Redis"; without
+   it the first event after a page reload would dedup against a
+   `(poi, camera, track)` triple from the previous session.
+
+3. **`events.track_id` is nullable, with a partial dedup index.**
+   Tag 6 events and any future non-Patrol kinds (sniper_match) keep
+   `track_id IS NULL`; the partial btree index
+   `events_track_dedup_idx ON (camera_id, track_id, poi_id) WHERE
+   track_id IS NOT NULL` is the support for the Tag 7 dedup query
+   without bloating the index for every event row.
+
+**Constants tuned** (in `argus_ml/config.py`):
+
+| Constant                  | Value | Why                                                                                                                |
+| ------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------ |
+| `BYTETRACK_FRAME_RATE`    | 10    | Patrol runs at ~5–10 fps. supervision computes `max_time_lost = int(fps/30 * 30)` so frame_rate=10 → 10-frame buffer (~1 s of occlusion forgiven). |
+| `TRACKER_STATE_TTL_S`     | 60    | Camera silence longer than this resets the tracker — desired behaviour for a demo where the operator may pause for several minutes. |
+| `TRACK_EMBED_TTL_S`       | 30    | Hard upper bound on a cached ArcFace vector's lifetime.                                                            |
+| `TRACK_EMBED_MAX_AGE_S`   | 2.0   | Soft freshness — anything older is treated as a cache miss to keep the embedding from lagging appearance changes.  |
+
+**What was NOT done in Tag 7** (intentional, scoped for later):
+
+- **No match-cache.** Only embeddings are cached. The kNN call still
+  runs every frame because pgvector is the only authoritative source
+  for "is this a registered POI?" — caching the match would create a
+  correctness hazard if the operator enrols a new POI mid-session.
+  Tag 13 may revisit if the empirical speedup numbers are below the
+  ADR-3 5× target.
+- **No client-side tracker.** The browser uses the server's
+  `track_id` to React-key the bbox, but does not run its own
+  tracker. Keeps the implementation single-source-of-truth.
+
+**Dependency added on local Redis.** `make demo` already starts
+`docker compose up -d redis`. For the dev workflow on macOS we
+recommend `brew services start redis` instead — the docker-compose
+container is for the production-like demo bring-up, not the inner
+loop. The ML service treats Redis-unreachable as a hard failure
+(no silent fallback to no-tracking) because the response contract
+includes `track_id` per face.
+
+**Tests added** (Python: `test_tracking.py` 11 cases +
+`test_routes.py` 2 cases; Server: `ml-client.test.ts` 1 case). All
+green: 54 pytest passed (2 skipped per D-017), 33 vitest passed
+including the live HNSW-vs-brute-force corpus check.
+
+**Plan-target proof.** §13 Tag 7 gate is "ByteTrack im ML-Service +
+Track-then-Recognize ersetzt 30s-Time-Window-Debounce". Replaced. The
+Tag 13 EVALUATION.md backlog "tracking speedup + visual stability"
+runs the empirical 5–8× claim against a recorded session.
+
+---

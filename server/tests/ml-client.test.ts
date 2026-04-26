@@ -109,6 +109,45 @@ describe("ml-client", () => {
     });
   });
 
+  it("returns typed recognize-tracked response with track ids", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(200, {
+          faces: [
+            {
+              bbox: { x: 10, y: 10, w: 100, h: 100 },
+              det_score: 0.92,
+              yaw_deg: 5,
+              blur_var: 180,
+              landmarks: [
+                [40, 40],
+                [60, 40],
+                [50, 55],
+                [42, 70],
+                [58, 70],
+              ],
+              embedding: Array.from({ length: 512 }, (_, i) => (i + 1) / 1024),
+              track_id: 7,
+              embedding_recycled: false,
+              embedding_age_ms: 0,
+            },
+          ],
+          image: { width: 640, height: 480 },
+          tracker_state_key: "webcam-0",
+          metrics: { detections: 1, tracked: 1, embeds_fresh: 1, embeds_recycled: 0 },
+        }),
+      ),
+    );
+    const r = await ml.recognizeTracked("imgb64", "webcam-0");
+    expect(r.faces).toHaveLength(1);
+    expect(r.faces[0].track_id).toBe(7);
+    expect(r.faces[0].embedding).toHaveLength(512);
+    expect(r.faces[0].embedding_recycled).toBe(false);
+    expect(r.tracker_state_key).toBe("webcam-0");
+    expect(r.metrics.embeds_fresh).toBe(1);
+  });
+
   it("turns AbortError into MlError(reason=ml_timeout)", async () => {
     vi.stubGlobal(
       "fetch",

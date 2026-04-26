@@ -160,6 +160,136 @@ This means the frontend has **two channels**:
 
 ---
 
+## ADR-3 — Track-then-Recognize: ByteTrack-keyed embedding cache + lifelong dedup
+
+**Status:** accepted (2026-04-26, Tag 7)
+
+### Context
+
+Tag 6 Patrol Mode ran `detect_faces(with_embeddings=True)` + pgvector
+kNN on every webcam frame, with a 30-second `(poi_id, camera_id)`
+time-window debounce on event inserts (D-012). Three problems showed
+up at frame rates above ~3 fps:
+
+1. **Cost.** Every frame paid for a full ArcFace inference and a
+   round-trip to hosted-Supabase pgvector (D-013: 379 ms RTT
+   dominates the per-frame budget). Identical work on identical
+   pixels — the same face standing in front of the camera at 30 fps
+   produces 30 nearly-identical embedding vectors per second.
+2. **Visual flicker.** The bbox-overlay React keys were the face
+   index in the response array, so any frame-to-frame reorder by
+   RetinaFace caused a momentary unmount + remount of the rectangle.
+   The result: the colour and label fluttered even though the same
+   physical person was tracked correctly.
+3. **Coarse audit dedup.** The 30 s time-window debounce conflated
+   "same person standing still" with "same person back after 5
+   minutes". Re-entry inside the window was silently swallowed; the
+   audit log lost the second arrival.
+
+### Decision
+
+Split the Patrol Mode pipeline into **detect → track → recognize**,
+with two cache layers:
+
+- **Tracker state** (`supervision.ByteTrack`) is pickled into Redis
+  under `argus:tracker:{state_key}` with a 60-second TTL. ByteTrack
+  assigns a stable integer `track_id` to each detection across
+  consecutive frames. The Express orchestrator passes
+  `tracker_state_key` (typically `${camera_id}:${session_uuid}` so
+  page reloads start fresh) on every request; the ML service loads,
+  updates, and re-pickles the tracker per call.
+- **Per-track ArcFace embedding cache** lives at
+  `argus:track_embed:{state_key}:{track_id}` with TTL =
+  `TRACK_EMBED_TTL_S` (30 s) and a max-age guard at
+  `TRACK_EMBED_MAX_AGE_S` (2 s). Cache hits inside that window skip
+  the ArcFace inference entirely; cache misses run `embed_face_at`
+  on the aligned face crop and write back. The 2 s freshness bound
+  keeps a stale embedding from lagging a person's appearance change
+  (lighting shift, glasses on/off, head rotation).
+
+The `events` row gets a new nullable `track_id integer` column
+(migration `0007_track_id_dedup.sql`). Event insert dedup becomes
+`WHERE NOT EXISTS … WHERE poi_id = X AND camera_id = Y AND
+track_id = T` — **lifelong per track** rather than time-windowed.
+A person walking out and back in is assigned a new track by ByteTrack
+once the lost-track buffer (~10 frames at frame_rate=10) expires, so
+the dedup naturally surfaces the second arrival as a new event row.
+
+ByteTrack ships in the `supervision==0.22.0` package (pinned because
+≥ 0.25 transitively pulls numpy 2.x, which breaks insightface
+0.7.3's ABI). Pickling adds ~2-5 ms per call; at the Patrol target
+of ~6 fps that overhead is well below the kNN cost it saves on
+stable tracks.
+
+### Consequences
+
+- **Speedup.** Cache-hit frames skip ArcFace (~80–120 ms on CPU per
+  face); the kNN call still runs because pgvector is the source of
+  truth for "did we match a registered POI?" The expected end-to-
+  end speedup is 5–8× on a stable single-face Patrol session; Tag 13
+  EVALUATION.md "tracking speedup" measures this against a Tag 6
+  baseline run on the same recording.
+- **Visual stability ("cyan stays cyan").** The bbox overlay is now
+  React-keyed by `track_id`, so the same person occupies the same
+  DOM node across frames. The colour-by-match-status no longer
+  flickers; even if pgvector momentarily disagrees on one frame the
+  overlay reuses the previous frame's rectangle position with a
+  smooth in-place style update.
+- **Lifelong audit dedup.** One event per `(poi_id, camera_id,
+  track_id)` for the lifetime of the track. The 30-second
+  EVENT_DEBOUNCE_MS constant is removed entirely — the new dedup is
+  enforced by the partial index on `(camera_id, track_id, poi_id)`
+  WHERE `track_id IS NOT NULL` and the `WHERE NOT EXISTS` guard on
+  insert.
+- **Worker-count flexibility.** Because tracker state lives in Redis,
+  `ML_WORKERS` can stay at 2; any worker can pick up any frame and
+  read/write the same state.
+- **Cold-start latency unchanged.** First frame after a 60-second
+  camera silence pays the InsightFace + ByteTrack init costs. The
+  existing FastAPI lifespan still warms InsightFace; ByteTrack is
+  cheap to instantiate (< 1 ms).
+- **Operational dependency: local Redis.** Patrol Mode now requires
+  `brew services start redis` (or any Redis at the configured URL).
+  A clean error in the ML service surfaces if Redis is unreachable —
+  it does NOT silently fall back to no-tracking, because the
+  contract surface (track_id per face, recycled embeddings) would
+  be broken.
+- **Test surface.** New `tests/test_tracking.py` covers track
+  lifecycle (stable id across frames, fresh id after walk-out / walk-
+  back), embedding cache (hit / miss / stale), and per-state-key
+  isolation. `tests/test_routes.py` adds an end-to-end
+  `/recognize-tracked` smoke. The existing recognize-core tests
+  (median-of-top-K voting, HNSW vs brute-force cross-check on the
+  live corpus) are unchanged — the kNN math is the same.
+
+### Alternatives considered
+
+- **Keep state in-process; pin ML_WORKERS=1.** Simpler, ~2 ms
+  faster per call (no pickle round-trip). Rejected because it
+  removes a worker-count knob that's useful for the Tag 8 Sniper
+  Mode fan-out: that workload _wants_ ML_WORKERS≥2 for parallel
+  layer dispatch.
+- **Cache the kNN match too, not just the embedding.** Would skip
+  the pgvector RTT (~190 ms) on cache hits, halving the per-frame
+  total. Rejected for Tag 7 because the embedding cache covers the
+  expensive piece (ArcFace) and the match cache adds a correctness
+  hazard: if the operator enrols a new POI mid-session, a cached
+  match would shadow the now-better real match. Tag 13 may revisit
+  with TTL ≤ 1 s as an opt-in.
+- **Track in the browser via face-api.js.** Would push the cost off
+  the server entirely. Rejected because face-api.js's tracker is
+  appearance-based (not motion-based) and would need its own
+  ArcFace-equivalent embedding to do association — the same cost,
+  in JavaScript instead of Python.
+
+### Superseded decisions
+
+- D-012 (30s `(poi, camera)` time-window debounce) is replaced by
+  the track-keyed lifelong dedup. The old constant
+  `EVENT_DEBOUNCE_MS = 30_000` is deleted from `routes/recognize.ts`.
+
+---
+
 ## ADR-5 — RLS as the second line of defence
 
 **Status:** accepted (2026-04-25)

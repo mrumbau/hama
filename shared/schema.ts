@@ -176,6 +176,11 @@ export const events = pgTable(
     // FK to auth.users(id) ON DELETE SET NULL in 0003_foreign_keys.sql
     operatorId: uuid("operator_id"),
     status: eventStatus("status").notNull().default("pending"),
+    // ByteTrack-assigned track id (Tag 7, ADR-3). Null for non-tracked
+    // event kinds (sniper_match) and for legacy rows from before Tag 7.
+    // The dedup index is partial on `track_id IS NOT NULL`, defined
+    // hand-written in 0007_track_id_dedup.sql.
+    trackId: integer("track_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .default(sql`now()`),

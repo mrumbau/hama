@@ -30,6 +30,22 @@ class Settings(BaseSettings):
     # ── Redis (Tag 7: ByteTrack state cache) ────────────────────────────
     REDIS_URL: str = "redis://127.0.0.1:6379"
 
+    # ── Tracking (Tag 7, ADR-3: Track-then-Recognize) ────────────────────
+    # ByteTrack frame_rate controls the lost_track_buffer (default 30
+    # frames). Patrol Mode runs at ~5–10 fps, so frame_rate=10 forgives
+    # ~3 seconds of occlusion before a track is reaped.
+    BYTETRACK_FRAME_RATE: int = Field(default=10, ge=1, le=60)
+    # TTL on the pickled tracker state in Redis. After 60s of camera
+    # silence the tracker is reset — operator-recognisable identities
+    # restart from track_id=1 on the next frame.
+    TRACKER_STATE_TTL_S: int = Field(default=60, ge=1)
+    # TTL on the per-track embedding cache.
+    TRACK_EMBED_TTL_S: int = Field(default=30, ge=1)
+    # Max age before a cached embedding is considered stale and must be
+    # recomputed even though the cache entry still exists. Bound on how
+    # long an old ArcFace vector can lag behind a person's appearance.
+    TRACK_EMBED_MAX_AGE_S: float = Field(default=2.0, gt=0)
+
     # ── InsightFace ──────────────────────────────────────────────────────
     INSIGHTFACE_MODEL_PACK: str = "buffalo_l"
     INSIGHTFACE_DET_SIZE: int = 640

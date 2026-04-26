@@ -209,9 +209,21 @@ def _yaw_from_kps(kps: np.ndarray) -> float:
     return float(np.clip(offset * 180.0, -90.0, 90.0))
 
 
-def _to_detected(raw_face: Any, image_bgr: np.ndarray, with_embedding: bool) -> DetectedFace:
-    bbox = _bbox_from_raw(raw_face.bbox)
-    kps = getattr(raw_face, "kps", None)
+def _detected_face_from_raw(
+    image_bgr: np.ndarray,
+    bbox_xyxy,  # [x1, y1, x2, y2] (np.ndarray, list, or tuple)
+    det_score: float,
+    kps: np.ndarray | None,
+    embedding: np.ndarray | None,
+) -> DetectedFace:
+    """Build a DetectedFace from raw detector outputs.
+
+    Shared by the `app.get()` full-pipeline path (`_to_detected`) and the
+    Tag 7 detect-only tracking path (`detect_only`). Centralising the
+    metric-extraction here keeps the eye-region blur logic and the
+    yaw-from-kps heuristic in one place.
+    """
+    bbox = _bbox_from_raw(bbox_xyxy)
     yaw_deg = _yaw_from_kps(kps) if kps is not None else 0.0
     # Prefer eye-region blur (D-015 v2): robust against Portrait Mode bokeh
     # and the bbox-edge-blur problem the central-60% crop only partly solved.
@@ -224,6 +236,19 @@ def _to_detected(raw_face: Any, image_bgr: np.ndarray, with_embedding: bool) -> 
     landmarks: list[tuple[float, float]] = (
         [(float(p[0]), float(p[1])) for p in kps] if kps is not None else []
     )
+    return DetectedFace(
+        bbox=bbox,
+        det_score=float(det_score),
+        yaw_deg=yaw_deg,
+        blur_var=blur_var,
+        landmarks=landmarks,
+        embedding=embedding,
+    )
+
+
+def _to_detected(raw_face: Any, image_bgr: np.ndarray, with_embedding: bool) -> DetectedFace:
+    """Adapter for the `app.get()` full-pipeline path."""
+    kps = getattr(raw_face, "kps", None)
     embedding = None
     if with_embedding:
         emb = getattr(raw_face, "normed_embedding", None)
@@ -231,12 +256,11 @@ def _to_detected(raw_face: Any, image_bgr: np.ndarray, with_embedding: bool) -> 
             emb = getattr(raw_face, "embedding", None)
         if emb is not None:
             embedding = np.asarray(emb, dtype=np.float32)
-    return DetectedFace(
-        bbox=bbox,
+    return _detected_face_from_raw(
+        image_bgr=image_bgr,
+        bbox_xyxy=raw_face.bbox,
         det_score=float(getattr(raw_face, "det_score", 1.0)),
-        yaw_deg=yaw_deg,
-        blur_var=blur_var,
-        landmarks=landmarks,
+        kps=kps,
         embedding=embedding,
     )
 
@@ -261,6 +285,76 @@ def detect_faces(
             continue
         out.append(_to_detected(f, image_bgr, with_embedding=with_embeddings))
     return out
+
+
+def detect_only(image_bgr: np.ndarray) -> list[DetectedFace]:
+    """RetinaFace-only detection. Skips ArcFace.
+
+    Tag 7 (Track-then-Recognize, ADR-3) calls this on every frame; the
+    caller (tracking.py) decides per face whether the ArcFace embedding
+    needs to be computed (new track / stale cache) or can be recycled
+    from Redis. Splitting detection from embedding is the source of the
+    expected 5-8× speedup on Patrol Mode.
+
+    Returned faces always have `embedding=None`. Apply `embed_face_at` to
+    fill it in for the subset that needs a fresh embedding.
+    """
+    s = get_settings()
+    app = get_face_app()
+    # det_model.detect returns (bboxes [N,5], kpss [N,5,2] | None).
+    bboxes, kpss = app.det_model.detect(image_bgr)
+    out: list[DetectedFace] = []
+    if bboxes is None or len(bboxes) == 0:
+        return out
+    for i in range(int(bboxes.shape[0])):
+        score = float(bboxes[i, 4])
+        if score < s.DETECTOR_MIN_SCORE:
+            continue
+        kps = kpss[i] if kpss is not None else None
+        out.append(
+            _detected_face_from_raw(
+                image_bgr=image_bgr,
+                bbox_xyxy=bboxes[i, 0:4],
+                det_score=score,
+                kps=kps,
+                embedding=None,
+            )
+        )
+    return out
+
+
+def embed_face_at(image_bgr: np.ndarray, face: DetectedFace) -> np.ndarray:
+    """Run ArcFace on a single detected face. Returns the 512-D L2-normed
+    embedding. Companion to `detect_only` — together they replicate the
+    full `detect_faces(with_embeddings=True)` pipeline but allow the
+    embedding to be skipped per-face.
+
+    Requires the face to carry the 5-point landmarks (RetinaFace always
+    emits them, so any DetectedFace produced by `detect_only` qualifies).
+    """
+    from insightface.app.common import Face as _IFace
+
+    if not face.landmarks or len(face.landmarks) < 5:
+        raise ValueError("embed_face_at: requires 5-point landmarks for alignment")
+
+    app = get_face_app()
+    rec = app.models.get("recognition")
+    if rec is None:  # pragma: no cover — buffalo_l always ships recognition
+        raise RuntimeError("InsightFace pack has no recognition model")
+
+    kps = np.array(face.landmarks, dtype=np.float32)
+    bbox = np.array(
+        [face.bbox.x, face.bbox.y, face.bbox.x + face.bbox.w, face.bbox.y + face.bbox.h],
+        dtype=np.float32,
+    )
+    raw = _IFace(bbox=bbox, kps=kps, det_score=face.det_score)
+    rec.get(image_bgr, raw)
+    emb = getattr(raw, "normed_embedding", None)
+    if emb is None:
+        emb = getattr(raw, "embedding", None)
+    if emb is None:
+        raise RuntimeError("ArcFace returned no embedding")
+    return np.asarray(emb, dtype=np.float32)
 
 
 def best_face(faces: list[DetectedFace]) -> DetectedFace | None:
