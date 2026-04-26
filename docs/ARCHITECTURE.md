@@ -227,6 +227,82 @@ trigger when Supabase Auth signs a new user up, defaulting to
 
 ---
 
+## ADR-4 — Multiple embeddings per POI, median-of-top-K voting at recognition
+
+**Status:** accepted (2026-04-25). Recognition consumer lives in Tag 6.
+
+### Context
+
+A single ArcFace embedding per POI works against the same head pose,
+expression, and lighting — and degrades sharply outside that envelope.
+Operators enrolling a POI for recognition across security cameras need
+robustness to ±15° head turn, glasses on/off, evening vs daytime
+lighting, and the occasional partial occlusion.
+
+The two clean strategies are:
+
+1. **Mean-pooling at enrol** — average the N embeddings into one
+   vector, store that. pgvector kNN is then 1:1 and indexes the centroid.
+2. **All vectors stored, median-of-top-K at query** — store every
+   embedding, query with k=N candidates per probe, vote by majority
+   poi_id, score = median of cosine distances within the winning POI.
+
+### Decision
+
+We store **every embedding individually** in `face_embeddings`, with
+the FK back to `poi`. At recognition time (Tag 6) the kNN query is
+`SELECT poi_id, embedding <=> $probe AS dist FROM face_embeddings
+ORDER BY dist LIMIT 5`. The result set is grouped by poi_id; the
+majority poi_id wins; the **median cosine distance** within the
+winning group becomes the recognition score.
+
+Required enrolment: ≥ 3 embeddings per POI (frontend enforces; backend
+allows fewer for partial enrolment but recognition treats <3 as
+"unenrolled"). Maximum 5 to keep the kNN result set bounded.
+
+### Why not mean-pooling?
+
+- Mean-pooling collapses pose variation that the operator deliberately
+  enrolled. If an operator gives front / left / right, the mean is
+  somewhere between front and a profile direction — a face seen from
+  any one angle then matches the centroid less well than it would
+  match the most similar enrolled photo.
+- Median-of-top-K is **resistant to a single bad photo**: an embedding
+  with a quality-gate-near-miss (slightly blurry, marginal lighting)
+  drops out of the median and does not move the score. Mean-pooling
+  propagates it.
+- Storage cost is trivial: 5 × 512 × 4 bytes = 10 KB per POI. The
+  HNSW index handles thousands of total embeddings without issue.
+- Query cost difference is negligible: HNSW with k=5 instead of k=1
+  is ~5% slower in pgvector benchmarks.
+
+### Consequences
+
+- The operator UI shows enrolment progress as "N / 3 embeddings"
+  with a clear "active when ≥ 3" threshold (Tag 5 implementation).
+- Tag 13 ROC evaluation runs the recognition path at multiple values
+  of N (1–5) and plots FAR/FRR per identity — the multi-embedding
+  argument shown empirically. Expected gain: ROC-AUC +0.01–0.03
+  between N=1 and N=5 on a small in-house dataset.
+- Recognition pseudocode (Tag 6 implementation):
+  ```sql
+  WITH knn AS (
+    SELECT poi_id, embedding <=> $probe AS dist
+    FROM face_embeddings
+    ORDER BY dist LIMIT 5
+  ),
+  by_poi AS (
+    SELECT poi_id, COUNT(*) AS votes,
+           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY dist) AS median_dist
+    FROM knn GROUP BY poi_id
+  )
+  SELECT poi_id, votes, median_dist
+  FROM by_poi
+  ORDER BY votes DESC, median_dist ASC LIMIT 1;
+  ```
+
+---
+
 ## ADR-9 — Auth verification via Supabase JWT Signing Keys (asymmetric, JWKS)
 
 **Status:** accepted (2026-04-25). Supersedes the HS256 / `SUPABASE_JWT_SECRET`
@@ -421,6 +497,5 @@ The following ADRs will be written when their topic is implemented.
 Listed here so the table of contents matches the plan.
 
 - ADR-3 — Track-then-Recognize over frame-by-frame recognition (Tag 7)
-- ADR-4 — Multiple embeddings per POI, median-of-top-K voting (Tag 5)
 - ADR-6 — Layer fanout with circuit breaker and cost guard (Tag 8)
 - ADR-7 — Supabase Realtime as the only push channel, also for Sniper layer streaming (Tag 9)

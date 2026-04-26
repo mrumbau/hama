@@ -230,3 +230,99 @@ HTTP_CODE: 200
 Supabase).
 
 ---
+
+## D-010 — Reality Defender mock-by-default + injectable verdicts (cost guard)
+
+**Date:** 2026-04-25
+**What the plan said:** Plan §3 enrolment includes a Reality Defender
+authenticity gate. Plan §9 caps Reality Defender at "max 10/min global
+(50/Monat-Free-Tier)" and §11 lists "no Cost-Guard" as Fusion-Slop.
+**What the user asked:** Build an `RD_MOCK_MODE=true` toggle so the
+Tag 5 enrolment dev-loop and CI never burn the 50-scan/month free
+quota. Mock returns deterministic authentic verdicts.
+**What I did:**
+
+- `RD_MOCK_MODE` Zod env var, **default true**. The user must set
+  `RD_MOCK_MODE=false` explicitly to call the real Reality Defender API.
+- `server/src/external/reality-defender.ts` — mock first, real second.
+  - Mock: deterministic per `sha256(image_bytes)`. Default verdict
+    `authentic, score=0.99`. Test-only `__test_only__injectMockVerdict()`
+    overrides per hash so the test suite asserts the deepfake-rejection
+    path without ever opening a socket.
+  - Real client: structural stub. Fails fast with a clear
+    `reality_defender_real_mode_not_implemented_yet` error if the
+    toggle is flipped pre-Tag 8. The error message points at
+    `RD_MOCK_MODE=true` so an accidental flip in dev surfaces the
+    fix in 5 seconds.
+- `AuthenticityCheck` interface includes `source: "mock" | "real"` so
+  every audit-log entry carries which path produced the verdict —
+  defensible in the oral defence ("we logged that this enrolment used
+  the mock, here's the row").
+- 6 unit tests in `tests/reality-defender.test.ts`: default authentic;
+  determinism per hash; hash-changes-with-content; per-sha verdict
+  injection (deepfake); uncertain verdict; real-mode safety throw
+  (with vi.resetModules to re-evaluate the env cache).
+  **Why:** The free tier is a hard 50/month ceiling. Without a default-mock
+  guard, a single CI run that hits this code path drains the budget.
+  Mock-by-default with explicit opt-out matches the Tag-1 secrets-rotation
+  posture: secure default, opt-in danger.
+  **Trade-off:** The real Reality Defender client is a Tag-8 commitment,
+  not Tag-5. The Tag-5 enrolment pipeline therefore never proves the
+  real upload+poll-by-requestId integration. Mitigation: a clear `// Sketch
+of the production flow, pinned for Tag 8 implementation` block in
+  `reality-defender.ts` documenting the exact endpoints and shape, so the
+  Tag 8 author has a concrete interface to fill in.
+
+**Verification (live smoke test, post-implementation)**
+
+```
+$ curl -X POST /api/poi/<id>/photos -F "image=@single-face.jpg"
+HTTP_CODE: 201
+embedding_id: 1a9ebb27-2681-4dc7-80a7-7ecb81173f6a
+authenticity: {"verdict":"authentic","score":0.99,"source":"mock"}
+storage_path: 2e14b71a-9e6c-42c9-9ee1-56a0918a8e18.jpg
+quality.face_size_px: 102
+```
+
+DB row: `face_embeddings.vector_dims(embedding) = 512`,
+`quality_score = 0.773`, `authenticity_score = 0.99`.
+
+---
+
+## D-011 — POI photo upload via multipart-to-Express (not signed-URL-direct-to-Storage)
+
+**Date:** 2026-04-25
+**What the plan said:** ADR-2 consequence: "File uploads go directly
+from browser to Supabase Storage (signed upload URL pattern) and
+never traverse Express." Plan §3 contradicts itself by suggesting the
+pipeline is `POST /api/poi/:id/photos (multipart)`.
+**What I did:** Followed plan §3. The browser POSTs the photo as
+multipart to Express; Express uploads to Storage via service-role
+**after** the quality + authenticity gates (actually before, then
+cleans up on failure — see below). The frontend never touches Storage
+directly for enrolment.
+**Why:** Three reasons:
+
+1. **Atomic failure semantics.** If quality/authenticity reject the
+   photo, no Storage object should exist. The signed-URL-direct flow
+   would leave orphan objects on every reject; an Express
+   intermediate can `delete` the path on failure and surface a 422
+   in one round-trip.
+2. **Single trust boundary.** Authenticity (Reality Defender) needs
+   the raw bytes server-side anyway. Sending bytes twice (browser
+   → Storage, then Storage → Express → RD) doubles the egress for
+   no reduction in bytes-touched-by-Express.
+3. **Enrolment payloads are small.** ADR-2's "avoid re-streaming
+   multi-megabyte images" concern targets Patrol Mode at 4 fps × 4
+   cameras, not 3-5 enrolment photos at ≤10 MB each.
+
+The Sniper Mode query upload (Tag 8) WILL use the signed-URL-direct
+pattern as ADR-2 prescribes — there the orchestrator only needs the
+storage_path, not the bytes.
+
+**Trade-off:** Express becomes a 10 MB/req max-body ingress. The
+existing `express.json({ limit: "1mb" })` is bypassed by multer's
+own `limits.fileSize = POI_PHOTO_MAX_BYTES`. A 422 with `error:
+image_too_large` fires before multer reads the body fully.
+
+---

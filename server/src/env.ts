@@ -30,12 +30,35 @@ const schema = z.object({
 
   // ML service.
   ML_BASE_URL: z.string().url().default("http://127.0.0.1:8001"),
+  ML_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   REDIS_URL: z.string().default("redis://127.0.0.1:6379"),
 
   // External APIs (server-only — frontend never sees these).
   SERPAPI_KEY: z.string().min(20),
   PICARTA_API_KEY: z.string().min(10),
   REALITY_DEFENDER_API_KEY: z.string().min(20),
+  REALITY_DEFENDER_BASE_URL: z.string().url().default("https://api.prd.realitydefender.xyz"),
+  REALITY_DEFENDER_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
+  // Default TRUE — protects the 50/month free-tier quota. Must be set to
+  // explicit "false"/"0" to call the real Reality Defender API.
+  // Tag 5 enrolment + tests run against the deterministic mock.
+  RD_MOCK_MODE: z
+    .union([
+      z.boolean(),
+      z
+        .string()
+        .toLowerCase()
+        .transform((v) => v !== "false" && v !== "0" && v !== ""),
+    ])
+    .default(true),
+
+  // POI enrolment.
+  POI_PHOTO_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10 * 1024 * 1024),
+  POI_PHOTOS_MAX_PER_REQUEST: z.coerce.number().int().positive().default(1),
 
   // Cost guard + circuit breaker.
   COST_GUARD_DAILY_EUR: z.coerce.number().positive().default(2.0),

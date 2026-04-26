@@ -5,7 +5,16 @@ import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 
 export default [
-  { ignores: ["**/dist/**", "**/node_modules/**", "**/build/**", "**/coverage/**"] },
+  {
+    ignores: [
+      "**/dist/**",
+      "**/node_modules/**",
+      "**/build/**",
+      "**/coverage/**",
+      "python/**",
+      "supabase/migrations/**",
+    ],
+  },
 
   js.configs.recommended,
   ...tseslint.configs.recommended,

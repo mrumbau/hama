@@ -2,7 +2,9 @@
  * Argus server bootstrap.
  *
  * Tag 3: foundational middleware pipeline + auth wiring + /api/health,
- * /api/me. Tag 5+ adds the routers (poi, recognize, sniper, events).
+ *        /api/me.
+ * Tag 5: + /api/poi router (CRUD + photo enrolment pipeline).
+ * Tag 6+: recognize / sniper / events routers.
  */
 
 import express from "express";
@@ -13,6 +15,7 @@ import { env } from "./env.js";
 import { logger } from "./lib/pino.js";
 import { pingDb } from "./db.js";
 import { requireAuth } from "./auth/jwt.js";
+import { poiMulterErrorHandler, poiRouter } from "./routes/poi.js";
 
 const app = express();
 
@@ -63,6 +66,9 @@ app.get("/api/me", (req, res) => {
     role: req.auth!.role,
   });
 });
+
+app.use("/api/poi", poiRouter);
+app.use("/api/poi", poiMulterErrorHandler);
 
 // ── 404 + error handler ────────────────────────────────────────────────────
 app.use("/api", (_req, res) => {

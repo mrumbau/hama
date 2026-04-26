@@ -4,6 +4,9 @@ import { Link, Route, Switch, useLocation } from "wouter";
 import { useAuth } from "../store/auth";
 import { api, ApiError } from "../lib/api";
 import { cn } from "../lib/cn";
+import PoiList from "./PoiList";
+import PoiNew from "./PoiNew";
+import PoiDetail from "./PoiDetail";
 import styles from "./AppShell.module.css";
 
 const NAV = [
@@ -51,13 +54,10 @@ export default function AppShell() {
 
       <main className={styles.main}>
         <Switch>
-          <Route path="/poi">
-            <Placeholder
-              eyebrow="POI / REGISTRY"
-              title="POI registry"
-              body="Tag 5 wires up enrolment with quality + authenticity gates. Tag 3 only proves the auth chain works end-to-end."
-            />
-          </Route>
+          {/* Order matters: more specific routes must come before /:id wildcards. */}
+          <Route path="/poi/new" component={PoiNew} />
+          <Route path="/poi/:id" component={PoiDetail} />
+          <Route path="/poi" component={PoiList} />
           <Route path="/patrol">
             <Placeholder
               eyebrow="PATROL / LIVE"
