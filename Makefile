@@ -66,8 +66,19 @@ seed: ## Seed 10 demo POIs (Tag 14)
 	@echo "TODO Tag 14: pnpm tsx scripts/seed.ts"
 
 .PHONY: eval
-eval: ## Run ROC + latency benchmarks (Tag 13)
-	@echo "TODO Tag 13: python scripts/eval-roc.py && pnpm tsx scripts/benchmark-latency.ts"
+eval: ## Run ROC + latency + tracking-speedup benchmarks (Tag 13)
+	@echo "Pre-flight: services must be up. Quick check:"
+	@curl -fs http://127.0.0.1:8001/health > /dev/null || (echo "  ✗ ML on :8001 not reachable — start with 'make ml.dev'" && exit 1)
+	@curl -fs http://127.0.0.1:5000/api/health > /dev/null || (echo "  ✗ server on :5000 not reachable" && exit 1)
+	@echo "  ✓ services up — running eval suite"
+	cd python && . .venv/bin/activate && python scripts/eval_roc.py
+	cd python && . .venv/bin/activate && python scripts/eval_latency.py
+	cd python && . .venv/bin/activate && python scripts/eval_tracking_speedup.py
+	@echo "Figures written to docs/figures/"
+
+.PHONY: eval.seed
+eval.seed: ## Issue N=5 Sniper runs to populate fusion_layers (defaults: SEED_N_RUNS=5)
+	cd python && . .venv/bin/activate && python scripts/seed_sniper_runs.py
 
 .PHONY: demo
 demo: install db.push seed ## End-to-end demo bring-up
