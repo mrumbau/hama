@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "pnpm install && pnpm --filter @argus/client build",
-  "outputDirectory": "client/dist",
+  "buildCommand": "cd .. && pnpm install --frozen-lockfile && pnpm --filter @argus/client build",
+  "outputDirectory": "dist",
   "framework": null,
   "rewrites": [
     {
