@@ -160,6 +160,88 @@ This means the frontend has **two channels**:
 
 ---
 
+## ADR-8 — Vanilla CSS Modules + Radix primitives over Tailwind / shadcn
+
+**Status:** accepted (2026-04-25)
+
+### Context
+
+Plan §6 makes the design phase **skill-driven**: Phase 1 produces a
+manifesto and a token table, Phase 2 produces page specs in two distinct
+aesthetic archetypes (industrial-brutalist for the operator surface,
+premium minimalist for the public surface), Phase 3 generates components
+from those tokens, Phase 4 polishes for accessibility.
+
+The dominant 2026 React stack — Tailwind + shadcn/ui — neutralises this
+process at every step:
+
+- **Tailwind** ships its own opinionated token system (`text-slate-900`,
+  `rounded-lg`, `shadow-md`, `gap-4`). A Tag 2 manifesto that says "no
+  pure black, hazard-red as the only chromatic accent, generous mono
+  numerals, zero border-radius on operator surfaces" gets eroded the
+  moment a developer reaches for `text-black`, `rounded-lg`, or
+  `shadow-md` because those are the path of least resistance.
+- **shadcn/ui** ships Radix-primitive-wrapped components with default
+  Tailwind classes. The "look" of a `Button` or `Dialog` is already
+  decided. Customising it past the defaults is more work than writing the
+  component from scratch — and the resulting component is a fork of a
+  fork, not a first-class member of the design system.
+- The `design-taste-frontend` skill's anti-slop fences (no Inter, no
+  AI-purple gradients, no `shadow-md` overuse, no `rounded-full` pills)
+  cannot be enforced by lint when the code is `<Button variant="default">` —
+  the offence is hidden inside `node_modules`.
+
+We need a stack where (a) tokens are the single source of truth, (b) the
+look of every component is declared in code we own, (c) lint can refuse
+raw hex codes and pixel values outside the token file, and (d) the skill
+phases are visible in the file system (DESIGN.md → tokens.css → component
+CSS modules → ADRs).
+
+### Decision
+
+**Vanilla CSS Modules + Radix UI primitives + `cva` + `clsx` +
+`modern-normalize`.**
+
+| Concern                  | Tool                                                                                                                                               |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tokens                   | CSS Custom Properties on `:root` and `[data-theme=…]` (`tokens.css`)                                                                               |
+| Reset                    | `modern-normalize` plus a brutalist-hardened reset (`reset.css`)                                                                                   |
+| Component CSS            | One `*.module.css` file per `*.tsx` component, scoped automatically by Vite                                                                        |
+| Component behaviour      | Radix UI primitives (`@radix-ui/react-{dialog,dropdown-menu,tabs,...}`) — accessibility and keyboard handling, **no styling**                      |
+| Variant management       | `class-variance-authority` (`cva`) for components with multiple visual variants (Button: primary/secondary/ghost/destructive)                      |
+| Class composition        | `clsx` for conditional class names                                                                                                                 |
+| Anti-pattern enforcement | Stylelint with `color-no-hex`, `unit-allowed-list` excluding `px` outside `tokens.css`/`reset.css`/`app.css`, `declaration-no-important`. CI gate. |
+
+### Consequences
+
+- The cost is real: every component is built twice (TSX file + CSS module
+  file), and developers must learn the token vocabulary instead of relying
+  on Tailwind's mnemonic shortcuts. Maintenance overhead is non-zero.
+- The benefit is the project's identity: design decisions documented in
+  DESIGN.md flow without leakage into tokens.css, then into component CSS.
+  The defence demonstrates a single source of truth — Stylelint
+  literally fails the build if a developer types `#fff` outside the
+  whitelist. That is hard to argue against.
+- Radix primitives carry the accessibility (focus management, Esc-to-close,
+  Tab order, ARIA attributes) so we do not reinvent them. We get
+  `frontend-design`-grade interactivity without the look-and-feel of
+  shadcn defaults.
+- When Tag 12 produces components via `frontend-design` and
+  `ui-ux-pro-max`, those skills' output lands in our own `Button.tsx +
+Button.module.css` pairs — not as configurations against an external
+  library. The deliverable is owned end-to-end.
+- Bunny Fonts is loaded at runtime via `@import url(…)` in `app.css` for
+  Tag 2 visual review. Tag 14 (`impeccable`) replaces it with `@font-face`
+  on bundled woff2 files — the runtime CDN dependency is not part of the
+  shipped artefact.
+
+This decision is irreversible by accident: removing CSS Modules in favour
+of Tailwind would require deleting every `*.module.css` file, rewriting
+every component class, and re-running every skill phase. Doing so would
+take longer than implementing the project from scratch.
+
+---
+
 ## Future ADRs (placeholders)
 
 The following ADRs will be written when their topic is implemented.
@@ -170,4 +252,3 @@ Listed here so the table of contents matches the plan.
 - ADR-5 — RLS as second line of defence (Tag 3)
 - ADR-6 — Layer fanout with circuit breaker and cost guard (Tag 8)
 - ADR-7 — Supabase Realtime as the only push channel, also for Sniper layer streaming (Tag 9)
-- ADR-8 — Vanilla CSS Modules + Radix Primitives over Tailwind/shadcn (Tag 2)

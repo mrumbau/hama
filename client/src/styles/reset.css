@@ -1,8 +1,130 @@
-/* Day 1 stub — Phase 1 (Tag 2) replaces with modern-normalize import + brutalist reset. */
+/* ─────────────────────────────────────────────────────────────────────────
+   ARGUS RESET
+   modern-normalize + brutalist hardening.
+
+   Anti-pattern fences (per plan §11):
+     - no default outline removal without a replacement focus style
+     - no default box-shadow on form controls
+     - no border-radius on form controls (set per-component)
+     - no auto-italic on form controls
+     - prefers-reduced-motion neutralises ALL transition/animation
+   ───────────────────────────────────────────────────────────────────────── */
+
+@import url("modern-normalize/modern-normalize.css");
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
 
 html,
 body,
 #root {
   height: 100%;
   margin: 0;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* No serif on UI surfaces. industrial-brutalist-ui §3.1 + design-taste-frontend §3.1 */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+/* Remove default styles that we will set per-component. */
+button {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+input::-ms-clear,
+input::-ms-reveal {
+  display: none;
+}
+
+/* Number inputs: kill spinners. We always render explicit controls. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  appearance: textfield;
+}
+
+/* Lists used as nav/grid containers shed default styling. */
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Tables ship raw — components style their own. */
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+/* Media defaults to block to avoid inline-baseline gaps. */
+img,
+svg,
+video,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
+/* Focus must always be visible. outline:none without replacement is banned. */
+:focus {
+  outline: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Selection contrasts against both themes. */
+::selection {
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+}
+
+/* Reduced motion: emil-design-eng §Accessibility — keep opacity, kill movement. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

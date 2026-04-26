@@ -1,0 +1,304 @@
+/* Token Preview — only used Tag 2 for the visual review gate.
+   Tag 3 deletes this file along with the route once the user signs off. */
+
+.page {
+  min-height: 100dvh;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  padding: var(--space-7) var(--space-6);
+}
+
+.container {
+  max-width: var(--layout-max-public);
+  margin: 0 auto;
+  display: grid;
+  gap: var(--space-9);
+}
+
+.themeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding-bottom: var(--space-4);
+  border-bottom: var(--border-hairline) solid var(--color-border);
+}
+
+.brand {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  letter-spacing: var(--tracking-tight);
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.brandMeta {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-fg-subtle);
+}
+
+.themeToggle {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  display: inline-flex;
+  border: var(--border-hairline) solid var(--color-border-strong);
+}
+
+.themeToggleBtn {
+  padding: var(--space-2) var(--space-4);
+  background: transparent;
+  color: var(--color-fg-muted);
+  font-family: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-normal) var(--ease),
+    color var(--motion-normal) var(--ease);
+}
+
+.themeToggleBtn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-fg);
+}
+
+.themeToggleBtnActive {
+  background: var(--color-fg);
+  color: var(--color-bg);
+}
+
+.themeToggleBtnActive:hover {
+  background: var(--color-fg);
+  color: var(--color-bg);
+}
+
+.section {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.sectionLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-fg-subtle);
+}
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  letter-spacing: var(--tracking-tight);
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.swatchGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: var(--border-hairline);
+  background: var(--color-border);
+  border: var(--border-hairline) solid var(--color-border);
+}
+
+.swatch {
+  background: var(--swatch-bg);
+  color: var(--swatch-fg);
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-1);
+  min-height: 6rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+}
+
+.swatchToken {
+  text-transform: uppercase;
+}
+
+.swatchValue {
+  opacity: 0.7;
+}
+
+.spaceRow {
+  display: grid;
+  grid-template-columns: 7rem 6rem 1fr;
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-2) 0;
+  border-bottom: var(--border-hairline) solid var(--color-border-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.spaceLabel {
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.spaceValue {
+  color: var(--color-fg-subtle);
+}
+
+.spaceBar {
+  height: var(--space-3);
+  background: var(--color-accent);
+  width: var(--space-bar-width);
+}
+
+.typeRow {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: var(--space-4);
+  align-items: baseline;
+  padding: var(--space-3) 0;
+  border-bottom: var(--border-hairline) solid var(--color-border-subtle);
+}
+
+.typeLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-fg-subtle);
+}
+
+.typeSample {
+  font-family: var(--font-sans);
+  line-height: var(--leading-snug);
+}
+
+.typeSampleSerif {
+  font-family: var(--font-serif);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+}
+
+.typeSampleMono {
+  font-family: var(--font-mono);
+  letter-spacing: var(--tracking-wide);
+}
+
+.typeSampleDisplay {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-none);
+}
+
+.motionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--space-3);
+}
+
+.motionCard {
+  border: var(--border-hairline) solid var(--color-border);
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.motionLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-fg-subtle);
+}
+
+.motionButton {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-hairline) solid var(--color-border-strong);
+  background: var(--color-bg-raised);
+  color: var(--color-fg);
+  cursor: pointer;
+  transition-property: transform, background-color;
+  transition-duration: var(--duration);
+  transition-timing-function: var(--ease-out);
+}
+
+.motionButton:hover {
+  background: var(--color-bg-hover);
+}
+
+.motionButton:active {
+  transform: scale(0.97);
+}
+
+.statusRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--space-3);
+}
+
+.statusCell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  border: var(--border-hairline) solid var(--color-border);
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.statusSquare {
+  width: 0.875rem;
+  height: 0.875rem;
+  background: var(--status-color);
+  flex-shrink: 0;
+}
+
+.statusName {
+  color: var(--color-fg);
+}
+
+.statusValue {
+  color: var(--color-fg-subtle);
+  margin-left: auto;
+}
+
+.radiusRow {
+  display: flex;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.radiusCell {
+  display: grid;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-fg-subtle);
+}
+
+.radiusBox {
+  width: 4rem;
+  height: 4rem;
+  background: var(--color-accent);
+}
+
+.fineprint {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-fg-subtle);
+  padding: var(--space-4) 0;
+  border-top: var(--border-hairline) solid var(--color-border);
+}

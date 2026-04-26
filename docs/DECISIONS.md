@@ -69,3 +69,50 @@ is API-shaped — adding FaceCheck is a 50-line `external/facecheck.ts` plus
 one orchestrator entry; the architecture does not need to change."
 
 ---
+
+## D-004 — Bunny Fonts CDN for Tag 2/3 review, self-hosted woff2 by Tag 14
+
+**Date:** 2026-04-25
+**What the plan said:** Plan §6 specifies the font choices indirectly
+through skill outputs (Outfit / JetBrains Mono / Newsreader / Archivo
+Black) but does not pin a hosting strategy.
+**What I did:** `client/src/styles/app.css` `@import`s the four font
+families from `fonts.bunny.net` (Google-Fonts-compatible CDN with
+GDPR-clean delivery — no IP logging, no user tracking). Documented as a
+temporary measure: Tag 14 (`impeccable`) replaces this with `@font-face`
+on bundled woff2 files copied from Bunny so the production artefact has
+zero runtime font dependencies.
+**Why:** A self-hosted-from-day-one approach burns four hours on woff2
+extraction + subsetting + format negotiation before any token can be
+visually reviewed. Bunny's @import works in five lines and lets the user
+review tokens in their actual fonts on Tag 2. The runtime CDN dependency
+is acceptable during development; it is a Tag 14 polish concern.
+**Trade-off:** External request on every cold load until Tag 14. If the
+demo is given offline or Bunny is briefly down, the page falls back to
+system-ui. The fallback stack in tokens.css is engineered to degrade
+gracefully (Outfit → Geist Sans → BlinkMacSystemFont → system-ui).
+
+---
+
+## D-005 — Tag-2 token-preview page is throwaway, replaced Tag 3
+
+**Date:** 2026-04-25
+**What the plan said:** Plan §13 Tag 2 gate is "kleine HTML-Demo-Seite
+die alle Surfaces, Signal-Farben, Spacing zeigt". User reviews tokens
+before any component lands.
+**What I did:** Built `client/src/pages/TokenPreview.{tsx,module.css}` as
+a real React route rendered from `main.tsx` (instead of a static HTML
+page) so hot-reload works during review and the file lives inside the
+same lint/build pipeline as the rest of the client. Tag 3 deletes both
+files when wouter routing is wired up and `/login` becomes the
+unauthenticated landing.
+**Why:** A static HTML page would not exercise `tokens.css` through the
+Vite asset pipeline, so an issue with `@import "modern-normalize"` or
+the Bunny `@import` would only appear later. Rendering through React
+also lets the theme toggle run live (`document.documentElement.dataset.theme`)
+so the user can flip dark/light without a reload.
+**Trade-off:** A few hundred lines of React/CSS that get deleted on Tag 3.
+The cost is small; the diff is loud and explicit so the deletion cannot
+be missed.
+
+---

@@ -1,8 +1,67 @@
-/* Day 1 stub — Tag 2 replaces with minimal globals (body font/bg/color,
-   :focus-visible, ::selection, prefers-reduced-motion reset). */
+/* ─────────────────────────────────────────────────────────────────────────
+   ARGUS APP-LEVEL GLOBALS
+   Loaded once after reset.css and tokens.css. Everything past this point
+   lives in CSS Modules scoped to a component.
+   ───────────────────────────────────────────────────────────────────────── */
 
+/* Self-hosted via Bunny Fonts (Google-Fonts-compatible, GDPR-clean). */
+
+/* Tag 12 (impeccable) replaces this with @font-face on bundled woff2 files. */
+@import url("https://fonts.bunny.net/css?family=archivo-black:400|jetbrains-mono:400,500,700|newsreader:400,500,600|outfit:300,400,500,600,700&display=swap");
+
+html,
 body {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  background: #0a0a0a;
-  color: #e6e6e6;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  letter-spacing: var(--tracking-normal);
+}
+
+/* Default body posture is the operator (dark). main.tsx sets data-theme on <html>. */
+html:not([data-theme]) {
+  /* Force dark theme tokens to apply when no explicit theme is set. */
+
+  /* This block is a safety net — runtime always sets data-theme. */
+  color-scheme: dark;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
+/* Headings inherit fonts per-component. We do NOT set globals here, because
+   the brutalist macro headers and the minimalist editorial serif headers
+   want different families. Components set their own heading font. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+/* Monospace tabular numbers: critical for telemetry tables and latency tickers. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Allow components to opt into mono numerals selectively without a class. */
+samp,
+kbd,
+code,
+output,
+data {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }

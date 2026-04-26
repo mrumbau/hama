@@ -1,7 +1,244 @@
-/* Day 1 stub — Tag 2 replaces this with the full token table per plan §6 / DESIGN.md.
-   Single source of truth for every color, space, type and motion value in the app.
-   Until Tag 2, downstream component CSS does not exist. */
+/* ─────────────────────────────────────────────────────────────────────────
+   ARGUS DESIGN TOKENS
+   Single source of truth for every color, space, type and motion value.
+   No component CSS may declare a raw hex code or pixel value — only
+   var(--token-name). Stylelint enforces this for *.module.css files.
+
+   Two surfaces share these tokens:
+     [data-theme="dark"]  — operator pages (industrial-brutalist tactical telemetry)
+     [data-theme="light"] — public pages   (premium utilitarian minimalism)
+
+   Raw scales are defined on :root once. The two themes only re-bind the
+   semantic --color-* variables.
+   ───────────────────────────────────────────────────────────────────────── */
 
 :root {
-  --argus-day1-marker: 1;
+  /* ── Font stacks ─────────────────────────────────────────────────────── */
+  --font-sans:
+    "Outfit", "Geist Sans", -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto,
+    sans-serif;
+  --font-mono:
+    "JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-serif: "Newsreader", "Instrument Serif", Georgia, "Times New Roman", serif;
+  --font-display: "Archivo Black", "Outfit", system-ui, sans-serif;
+
+  /* ── Surface scale (charcoal / asphalt — operator dark substrate) ────── */
+  --surface-0: #050505;
+  --surface-100: #0a0a0a;
+  --surface-200: #121212;
+  --surface-300: #1a1a1a;
+  --surface-400: #232323;
+  --surface-500: #2d2d2d;
+  --surface-600: #3a3a3a;
+  --surface-700: #4a4a4a;
+  --surface-800: #5c5c5c;
+  --surface-900: #717171;
+
+  /* ── Paper scale (warm off-white — public light substrate) ───────────── */
+  --paper-0: #fff;
+  --paper-50: #fbfbfa;
+  --paper-100: #f7f6f3;
+  --paper-200: #efeee9;
+  --paper-300: #e6e5e1;
+  --paper-400: #d6d4ce;
+  --paper-500: #c0bdb6;
+
+  /* ── Mono scale (text grays, work in both directions) ────────────────── */
+  --mono-50: #fafaf9;
+  --mono-100: #f5f4f1;
+  --mono-200: #e6e5e1;
+  --mono-300: #c8c7c2;
+  --mono-400: #9f9e99;
+  --mono-500: #787774;
+  --mono-600: #585854;
+  --mono-700: #3f3f3d;
+  --mono-800: #2a2a28;
+  --mono-900: #111110;
+
+  /* ── Signal: hazard red (alerts, banned, destructive, layer-failure) ── */
+  --signal-red-50: #ffebeb;
+  --signal-red-100: #ffcdcd;
+  --signal-red-200: #ffa8a8;
+  --signal-red-300: #ff7878;
+  --signal-red-400: #f44;
+  --signal-red-500: #e61919; /* canonical hazard red */
+  --signal-red-600: #c40c0c;
+  --signal-red-700: #9a0707;
+  --signal-red-800: #6e0303;
+  --signal-red-900: #420101;
+
+  /* ── Signal: amber (warning, quota-near, in-progress) ─────────────────── */
+  --signal-amber-50: #fffbeb;
+  --signal-amber-100: #fef3c7;
+  --signal-amber-200: #fde58a;
+  --signal-amber-300: #fcd34d;
+  --signal-amber-400: #f5b820;
+  --signal-amber-500: #d99c0a; /* canonical amber */
+  --signal-amber-600: #b07700;
+  --signal-amber-700: #855700;
+  --signal-amber-800: #5e3c00;
+  --signal-amber-900: #3b2400;
+
+  /* ── Signal: cyan (status ok, latency-ticker, telemetry-info) ─────────── */
+  --signal-cyan-50: #ecfeff;
+  --signal-cyan-100: #cffafe;
+  --signal-cyan-200: #a5f3fc;
+  --signal-cyan-300: #67e8f9;
+  --signal-cyan-400: #22d3ee;
+  --signal-cyan-500: #06b6c8; /* canonical telemetry cyan */
+  --signal-cyan-600: #0891a4;
+  --signal-cyan-700: #0e7385;
+  --signal-cyan-800: #155b6b;
+  --signal-cyan-900: #0a3540;
+
+  /* ── Signal: terminal phosphor green (single-purpose, used sparingly) ─── */
+
+  /* Use exactly once per page — e.g. live-tail indicator. industrial-brutalist-ui §4.2 */
+  --signal-green: #4af626;
+
+  /* ── Spacing (8pt grid, expressed in rem so user font-prefs scale it) ── */
+  --space-0: 0;
+  --space-1: 0.25rem; /*   4px */
+  --space-2: 0.5rem; /*   8px */
+  --space-3: 0.75rem; /*  12px */
+  --space-4: 1rem; /*  16px */
+  --space-5: 1.5rem; /*  24px */
+  --space-6: 2rem; /*  32px */
+  --space-7: 3rem; /*  48px */
+  --space-8: 4rem; /*  64px */
+  --space-9: 6rem; /*  96px */
+  --space-10: 8rem; /* 128px */
+  --space-11: 12rem; /* 192px */
+  --space-12: 16rem; /* 256px */
+
+  /* ── Type scale (1.20 minor-third ratio, base 1rem = 16px) ───────────── */
+  --text-xs: 0.694rem; /* 11.1px — captions, footnote-style metadata */
+  --text-sm: 0.833rem; /* 13.3px — secondary text, labels */
+  --text-base: 1rem; /* 16.0px — body */
+  --text-lg: 1.2rem; /* 19.2px — emphasised body */
+  --text-xl: 1.44rem; /* 23.0px — section headers */
+  --text-2xl: 1.728rem; /* 27.6px — page titles */
+  --text-3xl: 2.074rem; /* 33.2px — landing hero (pre-clamp) */
+
+  /* Macro-typography: brutalist headers use clamp() at usage sites; no token. */
+
+  /* ── Line heights ────────────────────────────────────────────────────── */
+  --leading-none: 1;
+  --leading-tight: 1.15;
+  --leading-snug: 1.3;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  /* ── Letter spacing ──────────────────────────────────────────────────── */
+  --tracking-tight: -0.03em; /* brutalist macro: forces glyph blocks */
+  --tracking-normal: 0;
+  --tracking-wide: 0.05em; /* mono-uppercase metadata */
+  --tracking-wider: 0.1em; /* badges, status chips */
+
+  /* ── Radius (brutalist pages use 0; minimalist pages use up to 2) ────── */
+  --radius-0: 0;
+  --radius-1: 0.125rem; /* 2px */
+  --radius-2: 0.25rem; /* 4px */
+
+  /* ── Border weights ──────────────────────────────────────────────────── */
+  --border-hairline: 1px;
+  --border-strong: 2px;
+
+  /* ── Motion (per plan §6: 50/100/150ms) ──────────────────────────────── */
+  --motion-fast: 50ms;
+  --motion-normal: 100ms;
+  --motion-slow: 150ms;
+  --motion-deliberate: 300ms; /* modals, drawers — reserved */
+
+  /* Custom easings per emil-design-eng. */
+
+  /* Built-in CSS easings lack the punch that makes animation feel intentional. */
+  --ease: ease;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1); /* strong ease-out for UI */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* on-screen movement */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); /* iOS-like drawer */
+  --ease-soft: cubic-bezier(0.16, 1, 0.3, 1); /* minimalist scroll-entry */
+
+  /* ── Z-index scale ───────────────────────────────────────────────────── */
+  --z-base: 0;
+  --z-overlay: 10;
+  --z-sticky: 100;
+  --z-modal: 1000;
+  --z-popover: 1100;
+  --z-toast: 1200;
+
+  /* ── Layout constants ────────────────────────────────────────────────── */
+  --layout-max-public: 72rem; /* minimalist landing/login: max-w-5xl */
+  --layout-max-operator: 100%; /* brutalist: full bleed, grid-anchored */
+  --layout-rail: 14rem; /* operator side-rail width */
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   THEME: dark (operator pages — industrial-brutalist tactical telemetry)
+   This is the default. <body data-theme="dark"> is implicit at runtime.
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root,
+[data-theme="dark"] {
+  --color-bg: var(--surface-100);
+  --color-bg-raised: var(--surface-200);
+  --color-bg-sunken: var(--surface-0);
+  --color-bg-hover: var(--surface-300);
+  --color-bg-active: var(--surface-400);
+  --color-fg: var(--mono-50);
+  --color-fg-muted: var(--mono-300);
+  --color-fg-subtle: var(--mono-500);
+  --color-fg-disabled: var(--mono-700);
+  --color-border: var(--surface-600);
+  --color-border-strong: var(--surface-700);
+  --color-border-subtle: var(--surface-400);
+  --color-accent: var(--signal-red-500);
+  --color-accent-fg: var(--mono-50);
+  --color-accent-bg: var(--signal-red-900);
+  --color-status-ok: var(--signal-cyan-400);
+  --color-status-warn: var(--signal-amber-400);
+  --color-status-fail: var(--signal-red-500);
+  --color-status-pending: var(--mono-500);
+  --color-status-running: var(--signal-cyan-300);
+  --color-status-done: var(--signal-cyan-500);
+  --color-status-tail: var(--signal-green);
+  --color-mono-data: var(--mono-100);
+  --color-mono-meta: var(--mono-500);
+  --color-overlay: rgb(5 5 5 / 70%);
+  --color-bbox: var(--signal-red-500);
+  --color-bbox-confirmed: var(--signal-cyan-400);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   THEME: light (public pages — premium utilitarian minimalism)
+   ───────────────────────────────────────────────────────────────────────── */
+
+[data-theme="light"] {
+  --color-bg: var(--paper-100);
+  --color-bg-raised: var(--paper-0);
+  --color-bg-sunken: var(--paper-200);
+  --color-bg-hover: var(--paper-200);
+  --color-bg-active: var(--paper-300);
+  --color-fg: var(--mono-900);
+  --color-fg-muted: var(--mono-700);
+  --color-fg-subtle: var(--mono-500);
+  --color-fg-disabled: var(--mono-400);
+  --color-border: var(--paper-300);
+  --color-border-strong: var(--paper-400);
+  --color-border-subtle: var(--paper-200);
+  --color-accent: var(--mono-900);
+  --color-accent-fg: var(--paper-0);
+  --color-accent-bg: var(--paper-200);
+  --color-status-ok: var(--signal-cyan-700);
+  --color-status-warn: var(--signal-amber-700);
+  --color-status-fail: var(--signal-red-700);
+  --color-status-pending: var(--mono-500);
+  --color-status-running: var(--signal-cyan-600);
+  --color-status-done: var(--signal-cyan-700);
+  --color-status-tail: var(--signal-cyan-800);
+  --color-mono-data: var(--mono-900);
+  --color-mono-meta: var(--mono-500);
+  --color-overlay: rgb(17 17 16 / 50%);
+  --color-bbox: var(--signal-red-600);
+  --color-bbox-confirmed: var(--signal-cyan-700);
 }

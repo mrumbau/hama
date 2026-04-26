@@ -3,6 +3,20 @@
   "rules": {
     "selector-class-pattern": "^[a-z][a-zA-Z0-9_-]*$",
     "no-descending-specificity": null,
+    "value-keyword-case": [
+      "lower",
+      {
+        "ignoreProperties": ["/^font/", "text-rendering"],
+        "ignoreKeywords": [
+          "BlinkMacSystemFont",
+          "SFMono-Regular",
+          "Menlo",
+          "Consolas",
+          "Roboto",
+          "Georgia"
+        ]
+      }
+    ],
     "declaration-no-important": true,
     "color-no-hex": [true, { "message": "Use var(--color-*) tokens, not raw hex codes." }],
     "unit-allowed-list": [
@@ -14,6 +28,10 @@
       "vw",
       "vmin",
       "vmax",
+      "dvh",
+      "dvw",
+      "lvh",
+      "svh",
       "deg",
       "ms",
       "s",
@@ -33,6 +51,8 @@
       "files": ["client/src/styles/reset.css", "client/src/styles/app.css"],
       "rules": {
         "color-no-hex": null,
+        "declaration-no-important": null,
+        "selector-class-pattern": null,
         "unit-allowed-list": [
           "%",
           "rem",
