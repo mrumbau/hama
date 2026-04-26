@@ -10,13 +10,25 @@ help:
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: install
-install: ## Install all JS + Python deps (Tag 1)
+install: ## Install all JS + Python deps
 	pnpm install
-	cd python && python3 -m venv .venv && . .venv/bin/activate && pip install -e ".[dev]"
+	cd python && python3.11 -m venv .venv && . .venv/bin/activate && pip install -e ".[dev]"
 
 .PHONY: dev
 dev: ## Run client + server + ml + redis locally (Tag 4+)
-	@echo "TODO: wire up after Tag 4 — for now run services individually"
+	@echo "Run services in separate terminals:"
+	@echo "  make ml.dev"
+	@echo "  pnpm --filter @argus/server dev"
+	@echo "  pnpm --filter @argus/client dev"
+
+.PHONY: ml.dev
+ml.dev: ## Run the FastAPI ML service locally (loads buffalo_l on startup)
+	cd python && . .venv/bin/activate && \
+	  uvicorn argus_ml.main:app --host 0.0.0.0 --port 8001 --reload
+
+.PHONY: ml.test
+ml.test: ## Run the Python pytest suite (unit + integration)
+	cd python && . .venv/bin/activate && pytest -v
 
 .PHONY: typecheck
 typecheck: ## TS typecheck across all workspaces
@@ -29,8 +41,8 @@ lint: ## ESLint + Stylelint
 
 .PHONY: test
 test: ## Run all unit tests (TS + Py)
-	pnpm test
-	cd python && . .venv/bin/activate && pytest
+	pnpm -r run test
+	$(MAKE) ml.test
 
 .PHONY: db.generate
 db.generate: ## Drizzle → SQL into supabase/migrations (Tag 3)
