@@ -150,26 +150,15 @@
 }
 
 .liveDotIndicator {
-  width: 0.625rem;
-  height: 0.625rem;
+  width: var(--space-2-5);
+  height: var(--space-2-5);
   background: var(--color-status-tail);
-  animation: tail-pulse 1.5s var(--ease-in-out) infinite;
+  animation: argus-pulse 1.5s var(--ease-in-out) infinite;
 }
 
 .liveDotIdle {
   background: var(--color-fg-disabled);
   animation: none;
-}
-
-@keyframes tail-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.3;
-  }
 }
 
 .statusValue {
@@ -216,17 +205,7 @@
 }
 
 .feedNew {
-  animation: feed-flash var(--motion-deliberate) var(--ease-out);
-}
-
-@keyframes feed-flash {
-  from {
-    background: var(--signal-cyan-900);
-  }
-
-  to {
-    background: var(--color-bg-raised);
-  }
+  animation: argus-flash var(--motion-deliberate) var(--ease-out);
 }
 
 .feedRowHeader {
@@ -287,30 +266,17 @@
   color: var(--color-status-fail);
 }
 
+/* Scan-line uses --color-status-running (cyan) so the phosphor-green
+   --color-status-tail stays single-purpose on the live-dot indicator
+   per industrial-brutalist-ui §4.2. (Tag 12 §1.2 fix.) */
 .scanLine {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   height: var(--border-hairline);
-  background: var(--color-status-tail);
+  background: var(--color-status-running);
   opacity: 0.6;
   pointer-events: none;
-  animation: scan 2s var(--ease-in-out) infinite;
-}
-
-@keyframes scan {
-  0% {
-    transform: translateY(0);
-    opacity: 0.6;
-  }
-
-  50% {
-    opacity: 0.2;
-  }
-
-  100% {
-    transform: translateY(100%);
-    opacity: 0.6;
-  }
+  animation: argus-scan 2s var(--ease-in-out) infinite;
 }

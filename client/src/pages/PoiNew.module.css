@@ -66,8 +66,6 @@
 .textarea {
   min-height: 6rem;
   resize: vertical;
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
 }
 
 .thresholdRow {
@@ -108,7 +106,7 @@
 }
 
 .submit:hover:not(:disabled) {
-  background: var(--signal-red-600);
+  background: var(--color-accent-hover);
 }
 
 .submit:active:not(:disabled) {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { Link, useLocation } from "wouter";
 
-import { ApiError } from "../lib/api";
+import { ErrorBlock } from "../components/ErrorBlock";
 import { sniperApi, type SniperCostSummary } from "../lib/sniper";
 import { supabase } from "../lib/supabase";
 import { cn } from "../lib/cn";
@@ -31,9 +31,10 @@ function formatTime(iso: string): string {
 export default function Sniper() {
   const [, setLocation] = useLocation();
   const [reports, setReports] = useState<ReportRow[] | null>(null);
-  const [pageError, setPageError] = useState<string | null>(null);
+  const [pageError, setPageError] = useState<unknown>(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<unknown>(null);
+  const [lastFile, setLastFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const [costSummary, setCostSummary] = useState<SniperCostSummary | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -65,7 +66,7 @@ export default function Sniper() {
         .limit(PAGE_LIMIT);
       if (cancelled) return;
       if (error) {
-        setPageError(error.message);
+        setPageError(error);
         return;
       }
       setReports(data as ReportRow[]);
@@ -78,19 +79,23 @@ export default function Sniper() {
   // ── Upload + redirect ────────────────────────────────────────────────────
   const handleFile = useCallback(
     async (file: File) => {
+      setLastFile(file);
       setUploading(true);
       setUploadError(null);
       try {
         const result = await sniperApi.run(file);
         setLocation(`/sniper/${result.report_id}`);
       } catch (err) {
-        const msg = err instanceof ApiError ? `${err.status} ${err.message}` : String(err);
-        setUploadError(msg);
+        setUploadError(err);
         setUploading(false);
       }
     },
     [setLocation],
   );
+
+  const retryUpload = useCallback(() => {
+    if (lastFile) void handleFile(lastFile);
+  }, [lastFile, handleFile]);
 
   function onDrop(e: DragEvent<HTMLLabelElement>) {
     e.preventDefault();
@@ -112,12 +117,15 @@ export default function Sniper() {
           <span className={styles.eyebrow}>SNIPER / FUSION</span>
           <h1 className={styles.title}>Sniper Mode</h1>
           <p className={styles.subtitle}>
-            One face photo in — four independent OSINT layers out, in parallel: identity,
-            web presence, geographic, authenticity. ADR-1.
+            One face photo in — four independent OSINT layers out, in parallel.
           </p>
         </div>
         {costSummary && <BudgetWidget summary={costSummary} />}
       </header>
+
+      {reports !== null && reports.length === 0 && costSummary && (
+        <FirstRunLayerIntro summary={costSummary} />
+      )}
 
       {/* ── Upload zone ─────────────────────────────────────────────────── */}
       <section className={styles.uploadSection}>
@@ -157,17 +165,19 @@ export default function Sniper() {
             </span>
           </div>
         </label>
-        {uploadError && <div className={styles.error}>{uploadError}</div>}
+        {uploadError !== null && <ErrorBlock error={uploadError} onRetry={retryUpload} />}
       </section>
 
       {/* ── Past reports ────────────────────────────────────────────────── */}
       <section className={styles.listSection}>
         <span className={styles.sectionTitle}>RECENT REPORTS</span>
-        {pageError && <div className={styles.error}>{pageError}</div>}
+        {pageError !== null && <ErrorBlock error={pageError} />}
         {reports === null ? (
           <div className={styles.empty}>[ loading reports… ]</div>
         ) : reports.length === 0 ? (
-          <div className={styles.empty}>[ no reports yet — drop a photo above to start ]</div>
+          <div className={styles.empty}>
+            [ no reports yet ] · drop a face photo above to fan out across all four OSINT layers
+          </div>
         ) : (
           <div className={styles.table}>
             <div className={cn(styles.tableRow, styles.tableHeader)}>
@@ -201,6 +211,66 @@ function StatusBadge({ status }: { status: ReportRow["status"] }) {
         ? styles.statusFailed
         : styles.statusProcessing;
   return <span className={cn(styles.statusBadge, cls)}>{status.toUpperCase()}</span>;
+}
+
+function FirstRunLayerIntro({ summary }: { summary: SniperCostSummary }) {
+  const layers = [
+    {
+      tag: "L1",
+      name: "Identity",
+      source: "pgvector kNN · ArcFace 512-D",
+      cost: "free",
+      desc: "Match the face against your registered POIs. Median-of-top-K voting on the embedding nearest neighbours.",
+    },
+    {
+      tag: "L2",
+      name: "Web Presence",
+      source: "SerpAPI · Google Lens",
+      cost: `€${summary.per_call_costs.serpapi.toFixed(2)}`,
+      desc: "Reverse-image search across the public web. Returns visual matches with thumbnails + source URLs.",
+    },
+    {
+      tag: "L3",
+      name: "Geographic",
+      source: "Picarta · location predict",
+      cost: `€${summary.per_call_costs.picarta.toFixed(2)}`,
+      desc: "Predict where the photo was taken. Top-1 country/region/city + alternatives with confidence.",
+    },
+    {
+      tag: "L4",
+      name: "Authenticity",
+      source: "Reality Defender · deepfake",
+      cost: `€${summary.per_call_costs.reality_defender.toFixed(2)}`,
+      desc: "Authentic / deepfake / uncertain verdict on the input. Mock by default; real-mode via env.",
+    },
+  ];
+  const total =
+    summary.per_call_costs.serpapi +
+    summary.per_call_costs.picarta +
+    summary.per_call_costs.reality_defender;
+
+  return (
+    <section className={styles.firstRun}>
+      <span className={styles.firstRunEyebrow}>WHAT YOU GET PER QUERY</span>
+      <div className={styles.firstRunGrid}>
+        {layers.map((l) => (
+          <div key={l.tag} className={styles.firstRunCard}>
+            <div className={styles.firstRunCardHead}>
+              <span className={styles.firstRunCardTag}>{l.tag}</span>
+              <span className={styles.firstRunCardCost}>{l.cost}</span>
+            </div>
+            <span className={styles.firstRunCardName}>{l.name}</span>
+            <span className={styles.firstRunCardSource}>{l.source}</span>
+            <p className={styles.firstRunCardDesc}>{l.desc}</p>
+          </div>
+        ))}
+      </div>
+      <p className={styles.firstRunFooter}>
+        Total per query ≈ €{total.toFixed(2)}. Failed layers (upstream timeout, rate-limit, etc.)
+        do not stop the others — partial reports are surfaced with explicit per-layer status.
+      </p>
+    </section>
+  );
 }
 
 function BudgetWidget({ summary }: { summary: SniperCostSummary }) {

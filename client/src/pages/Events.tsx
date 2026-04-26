@@ -172,7 +172,10 @@ export default function Events() {
       {error && <div className={styles.error}>{error}</div>}
 
       {rows.length === 0 ? (
-        <div className={styles.empty}>[ no events yet — start patrol mode ]</div>
+        <div className={styles.empty}>
+          [ no recognition events yet ] · events appear here when patrol mode flags a registered
+          POI in a webcam frame
+        </div>
       ) : (
         <div>
           <div className={styles.tableHeader}>

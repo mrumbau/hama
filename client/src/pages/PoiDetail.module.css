@@ -130,9 +130,12 @@
 }
 
 .dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 18rem;
   background: var(--color-bg-raised);
-  display: grid;
-  place-items: center;
   padding: var(--space-5);
   border: var(--border-strong) dashed var(--color-border-strong);
   cursor: pointer;
@@ -145,7 +148,6 @@
   transition:
     border-color var(--motion-normal) var(--ease-out),
     color var(--motion-normal) var(--ease-out);
-  min-height: 18rem;
 }
 
 .dropzone:hover {
@@ -198,44 +200,34 @@
   gap: var(--space-2);
 }
 
-.statusDotPending {
-  width: 0.625rem;
-  height: 0.625rem;
-  background: var(--color-status-pending);
+/* Square 10px status-dot — Tag 12 brutalist consolidation
+   (industrial-brutalist-ui §5: no border-radius). All four variants
+   share size + flex-shrink; only the colour and animation differ. */
+
+.statusDotPending,
+.statusDotRunning,
+.statusDotDone,
+.statusDotFail {
+  width: var(--space-2-5);
+  height: var(--space-2-5);
   flex-shrink: 0;
+}
+
+.statusDotPending {
+  background: var(--color-status-pending);
 }
 
 .statusDotRunning {
-  width: 0.625rem;
-  height: 0.625rem;
   background: var(--color-status-running);
-  flex-shrink: 0;
-  animation: pulse 1s var(--ease-in-out) infinite;
+  animation: argus-pulse 1s var(--ease-in-out) infinite;
 }
 
 .statusDotDone {
-  width: 0.625rem;
-  height: 0.625rem;
   background: var(--color-status-done);
-  flex-shrink: 0;
 }
 
 .statusDotFail {
-  width: 0.625rem;
-  height: 0.625rem;
   background: var(--color-status-fail);
-  flex-shrink: 0;
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.4;
-  }
 }
 
 .errorPanel {

@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "wouter";
 
+import { ErrorBlock } from "../components/ErrorBlock";
 import { poiApi, type Poi } from "../lib/poi";
-import { ApiError } from "../lib/api";
 import { cn } from "../lib/cn";
 import styles from "./PoiList.module.css";
 
@@ -37,9 +37,9 @@ function categoryClass(category: Poi["category"]): string {
 
 export default function PoiList() {
   const [rows, setRows] = useState<Poi[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     let cancelled = false;
     setError(null);
     poiApi
@@ -50,13 +50,14 @@ export default function PoiList() {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        const msg = err instanceof ApiError ? `${err.status} ${err.message}` : String(err);
-        setError(msg);
+        setError(err);
       });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => refresh(), [refresh]);
 
   return (
     <div className={styles.page}>
@@ -72,10 +73,30 @@ export default function PoiList() {
         </div>
       </header>
 
-      {error && <div className={styles.error}>{error}</div>}
+      {error !== null && <ErrorBlock error={error} onRetry={refresh} />}
 
       {rows !== null && rows.length === 0 && (
-        <div className={styles.empty}>[ no poi enrolled · click + new poi to start ]</div>
+        <div className={styles.firstRun}>
+          <span className={styles.firstRunEyebrow}>FIRST RUN</span>
+          <h2 className={styles.firstRunHeadline}>No POIs enrolled yet.</h2>
+          <p className={styles.firstRunBody}>
+            A <span className={styles.firstRunTerm}>POI</span> is a person of interest the system
+            recognises in webcam frames or Sniper queries. Enrolment needs ≥ 3 photos per POI; the
+            ML service extracts a 512-D ArcFace embedding per photo and stores it in pgvector.
+          </p>
+          <p className={styles.firstRunBody}>
+            Once a POI has 3+ embeddings it becomes <span className={styles.firstRunTerm}>active</span>
+            : Patrol mode flags it in webcam frames, Sniper layer 1 surfaces it in fusion reports.
+          </p>
+          <div className={styles.firstRunActions}>
+            <Link href="/poi/new" className={styles.primaryButton}>
+              + new poi
+            </Link>
+            <Link href="/sniper" className={styles.firstRunSecondary}>
+              or run a Sniper query directly →
+            </Link>
+          </div>
+        </div>
       )}
 
       {rows !== null && rows.length > 0 && (

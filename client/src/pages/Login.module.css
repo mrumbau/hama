@@ -14,7 +14,7 @@
   max-width: 24rem;
   background: var(--color-bg-raised);
   border: var(--border-hairline) solid var(--color-border);
-  border-radius: var(--radius-2);
+  border-radius: var(--radius-3);
   padding: var(--space-7);
   display: grid;
   gap: var(--space-6);
@@ -97,7 +97,7 @@
 }
 
 .submit:hover:not(:disabled) {
-  background: var(--mono-700);
+  background: var(--color-accent-hover);
 }
 
 .submit:active:not(:disabled) {

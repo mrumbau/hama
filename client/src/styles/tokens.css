@@ -100,6 +100,7 @@
   --space-0: 0;
   --space-1: 0.25rem; /*   4px */
   --space-2: 0.5rem; /*   8px */
+  --space-2-5: 0.625rem; /*  10px — half-step for the canonical status-dot square */
   --space-3: 0.75rem; /*  12px */
   --space-4: 1rem; /*  16px */
   --space-5: 1.5rem; /*  24px */
@@ -135,10 +136,11 @@
   --tracking-wide: 0.05em; /* mono-uppercase metadata */
   --tracking-wider: 0.1em; /* badges, status chips */
 
-  /* ── Radius (brutalist pages use 0; minimalist pages use up to 2) ────── */
+  /* ── Radius (brutalist pages use 0; minimalist pages use up to 3) ────── */
   --radius-0: 0;
   --radius-1: 0.125rem; /* 2px */
   --radius-2: 0.25rem; /* 4px */
+  --radius-3: 0.5rem; /* 8px — minimalist editorial cards (per minimalist-ui §5) */
 
   /* ── Border weights ──────────────────────────────────────────────────── */
   --border-hairline: 1px;
@@ -193,6 +195,7 @@
   --color-border-strong: var(--surface-700);
   --color-border-subtle: var(--surface-400);
   --color-accent: var(--signal-red-500);
+  --color-accent-hover: var(--signal-red-600);
   --color-accent-fg: var(--mono-50);
   --color-accent-bg: var(--signal-red-900);
   --color-status-ok: var(--signal-cyan-400);
@@ -227,6 +230,7 @@
   --color-border-strong: var(--paper-400);
   --color-border-subtle: var(--paper-200);
   --color-accent: var(--mono-900);
+  --color-accent-hover: var(--mono-700);
   --color-accent-fg: var(--paper-0);
   --color-accent-bg: var(--paper-200);
   --color-status-ok: var(--signal-cyan-700);

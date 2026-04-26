@@ -104,7 +104,7 @@
 }
 
 .heroPrimary:hover {
-  background: var(--mono-700);
+  background: var(--color-accent-hover);
 }
 
 .heroPrimary:active {
@@ -163,7 +163,7 @@
 .layerCell {
   background: var(--color-bg-raised);
   padding: var(--space-5);
-  border-radius: var(--radius-1);
+  border-radius: var(--radius-3);
 }
 
 .layerName {

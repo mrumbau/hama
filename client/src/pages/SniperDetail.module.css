@@ -109,9 +109,8 @@
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   color: var(--color-status-fail);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3);
   border: var(--border-hairline) solid var(--color-status-fail);
-  background: var(--color-bg-sunken);
 }
 
 /* ── 4-column grid ──────────────────────────────────────────────────── */
@@ -143,15 +142,15 @@
   transition: border-color var(--motion-normal) var(--ease-out);
 }
 
-.column_running {
+.columnRunning {
   border-color: var(--color-status-running);
 }
 
-.column_done {
+.columnDone {
   border-color: var(--color-status-ok);
 }
 
-.column_failed {
+.columnFailed {
   border-color: var(--color-status-fail);
 }
 
@@ -212,41 +211,32 @@
   font-style: italic;
 }
 
-/* Status dot */
+/* Status dot — square 10px per Tag 12 brutalist consolidation
+   (industrial-brutalist-ui §5: no border-radius). The
+   --space-2-5 token resolves to 0.625rem (10px). */
 
 .statusDot {
-  width: 0.75rem;
-  height: 0.75rem;
-  border-radius: 50%;
+  width: var(--space-2-5);
+  height: var(--space-2-5);
   display: inline-block;
+  flex-shrink: 0;
 }
 
-.dot_pending {
+.dotPending {
   background: var(--color-status-pending);
 }
 
-.dot_running {
+.dotRunning {
   background: var(--color-status-running);
-  animation: dot-pulse 0.9s var(--ease-out) infinite;
+  animation: argus-pulse-bloom 0.9s var(--ease-out) infinite;
 }
 
-.dot_done {
+.dotDone {
   background: var(--color-status-ok);
 }
 
-.dot_failed {
+.dotFailed {
   background: var(--color-status-fail);
-}
-
-@keyframes dot-pulse {
-  0%,
-  100% {
-    opacity: 0.4;
-  }
-
-  50% {
-    opacity: 1;
-  }
 }
 
 /* Failure block */

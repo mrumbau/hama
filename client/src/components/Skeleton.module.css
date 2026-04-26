@@ -1,0 +1,103 @@
+/* Skeleton-loader primitives — Tag 12 §4.1.
+   Replaces the per-page pulse-dot loaders with layout-shaped placeholders
+   per design-taste-frontend §3 Rule 5: "Skeletal loaders matching layout
+   sizes (avoid generic circular spinners)."
+
+   The shimmer animation is `argus-shimmer` from app.css. Each variant
+   matches the geometry of the content it stands in for, so the operator
+   reads the eventual layout before the data lands. */
+
+.bar {
+  display: block;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-sunken) 0%,
+    var(--color-bg-hover) 50%,
+    var(--color-bg-sunken) 100%
+  );
+  background-size: 200% 100%;
+  animation: argus-shimmer 1.6s var(--ease-in-out) infinite;
+  border: var(--border-hairline) solid var(--color-border-subtle);
+}
+
+/* Sniper-detail-column placeholder — fills the column body before any
+   layer payload arrives. Pre-renders the eventual list shape. */
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.row {
+  height: 2.25rem;
+}
+
+.rowShort {
+  height: 1.5rem;
+  width: 60%;
+}
+
+.rowTall {
+  height: 3rem;
+}
+
+/* Identity-card sketch — vote-bar layout */
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Web-presence-card sketch — square thumb + two text rows */
+.webRow {
+  display: grid;
+  grid-template-columns: 3rem 1fr;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.webThumb {
+  width: 3rem;
+  height: 3rem;
+}
+
+.webText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+}
+
+/* Geographic-card sketch — big country text + small subline */
+.geo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.geoCountry {
+  height: 2rem;
+  width: 70%;
+}
+
+.geoSubline {
+  height: 1rem;
+  width: 50%;
+}
+
+/* Authenticity-card sketch — single big verdict block */
+.authVerdict {
+  height: 4rem;
+}
+
+/* PoiDetail upload-tile sketch — square thumb + two metadata rows */
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.tileThumb {
+  aspect-ratio: 1 / 1;
+  width: 100%;
+}

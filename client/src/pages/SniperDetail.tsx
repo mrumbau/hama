@@ -2,6 +2,12 @@ import { useEffect, useState } from "react";
 import { Link, useRoute } from "wouter";
 
 import { ApiError } from "../lib/api";
+import {
+  SkeletonAuthenticity,
+  SkeletonGeographic,
+  SkeletonIdentity,
+  SkeletonWebPresence,
+} from "../components/Skeleton";
 import { sniperApi, type SniperLayerRow, type SniperReportRow } from "../lib/sniper";
 import {
   subscribeToFusionLayers,
@@ -211,7 +217,7 @@ function ReportStatusBadge({ status }: { status: SniperReportRow["status"] }) {
 function LayerColumn({ name, row }: { name: FusionLayer; row: SniperLayerRow | null }) {
   const status = row?.status ?? "pending";
   return (
-    <article className={cn(styles.column, styles[`column_${status}`])}>
+    <article className={cn(styles.column, styles[`column${capitalize(status)}`])}>
       <header className={styles.colHeader}>
         <span className={styles.colTitle}>{LAYER_TITLE[name]}</span>
         <LayerStatusDot status={status} />
@@ -220,7 +226,7 @@ function LayerColumn({ name, row }: { name: FusionLayer; row: SniperLayerRow | n
 
       <div className={styles.colBody}>
         {status === "pending" && <span className={styles.placeholder}>pending dispatch…</span>}
-        {status === "running" && <span className={styles.placeholder}>running…</span>}
+        {status === "running" && <LayerSkeleton name={name} />}
         {status === "failed" && (
           <div className={styles.failBlock}>
             <span className={styles.failTitle}>FAILED</span>
@@ -256,7 +262,24 @@ function LayerStatusDot({
 }: {
   status: "pending" | "running" | "done" | "failed";
 }) {
-  return <span className={cn(styles.statusDot, styles[`dot_${status}`])} aria-hidden="true" />;
+  return <span className={cn(styles.statusDot, styles[`dot${capitalize(status)}`])} aria-hidden="true" />;
+}
+
+function LayerSkeleton({ name }: { name: FusionLayer }) {
+  switch (name) {
+    case "identity":
+      return <SkeletonIdentity />;
+    case "web_presence":
+      return <SkeletonWebPresence />;
+    case "geographic":
+      return <SkeletonGeographic />;
+    case "authenticity":
+      return <SkeletonAuthenticity />;
+  }
+}
+
+function capitalize<T extends string>(s: T): Capitalize<T> {
+  return (s.charAt(0).toUpperCase() + s.slice(1)) as Capitalize<T>;
 }
 
 // ── Per-layer payload renderers ───────────────────────────────────────────

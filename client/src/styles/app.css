@@ -65,3 +65,86 @@ data {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   GLOBAL KEYFRAMES (Tag 12 polish — D-024)
+   CSS Modules scope class names but NOT @keyframes — keyframe identifiers
+   live in a single global namespace. We define the project's animations
+   here so a component module never duplicates a keyframe with a slightly
+   different terminal value (which used to cause cross-page name
+   collisions: feed-flash defined twice with different to-states, the
+   import-order winner overrode the loser at runtime).
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Single canonical pulse for status dots, spinners, and "live" indicators.
+   Drives PoiDetail upload tiles, Sniper dropzone busy-state, SniperDetail
+   layer running-state, the AppShell live-tail dot. Per-element timing
+   varies via animation-duration; the curve is shared. */
+@keyframes argus-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* Inverse of argus-pulse — used for the spinning dropzone-busy dot where
+   we want the dot to start subtle and bloom (not punch and fade). */
+@keyframes argus-pulse-bloom {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Realtime-row arrival flash. Used by the Patrol feed and Events table
+   when Supabase Realtime pushes a new row. Returns to bg-raised so it
+   never disappears underneath a parent that lacks a background. */
+@keyframes argus-flash {
+  from {
+    background: var(--signal-cyan-900);
+  }
+
+  to {
+    background: var(--color-bg-raised);
+  }
+}
+
+/* Patrol live-viewport scan-line — slower sweep, signals "system is
+   actively listening on the camera feed". Standalone keyframe because
+   it animates `transform` not `opacity`. */
+@keyframes argus-scan {
+  0% {
+    transform: translateY(0);
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 0.2;
+  }
+
+  100% {
+    transform: translateY(100%);
+    opacity: 0.6;
+  }
+}
+
+/* Skeleton-loader shimmer (Tag 12 §4.1 — replaces dot-pulse spinners on
+   the Sniper detail columns + PoiDetail upload tiles). Animates a
+   horizontal gradient sweep across the placeholder block. */
+@keyframes argus-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}

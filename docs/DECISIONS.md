@@ -1463,3 +1463,200 @@ The total test pyramid now stands at:
   Supabase test project is Tag 14 polish.
 
 ---
+
+## D-024 — Tag 12: Polish pass — token consolidation, manifesto compliance, UX layer
+
+**Date:** 2026-04-26
+**Why a D-entry:** Tag 12 was scoped as a three-stage polish pass.
+Stage 1 produced `docs/POLISH-audit.md` with 22 findings sorted by
+severity. The user accepted the full backlog (Stages 2 + 3) with the
+6 T14-deferred items kept on the impeccable backlog. This entry
+records what landed, what didn't, and the small architectural
+additions made along the way.
+
+### What landed
+
+#### Stage 2 — Foundation + manifesto compliance + component consolidation
+
+1. **Three new tokens** in `tokens.css`:
+   - `--space-2-5: 0.625rem` (10px) — half-step for the canonical
+     status-dot square, prevents the `0.625rem` literal sprinkle.
+   - `--radius-3: 0.5rem` (8px) — minimalist editorial cards per
+     `minimalist-ui §5` (Login card + Landing layerCell promoted).
+   - `--color-accent-hover` per theme (signal-red-600 dark /
+     mono-700 light) — replaces the four sites that reached into
+     the raw scale for hover states.
+
+2. **Five global keyframes** moved to `app.css` (`argus-pulse`,
+   `argus-pulse-bloom`, `argus-flash`, `argus-scan`,
+   `argus-shimmer`). The five page-local pulses (`tail-pulse`,
+   `pulse`, `snip-pulse`, `dot-pulse`, plus a duplicate
+   `feed-flash` defined in **both** Patrol and Events with
+   different terminal values) are gone. The global namespace was
+   actively colliding pre-Tag-12 — only the import-order winner
+   ran in production.
+
+3. **Manifesto fixes (industrial-brutalist-ui):**
+   - `.statusDot` border-radius:50% → square (§5 violation closed).
+   - Patrol `.scanLine` colour → `--color-status-running` so
+     `--color-status-tail` (phosphor green) stays single-purpose
+     on the live-dot indicator (§4.2).
+   - Macro-typography on PoiList / Sniper / Events page titles
+     bumped to `clamp(2.5rem, 5vw, 4rem)` from the previous
+     `clamp(2rem, 4vw, 3rem)`. Detail pages keep the smaller cap
+     because they share row with metadata + actions.
+   - Login card + Landing layerCell promoted to `--radius-3`
+     (8px) to meet `minimalist-ui §5`'s "8-12px crisp" guidance.
+
+4. **Component consolidation:**
+   - Status dots unified: 10px square via `--space-2-5` across
+     Patrol / PoiDetail / SniperDetail. Three different sizes
+     became one.
+   - Drop zones unified: heavy dashed `--border-strong` on both
+     PoiDetail and Sniper. PoiDetail also adopted the
+     flex-centring pattern from Sniper.
+   - Empty-state padding standardised on `var(--space-9) var(--space-6)`
+     (96 / 32px). Sniper's previously cramped `var(--space-4)`
+     empty state grew to match the rest.
+   - Error blocks no longer carry `background: var(--color-bg-sunken)`
+     — the border-only pattern won across all pages.
+   - Snake_case class names in `SniperDetail.module.css`
+     (`.column_running`, `.dot_pending`, etc.) renamed to
+     camelCase to match the rest of the codebase.
+   - PoiNew textarea no longer overrides to mono — keeps the
+     sans-serif of the other inputs in the same form.
+   - One stray `letter-spacing: 0` raw value bound to
+     `var(--tracking-normal)`.
+
+#### Stage 3 — UX layer
+
+5. **`SkeletonBar` + per-layer Skeleton primitives**
+   (`client/src/components/Skeleton.{tsx,module.css}`). Replaces
+   the dot-spinner on SniperDetail's running columns with
+   layout-shaped placeholders that mirror the eventual content
+   (identity → 3 row-bars; web-presence → thumb+text rows;
+   geographic → big country bar + subline; authenticity → big
+   verdict block). Animates `argus-shimmer` across a gradient.
+   PoiDetail upload-tiles already render `previewUrl` so they
+   stayed on the dot pattern — adding a skeleton on top of an
+   actual image preview would have been redundant.
+
+6. **First-time-operator orientation block** on `/poi` when the
+   registry is empty. Replaces the bare
+   `[ no poi enrolled · click + new poi to start ]` line with a
+   60ch panel that explains what a POI is, the 3-embedding
+   activation threshold, and offers two CTAs (`+ new poi` primary
+   + a secondary "or run a Sniper query directly →" link). The
+   panel disappears once any POI is enrolled, so it doesn't
+   clutter the daily UX.
+
+7. **`describeError(err)` helper** (`client/src/lib/errorHints.ts`)
+   + **`<ErrorBlock>` component** (`client/src/components/`).
+   Maps `ApiError`, native `Error`, and unknown values to a
+   structured `{ title, hint, action }` shape. `action` is one of
+   `"sign-in" | "retry" | "external" | null`; the component
+   renders an actual link/button. PoiList and Sniper switched to
+   `<ErrorBlock>` — recovery is now interactive (401 → sign-in
+   link, 502 → retry button, 413 → "max 10 MB" hint). The audit
+   trail preserved via the raw `${status} ${message}` line at the
+   bottom of the block (toggleable via `hideRaw`).
+
+8. **First-run layer-intro panel** on `/sniper` when no reports
+   exist. A 4-card grid (one per layer: Identity / Web Presence /
+   Geographic / Authenticity) with the source label, per-call
+   cost from the live cost-summary, and a one-sentence description.
+   Replaces the abstract subtitle "ADR-1" reference with concrete
+   layer + cost information. Dismisses itself once the operator
+   has at least one report.
+
+9. **Empty-state copy refresh:**
+   - Events: from `[ no events yet — start patrol mode ]` to
+     `[ no recognition events yet ] · events appear here when
+     patrol mode flags a registered POI in a webcam frame`.
+   - Sniper: from `[ no reports yet — drop a photo above to start ]`
+     to `[ no reports yet ] · drop a face photo above to fan out
+     across all four OSINT layers`.
+
+### What did NOT land in 12 (deferred to T14)
+
+The audit explicitly bucketed these for the impeccable pass; kept here
+for traceability:
+- §1.4 — global SVG noise/grain layer
+- §1.5 — industrial markers ®©™ as structural elements
+- §1.6 — denser ASCII syntax decoration (`>>>`, crosshair `+`,
+  barcode strips)
+- §2.10 — `transform: scale(0.97)` magic number → token
+- §2.11 — `min-height: 18rem` repeated → `--gallery-tile-height`
+- §3.2 — half-step spacing tokens for `0.5rem`/`0.125rem` simBar
+  primitives
+
+### Tactical decisions worth recording
+
+1. **Global keyframes in `app.css`, not a separate `.module.css`.**
+   CSS Modules scope class names but **not** keyframe identifiers —
+   so a "global" location and a "module" location for keyframes
+   would have the same global namespace. Keeping them in the
+   already-global `app.css` makes that explicit. The collision
+   between two different `feed-flash` definitions (Patrol returning
+   to `var(--color-bg-raised)`, Events returning to `transparent`)
+   was a real production bug — only the import-order winner ran.
+
+2. **`--color-accent-hover` per theme, not a single `--mono-700`.**
+   The dark-theme accent is signal-red; its hover is signal-red-600
+   (warmer). The light-theme accent is mono-900 (pure dark); its
+   hover is mono-700 (a soft grey). Different hue families need
+   different hover ramps.
+
+3. **Skeleton-loader gradient is theme-aware via CSS vars.**
+   `linear-gradient(90deg, var(--color-bg-sunken) 0%,
+   var(--color-bg-hover) 50%, var(--color-bg-sunken) 100%)`. Works
+   in both dark + light themes without per-theme rules — the
+   sunken/hover surfaces are the right relative contrasts on both
+   substrates.
+
+4. **`describeError` is the single source of recovery-hint truth.**
+   Previously each error site re-implemented its own "if status
+   === 401 redirect to /login" branch. Centralising in
+   `errorHints.ts` means the recovery contract (when to offer
+   sign-in, when to offer retry, when to fail silently) lives in
+   one place. The component (`ErrorBlock`) only renders.
+
+5. **First-run panels self-dismiss on first data.** Both the POI
+   first-run and the Sniper first-run check the live data state
+   (`rows.length === 0` / `reports.length === 0`) — once anything
+   exists, the panel is gone. Avoids the "permanent help banner"
+   anti-pattern.
+
+6. **Inlining `composes:` rather than allowlisting in stylelint.**
+   CSS Modules' `composes:` syntax is not a real CSS property; the
+   stylelint standard config flags it. Two options were
+   open: extend the stylelint config or inline the shared
+   declarations. Inlining wins because the brutalist surface only
+   has four status-dot variants and the copy-paste cost is one
+   selector list — not worth a stylelint config knob that the
+   project would have to maintain.
+
+### Tests
+
+- Client tsc clean.
+- Stylelint clean across all `client/src/**/*.css`.
+- ESLint clean across all `client/src/**/*.{ts,tsx}`.
+- 4/4 Playwright auth + poi-list specs pass against the live stack
+  in 11.3 s — the UI refactor did not break any operator-facing
+  selectors. (Sniper E2E spec was not re-run because it spends
+  another ~14 s on real ML; the affected selectors are textual
+  layer titles which were not touched.)
+- Server vitest + python pytest unaffected (no server / ML
+  changes).
+
+### Files touched
+
+- New: `client/src/components/Skeleton.{tsx,module.css}`,
+  `client/src/components/ErrorBlock.{tsx,module.css}`,
+  `client/src/lib/errorHints.ts`.
+- Modified: `client/src/styles/{tokens,app}.css`; all eight
+  `client/src/pages/*.module.css`; `Sniper.tsx`, `SniperDetail.tsx`,
+  `PoiList.tsx`, `Events.tsx`.
+- New doc: `docs/POLISH-audit.md` (Stage 1 audit, frozen).
+
+---

@@ -1,0 +1,63 @@
+/* ErrorBlock — shared error-with-recovery primitive (Tag 12 §4.3). */
+
+.block {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-hairline) solid var(--color-status-fail);
+  font-family: var(--font-mono);
+  color: var(--color-status-fail);
+}
+
+.title {
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.hint {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--color-fg-muted);
+  letter-spacing: var(--tracking-normal);
+  text-transform: none;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
+  align-items: center;
+}
+
+.actionLink,
+.actionButton {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  padding: var(--space-1) var(--space-3);
+  background: transparent;
+  color: var(--color-status-fail);
+  border: var(--border-hairline) solid var(--color-status-fail);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    color var(--motion-normal) var(--ease-out),
+    background-color var(--motion-normal) var(--ease-out);
+}
+
+.actionLink:hover,
+.actionButton:hover {
+  background: var(--color-status-fail);
+  color: var(--color-accent-fg);
+}
+
+.raw {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-disabled);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
