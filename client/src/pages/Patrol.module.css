@@ -99,11 +99,19 @@
   position: absolute;
   border: var(--border-strong) solid var(--bbox-color);
   box-sizing: border-box;
+
+  /* Tracking-friendly transition (ADR-3 visual-stability story).
+     Duration > FRAME_INTERVAL_MS=150ms so each frame's new target
+     retargets a still-moving transition instead of restarting from a
+     parked state. Linear easing keeps perceived motion at constant
+     velocity across the retargets — strong-ease-out (the default
+     `--motion-normal var(--ease-out)`) produces a fast-then-park
+     stutter at this rate. */
   transition:
-    left var(--motion-normal) var(--ease-out),
-    top var(--motion-normal) var(--ease-out),
-    width var(--motion-normal) var(--ease-out),
-    height var(--motion-normal) var(--ease-out);
+    left 220ms linear,
+    top 220ms linear,
+    width 220ms linear,
+    height 220ms linear;
 }
 
 .bboxLabel {
