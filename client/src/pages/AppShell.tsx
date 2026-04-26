@@ -9,6 +9,8 @@ import PoiNew from "./PoiNew";
 import PoiDetail from "./PoiDetail";
 import Patrol from "./Patrol";
 import Events from "./Events";
+import Sniper from "./Sniper";
+import SniperDetail from "./SniperDetail";
 import styles from "./AppShell.module.css";
 
 const NAV = [
@@ -61,13 +63,8 @@ export default function AppShell() {
           <Route path="/poi/:id" component={PoiDetail} />
           <Route path="/poi" component={PoiList} />
           <Route path="/patrol" component={Patrol} />
-          <Route path="/sniper">
-            <Placeholder
-              eyebrow="SNIPER / FUSION"
-              title="Sniper mode"
-              body="Tag 8–9 wires up the 4-layer fanout (Identity / Web Presence / Geographic / Authenticity) with Supabase Realtime layer-result streaming."
-            />
-          </Route>
+          <Route path="/sniper/:id" component={SniperDetail} />
+          <Route path="/sniper" component={Sniper} />
           <Route path="/events" component={Events} />
           <Route>
             <Placeholder

@@ -8,10 +8,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "src"),
-      "@argus/shared": path.resolve(__dirname, "../shared/index.ts"),
-    },
+    // Order matters: prefix-matched alias entries pick the first hit, so
+    // the more-specific subpaths must come before the bare package name.
+    alias: [
+      { find: "@", replacement: path.resolve(__dirname, "src") },
+      { find: "@argus/shared/fusion", replacement: path.resolve(__dirname, "../shared/fusion.ts") },
+      { find: "@argus/shared/schema", replacement: path.resolve(__dirname, "../shared/schema.ts") },
+      { find: "@argus/shared", replacement: path.resolve(__dirname, "../shared/index.ts") },
+    ],
   },
   server: {
     port: 5173,
