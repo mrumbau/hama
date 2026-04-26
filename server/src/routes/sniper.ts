@@ -25,7 +25,9 @@ import { sql } from "drizzle-orm";
 
 import { db } from "../db.js";
 import { env } from "../env.js";
+import { dailySummary } from "../lib/cost-guard.js";
 import { logger } from "../lib/pino.js";
+import { signedReadUrl } from "../lib/storage.js";
 import { runSniperReport } from "../orchestrator/sniper.js";
 
 export const sniperRouter = Router();
@@ -89,6 +91,41 @@ sniperRouter.post(
   },
 );
 
+// ── GET /api/sniper/cost-summary ────────────────────────────────────────────
+
+/**
+ * Operator's spend for the current UTC day. Drives the budget headroom
+ * widget on the Sniper landing page (Tag 10). Per-service breakdown lets
+ * the UI explain *why* a layer might have been refused — e.g. "you've
+ * hit the SerpAPI cap for today, web_presence will fail until 00:00 UTC".
+ *
+ * RLS gates the read (`daily_cost_ledger_select_own_or_admin`); the
+ * service-role pool bypasses RLS, so the handler enforces "own only"
+ * by passing `req.auth.sub` as the operator filter.
+ */
+sniperRouter.get("/cost-summary", async (req: Request, res: Response): Promise<void> => {
+  const operatorId = req.auth!.sub;
+  try {
+    const summary = await dailySummary(operatorId);
+    res.json({
+      total_today_eur: summary.totalToday,
+      cap_eur: summary.capEur,
+      headroom_eur: Math.max(0, summary.capEur - summary.totalToday),
+      per_service: summary.perService,
+      // Per-call costs for the UI to render "next Sniper run will cost
+      // ~Y if all 3 paid layers succeed".
+      per_call_costs: {
+        serpapi: env.LAYER_COST_WEB_PRESENCE_EUR,
+        picarta: env.LAYER_COST_GEOGRAPHIC_EUR,
+        reality_defender: env.LAYER_COST_AUTHENTICITY_EUR,
+      },
+    });
+  } catch (err) {
+    logger.error({ err, operatorId }, "sniper: cost-summary failed");
+    res.status(500).json({ error: "cost_summary_failed" });
+  }
+});
+
 // ── GET /api/sniper/:id ─────────────────────────────────────────────────────
 
 sniperRouter.get("/:id", async (req: Request, res: Response): Promise<void> => {
@@ -141,6 +178,16 @@ sniperRouter.get("/:id", async (req: Request, res: Response): Promise<void> => {
     ORDER BY layer
   `);
 
+  // Mint a 60s signed URL for the query thumbnail so the detail page
+  // can render the operator-facing preview. The bucket itself is
+  // private (0006_buckets.sql); the URL is one-shot and short-lived.
+  let querySignedUrl: string | null = null;
+  try {
+    querySignedUrl = await signedReadUrl("sniper-queries", report.query_storage_path);
+  } catch (err) {
+    logger.warn({ err, path: report.query_storage_path }, "sniper: query signed-url failed");
+  }
+
   res.json({
     report: {
       id: report.id,
@@ -150,6 +197,7 @@ sniperRouter.get("/:id", async (req: Request, res: Response): Promise<void> => {
       created_at: report.created_at,
       completed_at: report.completed_at,
     },
+    query_signed_url: querySignedUrl,
     layers: layersResult.rows,
   });
 });

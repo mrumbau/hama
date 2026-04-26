@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEv
 import { Link, useLocation } from "wouter";
 
 import { ApiError } from "../lib/api";
-import { sniperApi } from "../lib/sniper";
+import { sniperApi, type SniperCostSummary } from "../lib/sniper";
 import { supabase } from "../lib/supabase";
 import { cn } from "../lib/cn";
 import styles from "./Sniper.module.css";
@@ -35,7 +35,24 @@ export default function Sniper() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [costSummary, setCostSummary] = useState<SniperCostSummary | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Cost-guard summary (Tag 10 budget widget) ───────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const summary = await sniperApi.costSummary();
+        if (!cancelled) setCostSummary(summary);
+      } catch {
+        // Non-fatal — budget widget hides if the call fails.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [uploading]);
 
   // ── Past reports list ────────────────────────────────────────────────────
   useEffect(() => {
@@ -99,6 +116,7 @@ export default function Sniper() {
             web presence, geographic, authenticity. ADR-1.
           </p>
         </div>
+        {costSummary && <BudgetWidget summary={costSummary} />}
       </header>
 
       {/* ── Upload zone ─────────────────────────────────────────────────── */}
@@ -183,4 +201,30 @@ function StatusBadge({ status }: { status: ReportRow["status"] }) {
         ? styles.statusFailed
         : styles.statusProcessing;
   return <span className={cn(styles.statusBadge, cls)}>{status.toUpperCase()}</span>;
+}
+
+function BudgetWidget({ summary }: { summary: SniperCostSummary }) {
+  const usedPct = Math.min(100, (summary.total_today_eur / summary.cap_eur) * 100);
+  const perRunEstimate =
+    summary.per_call_costs.serpapi +
+    summary.per_call_costs.picarta +
+    summary.per_call_costs.reality_defender;
+  // Warn when next run wouldn't fit; halt when no headroom at all.
+  const warn = summary.headroom_eur < perRunEstimate;
+  const halt = summary.headroom_eur <= 0;
+
+  return (
+    <div className={cn(styles.budget, warn && styles.budgetWarn, halt && styles.budgetHalt)}>
+      <span className={styles.budgetLabel}>BUDGET TODAY</span>
+      <span className={styles.budgetValue}>
+        €{summary.total_today_eur.toFixed(2)} / €{summary.cap_eur.toFixed(2)}
+      </span>
+      <div className={styles.budgetBar}>
+        <div className={styles.budgetBarFill} style={{ width: `${usedPct}%` }} />
+      </div>
+      <span className={styles.budgetHint}>
+        next run ~€{perRunEstimate.toFixed(2)} · headroom €{summary.headroom_eur.toFixed(2)}
+      </span>
+    </div>
+  );
 }

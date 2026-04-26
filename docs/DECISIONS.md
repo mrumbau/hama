@@ -1251,3 +1251,106 @@ in the Sniper UI was decided against those two ADRs simultaneously.
   hit confusing 422s downstream.
 
 ---
+
+## D-022 — Tag 10: External integrations matured (cost transparency, query thumbnail, per-layer cost)
+
+**Date:** 2026-04-26
+**Why a D-entry:** Tag 8 landed the Cost Guard as a backend-only mechanism;
+Tag 9 surfaced the layer dashboard but no cost data anywhere on the
+operator surface. Tag 10 closes that loop. Plus two UI polish items
+deferred from D-021 (query thumbnail, per-layer cost).
+
+### What landed
+
+1. **`GET /api/sniper/cost-summary`** in `routes/sniper.ts`. Returns
+   `{ total_today_eur, cap_eur, headroom_eur, per_service,
+     per_call_costs }`. Uses `dailySummary(operatorId)` from
+   `lib/cost-guard.ts` (already in place from Tag 8a). Route is
+   declared **before** `/:id` so Express matches the literal path
+   first — without that ordering the `/:id` handler would catch
+   `cost-summary` as a UUID-shaped report id.
+2. **Budget widget** (`Sniper.tsx::BudgetWidget`). Three states by
+   border colour:
+   - default: spent < cap, next run fits
+   - amber (`budgetWarn`): next run wouldn't fit (`headroom_eur <
+     sum(per_call_costs)`) — operator gets a heads-up before the
+     `cost_guard_exceeded` reject lands
+   - red (`budgetHalt`): zero headroom, every paid layer will
+     reject this run
+   Re-fetches after every `uploading` flip so the widget refreshes
+   right when a run completes.
+3. **Query thumbnail** in `SniperDetail.tsx` header. The
+   `GET /:id` response now includes a 60s-TTL signed URL for the
+   query image (Supabase Storage `sniper-queries` bucket); the UI
+   renders a 5×5 rem `<img>` next to the report metadata. Failure
+   to mint the URL is non-fatal — falls back to a `?` placeholder.
+4. **Per-layer cost in column footer.** Hard-coded
+   `LAYER_COST_EUR` map mirrors the env defaults (€0.02 / €0.01 /
+   €0.10). Identity shows "free"; paid layers show "€0.02" when
+   `wasLayerCharged(row)` is true (status=done OR status=failed
+   for any reason that isn't `circuit_open` / `cost_guard_exceeded`),
+   "€0.00" otherwise. Distinct from latency, which is always
+   shown.
+
+### Tactical decisions worth recording
+
+1. **Route ordering matters.** Express v5's matcher walks routes in
+   order; `/:id` would happily catch `cost-summary` because it's a
+   non-empty path segment. The literal `/cost-summary` route is
+   defined ahead of it. A future contributor who alphabetises the
+   handlers would silently break the endpoint — kept as the first
+   GET handler with a comment to deter rearrangement.
+2. **Per-call cost map is hard-coded client-side.** The alternative
+   was a fresh `costSummary()` fetch on every detail page render to
+   pull `per_call_costs` from the server. Round-trip overhead for
+   a value that effectively never changes — the env vars are
+   project-static. The drift risk: if an operator changes
+   `LAYER_COST_*_EUR` post-deploy without redeploying the client,
+   the badge shows the stale number. Acceptable for a defence-mode
+   dashboard; flagged in the comment.
+3. **`wasLayerCharged` reads `error_message` prefix.** Two sentinel
+   reasons (`circuit_open`, `cost_guard_exceeded`) signal a
+   pre-call rejection that did NOT charge the cost guard.
+   Everything else (upstream HTTP error, timeout, etc.) charges.
+   The check uses `startsWith` because
+   `cost_guard_exceeded:0.30/0.50eur` carries the actual numbers
+   for budget-transparency in the operator-facing copy.
+4. **Query thumbnail TTL = 60s, not the 5min SerpAPI uses.** The UI
+   only reads it once on mount; if the operator stays on the page
+   longer the thumbnail will eventually 403, which is the right
+   tradeoff for a private bucket. The polling-fallback `GET /:id`
+   re-mints the URL on every call.
+5. **Budget widget refresh on `uploading` boolean flip, not on a
+   timer.** A user who runs back-to-back Sniper queries gets a fresh
+   number; a user staring at the page burns no requests. Cleanest
+   interaction-driven invalidation pattern available without
+   adding a websocket on the cost ledger.
+
+### What did NOT land in 10 (deferred)
+
+- **Multi-engine Layer 2 (google_lens + google_reverse + bing).**
+  The plan §3 mentions multiple engines; the pricing math triples
+  if all three run. Skipped pending verified provider behaviour —
+  `google_lens` is the only engine I've validated against real
+  SerpAPI responses. Tag 13 evaluation can quantify the marginal
+  hit-quality gain per added engine.
+- **Real-mode RD smoke against the live provider.** Documented as
+  a manual procedure in OPERATIONS.md; auto-running it would burn
+  1-of-50 monthly quota per CI run.
+- **Picarta image-bytes-as-multipart endpoint.** Some Picarta plans
+  expect multipart upload rather than base64-in-JSON. Not
+  observed yet; if real-mode smoke reveals it, the change is
+  contained to `external/picarta.ts`.
+- **Cost-guard real-time push.** Today the budget widget refetches
+  on `uploading` toggle. A websocket-pushed "your daily total just
+  changed" would be more elegant. Not worth the wiring for a
+  defence demo.
+
+### Tests
+
+- `cost-guard.test.ts` adds the `dailySummary` zero-baseline test
+  for an unknown operator (proves the `COALESCE(SUM, 0)` path).
+- 57 vitest pass total (was 56). Client tsc + ESLint + Stylelint
+  all clean.
+
+---

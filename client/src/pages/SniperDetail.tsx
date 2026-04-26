@@ -32,6 +32,34 @@ const LAYER_SOURCE: Record<FusionLayer, string> = {
   authenticity: "Reality Defender · deepfake",
 };
 
+// Per-call costs charged when the cost-guard accepts the layer. These
+// numbers come from the server's env (LAYER_COST_*_EUR); we hard-code
+// them client-side for the audit-row badge so a network round-trip per
+// page render isn't necessary. They drift if the operator changes env;
+// rare and acceptable for a defence-mode dashboard.
+const LAYER_COST_EUR: Record<FusionLayer, number> = {
+  identity: 0,
+  web_presence: 0.02,
+  geographic: 0.01,
+  authenticity: 0.1,
+};
+
+/**
+ * Was the layer charged against the cost guard for this run? `true`
+ * for `done` and for `failed` outcomes that originate inside the
+ * upstream call (after the charge landed); `false` for the two
+ * pre-call rejections (`circuit_open`, `cost_guard_exceeded`).
+ */
+function wasLayerCharged(row: SniperLayerRow | null): boolean {
+  if (!row) return false;
+  if (row.status === "done") return true;
+  if (row.status === "failed") {
+    const r = row.error_message ?? "";
+    return !r.startsWith("circuit_open") && !r.startsWith("cost_guard_exceeded");
+  }
+  return false;
+}
+
 function formatTime(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleTimeString(undefined, {
@@ -47,6 +75,7 @@ export default function SniperDetail() {
   const reportId = params?.id ?? "";
 
   const [report, setReport] = useState<SniperReportRow | null>(null);
+  const [querySignedUrl, setQuerySignedUrl] = useState<string | null>(null);
   const [layers, setLayers] = useState<Record<FusionLayer, SniperLayerRow | null>>({
     identity: null,
     web_presence: null,
@@ -64,6 +93,7 @@ export default function SniperDetail() {
         const r = await sniperApi.detail(reportId);
         if (cancelled) return;
         setReport(r.report);
+        setQuerySignedUrl(r.query_signed_url);
         const next: Record<FusionLayer, SniperLayerRow | null> = {
           identity: null,
           web_presence: null,
@@ -125,7 +155,17 @@ export default function SniperDetail() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <div>
+        {querySignedUrl ? (
+          <img
+            className={styles.queryThumb}
+            src={querySignedUrl}
+            alt="query face"
+            loading="eager"
+          />
+        ) : (
+          <div className={styles.queryThumbPlaceholder}>?</div>
+        )}
+        <div className={styles.headerText}>
           <span className={styles.eyebrow}>SNIPER / REPORT</span>
           <h1 className={styles.title}>
             {report ? `Report ${report.id.slice(0, 8)}…` : "loading…"}
@@ -192,7 +232,20 @@ function LayerColumn({ name, row }: { name: FusionLayer; row: SniperLayerRow | n
 
       <footer className={styles.colFooter}>
         <span>started {formatTime(row?.started_at ?? null)}</span>
-        <span>{row?.latency_ms !== null && row?.latency_ms !== undefined ? `${row.latency_ms}ms` : "—"}</span>
+        <span className={styles.colFooterRight}>
+          <span className={styles.colCost}>
+            {LAYER_COST_EUR[name] === 0
+              ? "free"
+              : wasLayerCharged(row)
+                ? `€${LAYER_COST_EUR[name].toFixed(2)}`
+                : "€0.00"}
+          </span>
+          <span>
+            {row?.latency_ms !== null && row?.latency_ms !== undefined
+              ? `${row.latency_ms}ms`
+              : "—"}
+          </span>
+        </span>
       </footer>
     </article>
   );

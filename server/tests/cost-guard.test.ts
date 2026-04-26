@@ -104,4 +104,13 @@ describe.skipIf(!HAS_DB)("cost-guard", () => {
     expect(summary.perService["reality_defender"]).toBeCloseTo(0.05, 4);
     expect(summary.capEur).toBeCloseTo(0.5, 4);
   });
+
+  it("dailySummary returns zero baseline for an unknown operator", async () => {
+    const { randomUUID } = await import("node:crypto");
+    const fresh = randomUUID();
+    const summary = await dailySummary(fresh);
+    expect(summary.totalToday).toBe(0);
+    expect(summary.perService).toEqual({});
+    expect(summary.capEur).toBeCloseTo(0.5, 4);
+  });
 });

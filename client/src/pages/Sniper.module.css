@@ -218,3 +218,64 @@
   background: var(--color-bg-sunken);
   margin-top: var(--space-3);
 }
+
+/* ── Budget widget (Tag 10) ─────────────────────────────────────────────── */
+
+.budget {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 14rem;
+  padding: var(--space-3);
+  border: var(--border-hairline) solid var(--color-border);
+  background: var(--color-bg-sunken);
+  font-family: var(--font-mono);
+}
+
+.budgetWarn {
+  border-color: var(--color-status-warn);
+}
+
+.budgetHalt {
+  border-color: var(--color-status-fail);
+}
+
+.budgetLabel {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-fg-subtle);
+}
+
+.budgetValue {
+  font-size: var(--text-base);
+  color: var(--color-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.budgetBar {
+  height: 0.5rem;
+  background: var(--color-bg);
+  border: var(--border-hairline) solid var(--color-border-subtle);
+  margin: var(--space-1) 0;
+}
+
+.budgetBarFill {
+  height: 100%;
+  background: var(--color-status-ok);
+  transition: width var(--motion-normal) var(--ease-out);
+}
+
+.budgetWarn .budgetBarFill {
+  background: var(--color-status-warn);
+}
+
+.budgetHalt .budgetBarFill {
+  background: var(--color-status-fail);
+}
+
+.budgetHint {
+  font-size: var(--text-xs);
+  color: var(--color-fg-subtle);
+  font-variant-numeric: tabular-nums;
+}

@@ -69,7 +69,26 @@ export interface SniperLayerRow {
 
 export interface SniperDetailResponse {
   report: SniperReportRow;
+  /** 60s-TTL Supabase Storage signed URL for the query image. */
+  query_signed_url: string | null;
   layers: SniperLayerRow[];
+}
+
+export interface SniperCostSummary {
+  /** Sum of spent_eur across every paid service for the operator's UTC day. */
+  total_today_eur: number;
+  /** COST_GUARD_DAILY_EUR. */
+  cap_eur: number;
+  /** cap_eur − total_today_eur, clamped to 0. */
+  headroom_eur: number;
+  /** Per-service spend; missing services are zero. */
+  per_service: Record<string, number>;
+  /** Per-call charge for each paid layer at current env. */
+  per_call_costs: {
+    serpapi: number;
+    picarta: number;
+    reality_defender: number;
+  };
 }
 
 export const sniperApi = {
@@ -110,5 +129,10 @@ export const sniperApi = {
 
   detail(reportId: string): Promise<SniperDetailResponse> {
     return api<SniperDetailResponse>(`/sniper/${reportId}`);
+  },
+
+  /** Operator's per-UTC-day spend + headroom + per-call cost defaults. */
+  costSummary(): Promise<SniperCostSummary> {
+    return api<SniperCostSummary>("/sniper/cost-summary");
   },
 };
