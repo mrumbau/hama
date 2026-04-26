@@ -401,3 +401,79 @@ numbers side-by-side in `EVALUATION.md`.
 the architecture is unchanged either way.
 
 ---
+
+## D-014 — Two-layer image size handling: client resize for UX, server resize for defence
+
+**Date:** 2026-04-25 (post-Tag-6 mid-day improvement)
+**What the plan said:** Plan §3 enrolment specifies a quality gate at
+≥112 px face size; plan §9 caps the image-pixel limit at 4096²
+(~16 M pixels). Neither pins a strategy for real phone-camera input
+at 50–100 MP.
+**What I did:** Added a two-layer pipeline so an operator can drag a
+raw iPhone photo into the enrolment dropzone without touching it:
+
+**Client (`client/src/lib/resizeImage.ts`)** — primary path:
+
+- `createImageBitmap(file, { imageOrientation: "from-image" })`.
+  Native EXIF-aware decode; iPhone portraits with `Orientation: 6`
+  arrive upright instead of sideways.
+- Downscale to ≤ 1920 px on the longest edge with high-quality canvas
+  smoothing (`imageSmoothingQuality: "high"`).
+- `canvas.toBlob("image/jpeg", 0.85)` — uniform JPEG output regardless
+  of source format, drops payload from 10–25 MB raw HEIC/PNG to
+  300–800 KB JPEG.
+- `shouldSkipResize(file)` short-circuits at <600 KB — skipping the
+  CPU work where the network savings are negligible.
+- Wrapped in `try/catch` in `poi.ts uploadPhoto`. On any failure
+  (corrupted file, HEIC on Chrome desktop without codec support, etc.)
+  falls back to the original file plus a `console.warn`. The server
+  then handles it.
+
+**Server (`python/argus_ml/images.py`)** — defence-in-depth:
+
+- `MAX_PIXELS = 100_000_000` — covers 50 MP iPhone Pro and 100 MP
+  Samsung HM3 in raw form. The decompression-bomb defence still fires
+  beyond that. PIL's own 89 M-pixel `MAX_IMAGE_PIXELS` warning is
+  disabled (`Image.MAX_IMAGE_PIXELS = None`) because it would noise-up
+  the log on every legitimate phone photo; our explicit
+  pixel-count check after `pil.load()` is the canonical guard.
+- After load, before `convert("RGB")`: `pil.thumbnail((2048, 2048),
+Image.Resampling.LANCZOS)` if any edge exceeds 2048. In-place,
+  preserves aspect ratio, runs on the heavy buffer once.
+- `DecodedImage.width/height` carry the **post-resize** dimensions, so
+  bbox coordinates the orchestrator returns to the frontend live in
+  the same coordinate system the rendered image uses.
+- `POI_PHOTO_MAX_BYTES` bumped 10 MB → 50 MB to match the UI hint and
+  to cover client-resize-failure fall-throughs (a 30 MB original
+  passes through Multer, the server-side resize handles it).
+
+**Why two layers?** Either alone is brittle:
+
+- Client-only: a future mobile app or a misbehaving browser could
+  bypass resize and upload a 50 MB raw → server must defend itself.
+- Server-only: every operator wastes 10–25 MB of upload bandwidth per
+  photo over a hotel WiFi → enrolment becomes unusable on slow
+  connections.
+- Together: 99% of uploads are pre-resized to <1 MB; the 1% that
+  bypass resize still complete because the server downscales them
+  before face detection.
+
+**Tests** (`python/tests/test_images.py`, 8 new tests, 8.10 s total):
+
+- 24 MP (6000 × 4000) decodes without `image_too_large`.
+- 50 MP iPhone-class image accepted; downscaled to 2048-edge.
+- Aspect ratio preserved across the downscale (3:2 → 3:2).
+- 800 × 600 input is **not** resized (downscale-only, no upscale).
+- 108 M (above MAX_PIXELS) rejected with `image_too_large`.
+- The `MAX_PIXELS = 100_000_000` and `RESIZE_TARGET_EDGE = 2048`
+  constants are pinned by an explicit assertion so a future bump
+  cannot silently regress.
+
+**Trade-off:** The server resize work runs on every upload, even when
+the client already shrunk to ≤ 1920. This is the only acceptable
+trade — the alternative (skip server resize when input is small)
+would couple server logic to a client contract that may not always
+hold. The cost is one no-op `pil.thumbnail` call per upload, which
+is microseconds for a 1920 px image.
+
+---

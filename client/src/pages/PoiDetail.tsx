@@ -259,7 +259,7 @@ export default function PoiDetail() {
             <div className={styles.dropzoneText}>
               [ drop photo here or click ]
               <span className={styles.dropzoneSub}>
-                jpeg / png / webp · ≤ 10mb · 1 face, frontal, sharp
+                jpeg / png / webp · ≤ 50mb · auto-resized to 1920px · 1 face, frontal, sharp
               </span>
             </div>
           </label>

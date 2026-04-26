@@ -4,6 +4,7 @@
  */
 
 import { api, ApiError } from "./api";
+import { resizeImage, shouldSkipResize } from "./resizeImage";
 import type { PoiCategory } from "@argus/shared";
 
 export type { PoiCategory };
@@ -79,8 +80,32 @@ export const poiApi = {
     api<unknown>(`/poi/${id}`, { method: "DELETE" }).then(() => undefined),
 
   uploadPhoto: async (id: string, file: File): Promise<PhotoUploadOutcome> => {
+    // Client-side resize: real iPhone / Samsung photos are 50–100 MP.
+    // Bring the longest edge down to 1920 px, re-encode JPEG q=0.85,
+    // and rotate per EXIF (createImageBitmap with imageOrientation:
+    // "from-image" handles the iPhone-portrait rotation natively).
+    // Defence-in-depth: server-side images.py downscales again at
+    // 2048 px max edge if the client somehow skipped this. (D-014.)
+    let payload: Blob = file;
+    let filename: string = file.name;
+    if (!shouldSkipResize(file)) {
+      try {
+        payload = await resizeImage(file);
+        // The blob is JPEG regardless of source format. Reflect the
+        // change in the filename so the server's MIME check (which
+        // reads the multipart `Content-Type` header, not the magic
+        // bytes) routes via image/jpeg.
+        filename = file.name.replace(/\.\w+$/, "") + ".jpg";
+      } catch (err) {
+        // Fall back to the original file. Common cause: createImageBitmap
+        // refusing an unsupported codec (HEIC on Chrome desktop) or a
+        // corrupted image. The server-side resize will still apply.
+        console.warn("resizeImage fallback to original file:", err);
+      }
+    }
+
     const fd = new FormData();
-    fd.append("image", file);
+    fd.append("image", payload, filename);
     try {
       // The api() helper is JSON-only. Photo uploads go via raw fetch
       // with the Authorization header pulled from supabase.auth.

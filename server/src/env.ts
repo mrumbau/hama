@@ -53,11 +53,15 @@ const schema = z.object({
     .default(true),
 
   // POI enrolment.
+  // 50 MB cap covers raw iPhone Pro / Samsung HM3 fall-through cases when the
+  // client-side resize (lib/resizeImage.ts) fails or is bypassed. The server
+  // resizes again at 2048 px max edge in argus_ml/images.py before any
+  // allocation-heavy work — see D-014 for the two-layer rationale.
   POI_PHOTO_MAX_BYTES: z.coerce
     .number()
     .int()
     .positive()
-    .default(10 * 1024 * 1024),
+    .default(50 * 1024 * 1024),
   POI_PHOTOS_MAX_PER_REQUEST: z.coerce.number().int().positive().default(1),
 
   // Cost guard + circuit breaker.
