@@ -242,7 +242,7 @@
   border-top: var(--border-hairline) solid var(--color-status-fail);
   padding-top: var(--space-2);
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-2);
   color: var(--color-status-fail);
 }
 
@@ -251,6 +251,36 @@
   font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: var(--tracking-wide);
+}
+
+.errorReason {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.errorReasonTitle {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-status-fail);
+}
+
+.errorReasonHint {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-normal);
+  text-transform: none;
+  color: var(--color-fg-muted);
+}
+
+.errorReasonCode {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-fg-disabled);
+  text-transform: uppercase;
 }
 
 .fileInputHidden {

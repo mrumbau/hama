@@ -477,3 +477,85 @@ hold. The cost is one no-op `pil.thumbnail` call per upload, which
 is microseconds for a 1920 px image.
 
 ---
+
+## D-015 — Quality-gate thresholds are heuristic; Tag 13 substitutes empirical, production would use SDD-FIQA / CR-FIQA
+
+**Date:** 2026-04-25 (post-Tag-6 mid-day improvement)
+**What the plan said:** Plan §3 specifies "face size ≥ 112 px, blur
+< threshold, pose-yaw < 45°" without pinning the blur threshold value.
+**Background:** The Tag 4 default `QUALITY_MIN_BLUR_VAR=80` was
+chosen by inspection on a handful of test images that were mostly
+DSLR-class. Modern smartphone front-cameras apply aggressive sensor
+smoothing — iPhone selfies typically score Laplacian-variance 60-75
+on the **full** bbox crop even when the face is sharp enough that
+ArcFace embeds it robustly (cosine > 0.95 to a paired reference).
+The 80 threshold rejected legitimate operator-collected selfies,
+making enrolment painful for the demo.
+
+**What I changed:**
+
+1. **Threshold lowered from 80 to 40** in `argus_ml/config.py`. 40
+   is below the smartphone-sensor regime (60-75) and well above the
+   noise floor of synthetic / clearly-blurry images (single-digit
+   variance). It is empirically chosen on a small sample — Tag 13
+   substitutes with a histogram-derived threshold (see
+   EVALUATION.md "Quality-gate calibration").
+
+2. **`_crop_for_blur` switched from full bbox to central 60%.** The
+   outer 20% margin on each edge contained hair / forehead / wall
+   transitions whose high-contrast edges inflated the variance
+   independently of in-face sharpness. A face against a textured
+   wall scored the same as the same face against a flat backdrop;
+   the new crop measures only the inner-face region (eyebrows-to-
+   chin × inter-cheek), where the sharpness signal lives. New
+   constant `_BLUR_CROP_INSET = 0.20`. Three pure-logic tests in
+   `tests/test_quality.py` lock the math (60×60 region from a
+   100×100 bbox) and the signal-isolation property (uniform centre
+   - noisy border → high full-bbox variance, near-zero central
+     variance).
+
+3. **Operator-facing reason copy.** Pre-D-015, a rejected photo
+   showed `REASONS: TOO_BLURRY` and the operator had no path
+   forward. New `client/src/lib/qualityReasons.ts` maps each code
+   to a (title, hint) pair. The blur hint is the actionable bit:
+   _"Smartphone front-cams apply heavy smoothing that the blur gate
+   reads as out-of-focus. Try good lighting, or use the rear camera
+   or a DSLR."_ The machine-readable code stays visible underneath
+   for operator-to-developer error reports.
+
+**Production alternative (defended in EVALUATION.md):**
+A heuristic Laplacian variance is the simplest face-quality signal
+that runs without a model. Production-grade systems use predicted
+**face image quality** networks:
+
+- **SDD-FIQA** (Stochastic Embedding Robustness, FG 2021) — predicts
+  expected ArcFace robustness on a cropped face.
+- **CR-FIQA** (Certainty-Ratio FIQA, CVPR 2023) — predicts the
+  certainty ratio of a face's similarity to its own class against
+  impostor classes; lower FRR than SDD-FIQA at fixed FAR.
+
+Either replaces `_laplacian_blur_var` + the `QUALITY_MIN_BLUR_VAR`
+threshold with a single predicted score (~5-10 MB ONNX, runs in the
+same Python worker as buffalo*l). The current heuristic is
+explicitly transitional. The defence answer to "why not FIQA?" is:
+*"FIQA is the right answer for production; for a 14-day uni project
+the central-crop Laplacian plus the empirical threshold gives the
+same operator-experience improvement at zero added model cost."\_
+
+**Trade-off:** The heuristic is fundamentally less robust than a
+model-based score across hard cases (extreme low-light, occluded
+glasses, motion blur with high in-face frequency content). A
+production deploy that hits these regimes regularly should swap to
+FIQA. The Argus codebase isolates the gate in `quality.py` so
+changing the score source is a one-file change.
+
+**Tests:** 12/12 quality unit tests pass with the new threshold and
+crop. The `test_too_blurry` and `test_multiple_reasons_combined`
+tests still use `s.QUALITY_MIN_BLUR_VAR - 1` and so adapt to the
+new default automatically. Three new central-crop tests verify
+the 60×60-from-100×100 math and the signal-isolation property
+(synthetic uniform-centre / noisy-border image: full-crop variance
+
+> 1000, central-crop variance < 1).
+
+---

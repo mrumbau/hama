@@ -1,7 +1,9 @@
-"""Pure-logic tests for the quality gate.
+"""Pure-logic tests for the quality gate + the central-crop helper.
 
 No InsightFace model load — every test hand-builds DetectedFace
-instances. Confirms the reason-code surface is stable and complete.
+instances or feeds a synthetic ndarray to the helpers. Confirms the
+reason-code surface is stable and complete, and locks in the
+central-60%-of-bbox blur crop introduced for D-015.
 """
 
 from __future__ import annotations
@@ -9,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 
 from argus_ml.config import get_settings
-from argus_ml.face import Bbox, DetectedFace
+from argus_ml.face import Bbox, DetectedFace, _crop_for_blur
 from argus_ml.quality import check_quality
 
 
@@ -108,3 +110,55 @@ def test_metrics_always_present_when_face_detected():
     assert "blur_var" in res.metrics
     assert "pose_yaw_deg" in res.metrics
     assert "det_score" in res.metrics
+
+
+# ── Central-60% blur crop (D-015 anti-regression) ──────────────────────────
+
+
+def test_crop_for_blur_returns_central_60_percent_of_bbox():
+    """100×100 bbox → 60×60 crop after 20% inset on each edge."""
+    img = np.zeros((200, 200, 3), dtype=np.uint8)
+    bbox = Bbox(x=50, y=50, w=100, h=100)
+    crop = _crop_for_blur(img, bbox)
+    assert crop.shape[:2] == (60, 60)
+
+
+def test_crop_for_blur_respects_image_bounds_when_bbox_extends_outside():
+    """A bbox that pokes outside the image is clipped without exploding."""
+    img = np.zeros((50, 50, 3), dtype=np.uint8)
+    bbox = Bbox(x=-10, y=-10, w=80, h=80)
+    crop = _crop_for_blur(img, bbox)
+    # bbox.w*0.2 = 16; x1 = max(0, -10+16) = 6; x2 = min(50, -10+80-16) = 50.
+    # crop width = 50 - 6 = 44.
+    assert crop.shape[1] == 44
+    assert crop.shape[0] == 44
+
+
+def test_crop_for_blur_isolates_central_signal_from_noisy_border():
+    """Synthetic image: high-noise border, uniform centre.
+
+    The full bbox would have high Laplacian variance from the border edges;
+    the central crop sees only the uniform centre and reports near-zero.
+    This is the D-015 motivation in a single test.
+    """
+    import cv2
+
+    rng = np.random.default_rng(42)
+    img = rng.integers(0, 256, size=(200, 200, 3), dtype=np.uint8)
+    # Paint a uniform 120×120 centre square (covers the central 60% of a
+    # full-image bbox, plus margin).
+    img[40:160, 40:160] = 128
+    bbox = Bbox(x=0, y=0, w=200, h=200)
+
+    full_crop = img  # equivalent to "no inset"
+    central_crop = _crop_for_blur(img, bbox)
+
+    full_var = float(cv2.Laplacian(cv2.cvtColor(full_crop, cv2.COLOR_BGR2GRAY), cv2.CV_64F).var())
+    central_var = float(
+        cv2.Laplacian(cv2.cvtColor(central_crop, cv2.COLOR_BGR2GRAY), cv2.CV_64F).var()
+    )
+
+    # Border noise dominates full-bbox variance; central crop sees pure flat colour.
+    assert full_var > 1000
+    assert central_var < 1.0
+    assert central_crop.shape[:2] == (120, 120)

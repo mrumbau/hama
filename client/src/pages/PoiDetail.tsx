@@ -3,6 +3,7 @@ import { Link, useLocation, useRoute } from "wouter";
 
 import { ApiError } from "../lib/api";
 import { poiApi, type PhotoUploadOutcome, type Poi, type PoiPhoto } from "../lib/poi";
+import { describeReason } from "../lib/qualityReasons";
 import { cn } from "../lib/cn";
 import styles from "./PoiDetail.module.css";
 
@@ -204,9 +205,16 @@ export default function PoiDetail() {
             </div>
             {u.outcome?.kind === "quality_failed" && (
               <div className={styles.errorPanel}>
-                <span className={styles.errorReasons}>
-                  reasons: {u.outcome.reasons.join(", ") || "unknown"}
-                </span>
+                {(u.outcome.reasons.length > 0 ? u.outcome.reasons : ["unknown"]).map((code) => {
+                  const copy = describeReason(code);
+                  return (
+                    <div key={code} className={styles.errorReason}>
+                      <span className={styles.errorReasonTitle}>{copy.title}</span>
+                      {copy.hint && <span className={styles.errorReasonHint}>{copy.hint}</span>}
+                      <span className={styles.errorReasonCode}>{code}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
             {u.outcome?.kind === "authenticity_failed" && (

@@ -97,12 +97,31 @@ def _bbox_from_raw(raw: Any) -> Bbox:
     return Bbox(x=x1, y=y1, w=max(0, x2 - x1), h=max(0, y2 - y1))
 
 
+# Inset on each edge of the bbox before sampling the blur metric. 0.20 leaves
+# the central 60% × 60% region — empirically the eyebrows-to-chin window for
+# RetinaFace bboxes. The discarded 20% margin is mostly hair, ears, and the
+# face-to-background transition, all of which contribute high-frequency edges
+# that inflate Laplacian variance independently of actual face sharpness.
+_BLUR_CROP_INSET = 0.20
+
+
 def _crop_for_blur(img: np.ndarray, bbox: Bbox) -> np.ndarray:
+    """Central-60% crop of the bbox for the Laplacian-variance blur metric.
+
+    The full bbox crop is contaminated by the hair / forehead / wall edges
+    around the face — these high-contrast transitions bump Laplacian
+    variance independently of in-face sharpness, so a soft-skinned but
+    well-lit selfie can score the same as a sharp DSLR shot of the same
+    face against the same background. Centring on the inner face region
+    isolates the signal we care about.
+    """
     h_img, w_img = img.shape[:2]
-    x1 = max(0, bbox.x)
-    y1 = max(0, bbox.y)
-    x2 = min(w_img, bbox.x + bbox.w)
-    y2 = min(h_img, bbox.y + bbox.h)
+    inset_x = int(bbox.w * _BLUR_CROP_INSET)
+    inset_y = int(bbox.h * _BLUR_CROP_INSET)
+    x1 = max(0, bbox.x + inset_x)
+    y1 = max(0, bbox.y + inset_y)
+    x2 = min(w_img, bbox.x + bbox.w - inset_x)
+    y2 = min(h_img, bbox.y + bbox.h - inset_y)
     if x2 <= x1 or y2 <= y1:
         return np.zeros((1, 1), dtype=np.uint8)
     return img[y1:y2, x1:x2]
