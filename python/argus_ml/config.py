@@ -39,13 +39,16 @@ class Settings(BaseSettings):
     # ── Quality gate (rejected enrolment photos = a hard 422) ────────────
     # Minimum face size in pixels (shorter bbox edge).
     QUALITY_MIN_FACE_PX: int = Field(default=112, gt=0)
-    # Minimum Laplacian variance on the central-60% face crop. Higher = sharper.
-    # 40 is a heuristic for modern smartphone front-cameras with sensor
-    # smoothing — see D-015. The original 80 was DSLR-calibrated and
-    # over-rejected legitimate iPhone selfies that ArcFace embeds robustly.
-    # Tag 13 substitutes this with an empirically-derived threshold from a
-    # 30-selfie sample (see EVALUATION.md backlog).
-    QUALITY_MIN_BLUR_VAR: float = Field(default=40.0, gt=0)
+    # Minimum Laplacian variance on the EYE REGION (1.6×iod horizontal ×
+    # 1.0×iod vertical, centred on the eye midpoint). The eye region
+    # carries the highest *useful* high-frequency detail in a face
+    # (eyelashes, iris, eyebrow hair) and is guaranteed in-focus in
+    # Portrait/Cinematic-Mode photos — measuring there is robust against
+    # the graduated bbox-edge bokeh that defeated the v1 central-60% crop.
+    # 150 is a heuristic recalibrated for the eye region (D-015 v2).
+    # Tag 13 substitutes with an empirical threshold from a 30-selfie
+    # histogram — see EVALUATION.md "Quality-gate calibration".
+    QUALITY_MIN_BLUR_VAR: float = Field(default=150.0, gt=0)
     # Maximum absolute yaw in degrees (0 = frontal; ±90 = profile).
     QUALITY_MAX_POSE_YAW_DEG: float = Field(default=45.0, gt=0, le=90)
 

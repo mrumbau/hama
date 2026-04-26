@@ -29,8 +29,8 @@ export const QUALITY_REASON_COPY: Record<string, QualityReasonCopy> = {
     hint: "Move closer or upload a higher-resolution photo — minimum 112 px on the short edge of the face.",
   },
   too_blurry: {
-    title: "Sensor blur detected",
-    hint: "Smartphone front-cams apply heavy smoothing that the blur gate reads as out-of-focus. Try good lighting, or use the rear camera or a DSLR.",
+    title: "Eye region looks soft",
+    hint: "Argus measures sharpness on the eye region — the depth plane that should always be in focus. Common causes: motion at the moment of capture, focus point landing on the background instead of the face, or thick glasses reflecting the light source.",
   },
   pose_extreme: {
     title: "Head turned too far",

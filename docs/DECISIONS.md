@@ -559,3 +559,83 @@ the 60×60-from-100×100 math and the signal-isolation property
 > 1000, central-crop variance < 1).
 
 ---
+
+## D-015 v2 — Blur measured on the eye region, not the bbox (Portrait Mode robustness)
+
+**Date:** 2026-04-25 (same-day amendment to D-015 v1)
+**What I missed in v1:** D-015 v1 moved the blur measurement from the
+full bbox to the central 60% × 60%. That handled the wall-edge / hair
+contamination case correctly, but it did NOT handle the case the user
+reported afterwards: **iPhone Portrait Mode and Cinematic Mode** apply
+graduated depth-of-field that softens pixels along the bbox border —
+including parts of the central-60% region (collar, hair fringe, shoulder
+fade-out). A face that is genuinely sharp scored
+`blur_var ≈ 30-50` because the depth-of-field surroundings dragged the
+mean down. Threshold 40 (D-015 v1) still rejected legitimate
+in-focus selfies.
+
+**What I changed (v2):**
+
+1. **New helper `_eye_region_blur_var(image_bgr, kps)`** in
+   `argus_ml/face.py`. Takes the 5-point keypoints, derives the
+   inter-eye distance (iod), and crops a rectangle of size
+   1.6 × iod (horizontal) × 1.0 × iod (vertical), centred on the
+   midpoint between the two eye landmarks. The crop covers eyes +
+   nose bridge + upper cheeks — the spatial region that:
+   - **Always falls inside the in-focus foreground** of any modern
+     phone-camera autofocus or Portrait/Cinematic Mode, because the
+     focus point lands on the eyes by design.
+   - **Carries the highest _useful_ high-frequency detail in a
+     face**: eyelashes, iris texture, eyebrow hair. These features
+     produce a Laplacian signal that survives sensor smoothing,
+     unlike the smooth-skin cheek pixels the central-60% crop also
+     included.
+
+2. **`_to_detected` wires the new path.** When `kps` has ≥ 2 points
+   (RetinaFace from buffalo_l always emits 5), the eye-region path
+   runs. The legacy `_crop_for_blur` (central 60%) is kept only as
+   a fallback for hypothetical detectors that emit no keypoints.
+   Two anti-regression tests pin both paths.
+
+3. **`QUALITY_MIN_BLUR_VAR` recalibrated 40 → 150.** The eye region
+   contains denser high-frequency content per pixel than the
+   central-60% bbox crop, so the same "sharp face" measures higher.
+   150 is heuristic — Tag 13 still substitutes with the empirical
+   30-selfie histogram (EVALUATION.md backlog "Quality-gate
+   calibration").
+
+**The single-test motivation** in
+`tests/test_quality.py::test_eye_region_robust_to_portrait_mode_bokeh`:
+build an image where a sharp high-frequency rectangle covers the
+eye-region rect and the rest is flat grey. The full-bbox crop scores
+near zero variance (drowned in flat grey); the eye-region crop scores
+
+> 1000. The inverse test
+>       `test_eye_region_correctly_flags_motion_blur_on_eyes` confirms the
+>       gate still rejects truly blurry eyes — the metric did not become
+>       permissive, just better-targeted.
+
+**Operator-facing copy update.** The pre-v2 hint
+("Smartphone front-cams apply heavy smoothing that the blur gate
+reads as out-of-focus") was a workaround for the v1 false-positive
+case and is now obsolete. The v2 hint reflects the new metric:
+_"Argus measures sharpness on the eye region — the depth plane that
+should always be in focus. Common causes: motion at capture, focus
+point on the background instead of the face, or thick glasses
+reflecting the light source."_
+
+**Tests:** 39/39 pytest green. Five new pure-logic tests in
+`test_quality.py` cover: degenerate kps (returns 0), Portrait Mode
+simulation (sharp eyes / flat surroundings → eye-region passes,
+bbox would fail), motion-blur-on-eyes simulation (blurred eyes /
+sharp surroundings → eye-region correctly fails), bounds-clipping
+when eyes near image edge, and exact rectangle dimensions
+(1.6 × iod × 1.0 × iod, centred on eye midpoint).
+
+**Why not FIQA still:** Same answer as v1 — production should swap
+to SDD-FIQA / CR-FIQA. The eye-region heuristic is a one-day
+improvement that gets us past the operator-experience problem
+without adding model weight. The gate stays a single function in
+`quality.py`, so the FIQA swap remains a one-file change.
+
+---

@@ -97,23 +97,76 @@ def _bbox_from_raw(raw: Any) -> Bbox:
     return Bbox(x=x1, y=y1, w=max(0, x2 - x1), h=max(0, y2 - y1))
 
 
-# Inset on each edge of the bbox before sampling the blur metric. 0.20 leaves
-# the central 60% × 60% region — empirically the eyebrows-to-chin window for
-# RetinaFace bboxes. The discarded 20% margin is mostly hair, ears, and the
-# face-to-background transition, all of which contribute high-frequency edges
-# that inflate Laplacian variance independently of actual face sharpness.
+# Eye-region rectangle dimensions, expressed as multiples of the inter-eye
+# distance (iod = abs(right_eye.x - left_eye.x)). Centred on the midpoint
+# between the two eye landmarks. 1.6 × iod horizontal × 1.0 × iod vertical
+# covers eyes + nose bridge + upper cheeks — the depth plane that always
+# falls inside the in-focus foreground of a Portrait/Cinematic Mode photo.
+_EYE_REGION_HALF_W_RATIO = 0.8  # half-width in units of iod (→ 1.6×iod total)
+_EYE_REGION_HALF_H_RATIO = 0.5  # half-height in units of iod (→ 1.0×iod total)
+
+# Legacy: bbox-central-60% inset, retained for the no-kps fallback path.
+# RetinaFace from buffalo_l always emits 5-point kps, so this fallback is
+# theoretical — kept only because detect_faces() is library-typed against
+# arbitrary detectors that might not.
 _BLUR_CROP_INSET = 0.20
 
 
-def _crop_for_blur(img: np.ndarray, bbox: Bbox) -> np.ndarray:
-    """Central-60% crop of the bbox for the Laplacian-variance blur metric.
+def _eye_region_blur_var(image_bgr: np.ndarray, kps: np.ndarray) -> float:
+    """Laplacian variance on the eye-region rectangle defined by the
+    5-point landmarks (kps[0] = left eye, kps[1] = right eye).
 
-    The full bbox crop is contaminated by the hair / forehead / wall edges
-    around the face — these high-contrast transitions bump Laplacian
-    variance independently of in-face sharpness, so a soft-skinned but
-    well-lit selfie can score the same as a sharp DSLR shot of the same
-    face against the same background. Centring on the inner face region
-    isolates the signal we care about.
+    Why eye-region and not bbox-central-60%
+    --------------------------------------
+    Modern smartphone Portrait Mode / Cinematic Mode photos have a
+    graduated background blur: the face is sharp, the bbox edges
+    fade into bokeh. Even the central 60% of a tight RetinaFace
+    bbox can include hair / collar pixels that the depth-of-field
+    softened — those zero-frequency regions drag the bbox-mean
+    Laplacian variance below the threshold even when the face
+    itself is in perfect focus.
+
+    The eye region is guaranteed in-focus: the auto-focus point on
+    every modern phone camera lands on the eyes. It is also the
+    spatial region with the highest *useful* high-frequency content
+    in a face — eyelashes, iris detail, eyebrow hair — which gives
+    a robust Laplacian signal that survives sensor smoothing. See
+    DECISIONS.md D-015 for the full rationale.
+    """
+    if kps is None or len(kps) < 2:
+        return 0.0
+
+    left_eye = kps[0]
+    right_eye = kps[1]
+
+    iod = float(abs(right_eye[0] - left_eye[0]))
+    if iod < 1.0:
+        return 0.0
+
+    cx = (float(left_eye[0]) + float(right_eye[0])) / 2.0
+    cy = (float(left_eye[1]) + float(right_eye[1])) / 2.0
+
+    half_w = _EYE_REGION_HALF_W_RATIO * iod
+    half_h = _EYE_REGION_HALF_H_RATIO * iod
+
+    h_img, w_img = image_bgr.shape[:2]
+    x1 = max(0, int(round(cx - half_w)))
+    y1 = max(0, int(round(cy - half_h)))
+    x2 = min(w_img, int(round(cx + half_w)))
+    y2 = min(h_img, int(round(cy + half_h)))
+
+    if x2 <= x1 or y2 <= y1:
+        return 0.0
+
+    return _laplacian_blur_var(image_bgr[y1:y2, x1:x2])
+
+
+def _crop_for_blur(img: np.ndarray, bbox: Bbox) -> np.ndarray:
+    """Fallback: central-60% bbox crop for cases where keypoints are absent.
+
+    Used only when a detector emits no usable kps. RetinaFace always does,
+    so this path is theoretical — the unit tests still cover it as a
+    correctness anchor in case the codebase ever switches detectors.
     """
     h_img, w_img = img.shape[:2]
     inset_x = int(bbox.w * _BLUR_CROP_INSET)
@@ -160,7 +213,14 @@ def _to_detected(raw_face: Any, image_bgr: np.ndarray, with_embedding: bool) -> 
     bbox = _bbox_from_raw(raw_face.bbox)
     kps = getattr(raw_face, "kps", None)
     yaw_deg = _yaw_from_kps(kps) if kps is not None else 0.0
-    blur_var = _laplacian_blur_var(_crop_for_blur(image_bgr, bbox))
+    # Prefer eye-region blur (D-015 v2): robust against Portrait Mode bokeh
+    # and the bbox-edge-blur problem the central-60% crop only partly solved.
+    # RetinaFace always emits 5-point kps; the bbox fallback exists only for
+    # alternative detectors that might not.
+    if kps is not None and len(kps) >= 2:
+        blur_var = _eye_region_blur_var(image_bgr, kps)
+    else:
+        blur_var = _laplacian_blur_var(_crop_for_blur(image_bgr, bbox))
     landmarks: list[tuple[float, float]] = (
         [(float(p[0]), float(p[1])) for p in kps] if kps is not None else []
     )

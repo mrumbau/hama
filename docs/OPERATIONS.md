@@ -71,6 +71,61 @@ demo verifies the budget holds.
 
 ---
 
+## Quality-gate blur metric — robustness to modern smartphone modes
+
+The blur metric used by `quality.py` was iteratively hardened against
+the failure modes of real-world phone-camera output. The current
+implementation (D-015 v2) measures Laplacian variance on the
+**eye region** — a rectangle of size `1.6 × iod × 1.0 × iod` centred
+on the midpoint of the two eye landmarks (`iod` = inter-eye distance
+in pixels).
+
+### Why eye-region beats bbox-based metrics
+
+| Camera mode / artefact                                                         | Bbox metric (full or central-60%)                                                              | Eye-region metric                                                                                                                       |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **iPhone Portrait Mode** — sharp face, graduated bokeh on collar / ears / hair | Bbox-mean Laplacian dragged down by bokeh pixels at the bbox edges → false `too_blurry` reject | Crop sits entirely inside the in-focus foreground — bokeh outside the eye rectangle has no effect                                       |
+| **Cinematic Mode** (video / variable depth-of-field)                           | Same as Portrait Mode — bbox edges fade out of focus during a "rack focus"                     | Eye region remains in focus across the entire DoF transition (focus point is the eyes by design)                                        |
+| **Front-cam sensor smoothing** (iPhone, Samsung selfie cam)                    | Smooth-skin cheek pixels lower mean variance regardless of true sharpness                      | Eyelash / iris / eyebrow detail is richer than skin texture, so survives smoothing with a higher signal                                 |
+| **Hair / textured wall in the bbox margin**                                    | High-contrast edges inflate variance independently of face sharpness                           | Margin pixels are excluded from the crop entirely                                                                                       |
+| **Real motion blur on the face**                                               | Detected (full-face soft)                                                                      | **Still detected** — the test `test_eye_region_correctly_flags_motion_blur_on_eyes` confirms blurred-eyes images are correctly rejected |
+
+The defence framing is deliberate: "smarter than naïve Laplacian"
+does **not** mean "more permissive". The eye-region metric is
+_better targeted_. It rejects motion-blurred eyes at the same
+specificity as the bbox metric and accepts in-focus faces that the
+bbox metric incorrectly rejected.
+
+### Threshold drift across iterations
+
+| Day      | Crop region                    | `QUALITY_MIN_BLUR_VAR` | Reason for the change                                                                                    |
+| -------- | ------------------------------ | ---------------------- | -------------------------------------------------------------------------------------------------------- |
+| Tag 4    | Full bbox                      | 80                     | Initial DSLR-calibrated heuristic                                                                        |
+| D-015 v1 | Central 60% × 60%              | 40                     | Smartphone selfies were rejected at 80; the central crop excluded hair/wall edges that inflated variance |
+| D-015 v2 | Eye region (1.6×iod × 1.0×iod) | 150                    | Portrait Mode bokeh contaminated even the central-60% crop; the eye region is guaranteed in-focus        |
+
+Tag 13 substitutes the heuristic 150 with an empirical threshold
+derived from a 30-selfie histogram — see EVALUATION.md backlog
+"Quality-gate calibration". Production-grade alternative remains
+SDD-FIQA / CR-FIQA (also documented in EVALUATION.md).
+
+### Operator-facing reason copy
+
+The reason-code surface to the UI is `too_blurry`, mapped in
+`client/src/lib/qualityReasons.ts` to:
+
+> **Eye region looks soft.** Argus measures sharpness on the eye
+> region — the depth plane that should always be in focus. Common
+> causes: motion at the moment of capture, focus point landing on
+> the background instead of the face, or thick glasses reflecting
+> the light source.
+
+The pre-v2 copy ("smartphone front-cams apply heavy smoothing that
+the blur gate reads as out-of-focus") was a workaround for the
+bbox metric's false-positive on Portrait Mode and is obsolete.
+
+---
+
 ## External API cost ceilings
 
 Tag 8 (Sniper Mode fanout) implements a per-operator daily cost guard
