@@ -1,0 +1,196 @@
+.page {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: var(--border-hairline) solid var(--color-border);
+  padding-bottom: var(--space-4);
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-fg-subtle);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3rem);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-none);
+  margin: 0;
+}
+
+.tableHeader,
+.tableRow {
+  display: grid;
+  grid-template-columns: 9rem 1fr 6rem 6rem 6rem 6rem 12rem;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  border-bottom: var(--border-hairline) solid var(--color-border-subtle);
+}
+
+.tableHeader {
+  background: var(--color-bg-sunken);
+  color: var(--color-fg-subtle);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  border-bottom: var(--border-hairline) solid var(--color-border);
+}
+
+.timestamp {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-fg-subtle);
+}
+
+.poiName {
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kindChip {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-hairline) solid var(--color-border-strong);
+  text-align: center;
+  color: var(--color-fg-muted);
+}
+
+.camera {
+  color: var(--color-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.score {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-mono-data);
+}
+
+.status {
+  text-align: center;
+  text-transform: uppercase;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  padding: var(--space-1) var(--space-2);
+}
+
+.statusPending {
+  color: var(--color-status-warn);
+  border: var(--border-hairline) solid var(--color-status-warn);
+}
+
+.statusConfirmed {
+  color: var(--color-status-done);
+  border: var(--border-hairline) solid var(--color-status-done);
+}
+
+.statusDismissed {
+  color: var(--color-fg-disabled);
+  border: var(--border-hairline) solid var(--color-fg-disabled);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.actionConfirm,
+.actionDismiss {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  padding: var(--space-1) var(--space-3);
+  background: transparent;
+  border: var(--border-hairline) solid var(--color-border-strong);
+  cursor: pointer;
+  transition:
+    border-color var(--motion-normal) var(--ease-out),
+    color var(--motion-normal) var(--ease-out);
+}
+
+.actionConfirm {
+  color: var(--color-status-done);
+}
+
+.actionConfirm:hover {
+  border-color: var(--color-status-done);
+}
+
+.actionDismiss {
+  color: var(--color-status-fail);
+}
+
+.actionDismiss:hover {
+  border-color: var(--color-status-fail);
+}
+
+.actionConfirm:disabled,
+.actionDismiss:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.feedNew {
+  animation: feed-flash var(--motion-deliberate) var(--ease-out);
+}
+
+@keyframes feed-flash {
+  from {
+    background: var(--signal-cyan-900);
+  }
+
+  to {
+    background: transparent;
+  }
+}
+
+.empty {
+  display: grid;
+  place-items: center;
+  padding: var(--space-9);
+  border: var(--border-hairline) solid var(--color-border);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-fg-subtle);
+}
+
+.summary {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-fg-subtle);
+  display: flex;
+  gap: var(--space-4);
+}
+
+.error {
+  border: var(--border-hairline) solid var(--color-status-fail);
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-status-fail);
+}

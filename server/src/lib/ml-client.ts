@@ -30,6 +30,8 @@ export interface MlFace {
   yaw_deg: number;
   blur_var: number;
   landmarks: number[][];
+  /** 512-D ArcFace vector. Populated only when /detect is called with with_embeddings=true. */
+  embedding: number[] | null;
 }
 
 export interface MlDetectResponse {
@@ -119,7 +121,16 @@ async function call<T>(endpoint: string, body: unknown): Promise<T> {
 // ── Public API ──────────────────────────────────────────────────────────────
 
 export const ml = {
-  detect: (imageB64: string) => call<MlDetectResponse>("/detect", { image_b64: imageB64 }),
+  /**
+   * Multi-face detection. Pass `withEmbeddings=true` for Patrol Mode
+   * (one ML round-trip → all faces + 512-D vectors per face); leave
+   * default for lighter bbox-only payloads (Tag 7 multi-camera matrix).
+   */
+  detect: (imageB64: string, withEmbeddings = false) =>
+    call<MlDetectResponse>("/detect", {
+      image_b64: imageB64,
+      with_embeddings: withEmbeddings,
+    }),
   embed: (imageB64: string) => call<MlEmbedResponse>("/embed", { image_b64: imageB64 }),
   quality: (imageB64: string) => call<MlQualityResponse>("/quality", { image_b64: imageB64 }),
 };

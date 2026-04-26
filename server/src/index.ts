@@ -4,7 +4,8 @@
  * Tag 3: foundational middleware pipeline + auth wiring + /api/health,
  *        /api/me.
  * Tag 5: + /api/poi router (CRUD + photo enrolment pipeline).
- * Tag 6+: recognize / sniper / events routers.
+ * Tag 6: + /api/recognize router (Patrol Mode hot path).
+ * Tag 8+: sniper / events routers.
  */
 
 import express from "express";
@@ -16,6 +17,7 @@ import { logger } from "./lib/pino.js";
 import { pingDb } from "./db.js";
 import { requireAuth } from "./auth/jwt.js";
 import { poiMulterErrorHandler, poiRouter } from "./routes/poi.js";
+import { recognizeRouter } from "./routes/recognize.js";
 
 const app = express();
 
@@ -69,6 +71,11 @@ app.get("/api/me", (req, res) => {
 
 app.use("/api/poi", poiRouter);
 app.use("/api/poi", poiMulterErrorHandler);
+
+// Patrol-mode recognize endpoint. Frontend posts a 480p JPEG frame
+// (~30-80 KB → ~110 KB base64) at 2-4 fps; the global 1mb JSON parser
+// is comfortable. Tag 7 ByteTrack reduces frequency further.
+app.use("/api/recognize", recognizeRouter);
 
 // ── 404 + error handler ────────────────────────────────────────────────────
 app.use("/api", (_req, res) => {

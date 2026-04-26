@@ -42,6 +42,25 @@ def test_detect_returns_empty_on_noise(client, noise_b64):
     assert r.json()["faces"] == []
 
 
+def test_detect_default_omits_embeddings(client, single_face_b64):
+    """Tag 7 multi-camera matrix wants lighter payloads when only bboxes are needed."""
+    r = client.post("/detect", json={"image_b64": single_face_b64})
+    assert r.status_code == 200
+    for f in r.json()["faces"]:
+        assert f["embedding"] is None
+
+
+def test_detect_with_embeddings_inlines_512d_per_face(client, multi_face_b64):
+    """Tag 6 Patrol Mode: one ML round-trip → all faces + embeddings."""
+    r = client.post("/detect", json={"image_b64": multi_face_b64, "with_embeddings": True})
+    assert r.status_code == 200
+    faces = r.json()["faces"]
+    assert len(faces) >= 2
+    for f in faces:
+        assert f["embedding"] is not None
+        assert len(f["embedding"]) == 512
+
+
 def test_embed_returns_512d_vector(client, single_face_b64):
     """Plan §13 Tag 4 gate."""
     r = client.post("/embed", json={"image_b64": single_face_b64})

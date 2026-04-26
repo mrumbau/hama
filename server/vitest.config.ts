@@ -14,9 +14,17 @@ export default defineConfig({
     poolOptions: { forks: { singleFork: true } },
   },
   resolve: {
-    alias: {
-      "@argus/shared": path.resolve(__dirname, "../shared/index.ts"),
-      "@argus/shared/schema": path.resolve(__dirname, "../shared/schema.ts"),
-    },
+    // Order matters: more-specific aliases first. Vite matches the first
+    // entry whose key is a prefix of the import.
+    alias: [
+      {
+        find: "@argus/shared/schema",
+        replacement: path.resolve(__dirname, "../shared/schema.ts"),
+      },
+      {
+        find: "@argus/shared",
+        replacement: path.resolve(__dirname, "../shared/index.ts"),
+      },
+    ],
   },
 });

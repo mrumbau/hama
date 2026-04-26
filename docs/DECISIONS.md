@@ -326,3 +326,78 @@ own `limits.fileSize = POI_PHOTO_MAX_BYTES`. A 422 with `error:
 image_too_large` fires before multer reads the body fully.
 
 ---
+
+## D-012 — Patrol-mode 30s per-(poi, camera) debounce until ByteTrack lands
+
+**Date:** 2026-04-25
+**What the plan said:** Plan §3 Patrol Mode runs ByteTrack and only
+embeds + recognises on **new** tracks (or tracks silent for > 2 s).
+This naturally deduplicates: one person standing in front of the
+camera produces one event when they enter and a second only if they
+leave and re-enter the frame.
+**What I did:** ByteTrack lands on Tag 7 — the Tag 6 recognise route
+runs detect+embed+kNN on every frame. Without dedup, a person
+standing still at 3 fps would generate one `events` row per frame,
+flooding both the audit table and the Supabase Realtime channel.
+The recognise INSERT is therefore guarded by a `WHERE NOT EXISTS`
+predicate that suppresses an event if the same (poi_id, camera_id)
+already produced one within the last 30 s. The match is still
+returned to the frontend (`event_id: null` indicates the debounce
+dropped it), so bbox overlays continue to render normally.
+**Why:** Without it, the demo audit trail becomes useless within ten
+seconds of a face entering frame, and the Realtime channel saturates.
+The 30 s window is long enough to prove the dedup works during a
+demo and short enough that a person re-entering frame after a brief
+absence still produces a fresh event.
+**Trade-off:** Tag 7 ByteTrack will swap this server-side time-window
+for track-id-keyed dedup that is robust to the "same person walks
+away for 3 s then back, same camera, same track-id" cases the time
+window mishandles. The 30 s SQL guard is explicitly transitional;
+the constant `EVENT_DEBOUNCE_MS = 30_000` lives in `recognize.ts`
+with a comment pointing at Tag 7.
+
+---
+
+## D-013 — Patrol latency 949ms (vs §8 target 250ms): hosted-Supabase RTT dominates
+
+**Date:** 2026-04-25
+**What the plan said:** Plan §8 sets "Single-face Recognition E2E
+< 250 ms".
+**What I measured** (Tag 6 live smoke test against Supabase pooler
+in ap-south-1, ~600 × 587 px image, 5 enrolled embeddings):
+
+```
+total: 949 ms   detect: 380 ms   knn: 379 ms   insert: 0 ms (no match)
+```
+
+**Why we miss the 250 ms target:**
+
+- ML detect+embed (CPU, no batching, single 595 × 587 frame): 380 ms.
+  Faster on a smaller frame, or with the ONNX Runtime GPU provider.
+- pgvector kNN: 379 ms is dominated by **TLS round-trip latency to
+  the Supabase pooler**, NOT the index lookup. The HNSW query
+  against five vectors is sub-millisecond at the database; the RTT
+  is ~370 ms.
+- INSERT: 0 ms only because the test was a no-match case.
+
+**Why this is acceptable now:** Plan §8's 250 ms target assumes the
+production Docker stack (Postgres co-located with the server). The
+dev environment (server local, Supabase hosted, ap-south-1) has
+fundamentally different network characteristics. Tag 13 latency
+benchmarks will run against a Docker-local Postgres and report both
+numbers side-by-side in `EVALUATION.md`.
+
+**Mitigations available before Tag 13:**
+
+- Smaller browser-side frame (320 × 240 instead of 640 × 480) →
+  ML latency roughly halves.
+- Docker-local Postgres for the demo run, keep Supabase as the
+  dev-friendly hosted state.
+- Pipeline detect/embed and kNN in parallel for multi-face frames
+  (currently sequential per face).
+
+**Trade-off:** The defence story honestly reports two numbers
+(hosted-Supabase dev vs Docker-local prod) instead of cherry-picking;
+the architecture is unchanged either way.
+
+---

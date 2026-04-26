@@ -22,6 +22,19 @@ class ImageInput(BaseModel):
     )
 
 
+class DetectInput(ImageInput):
+    """Detection request with optional per-face embeddings.
+
+    Tag 6 Patrol Mode sets with_embeddings=True so a single ML round-trip
+    returns all detected faces plus their 512-D ArcFace vectors — the
+    Express orchestrator runs pgvector kNN per face and posts events
+    on matches. Without the flag, /detect returns lighter payloads
+    (Tag 7 multi-camera matrix).
+    """
+
+    with_embeddings: bool = False
+
+
 # ── Shared sub-shapes ────────────────────────────────────────────────────
 
 
@@ -38,6 +51,7 @@ class FaceOut(BaseModel):
     yaw_deg: float
     blur_var: float
     landmarks: list[list[float]]
+    embedding: list[float] | None = None  # populated when with_embeddings=True
 
 
 # ── /detect ──────────────────────────────────────────────────────────────

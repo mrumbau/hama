@@ -17,6 +17,7 @@ from .images import ImageDecodeError, decode_image
 from .quality import check_quality
 from .schemas import (
     BboxOut,
+    DetectInput,
     DetectResponse,
     EmbedResponse,
     FaceOut,
@@ -27,13 +28,14 @@ from .schemas import (
 router = APIRouter()
 
 
-def _face_out(face) -> FaceOut:
+def _face_out(face, *, with_embedding: bool = False) -> FaceOut:
     return FaceOut(
         bbox=BboxOut(x=face.bbox.x, y=face.bbox.y, w=face.bbox.w, h=face.bbox.h),
         det_score=face.det_score,
         yaw_deg=face.yaw_deg,
         blur_var=face.blur_var,
         landmarks=[[lm[0], lm[1]] for lm in face.landmarks],
+        embedding=(face.embedding.astype(float).tolist() if (with_embedding and face.embedding is not None) else None),
     )
 
 
@@ -45,12 +47,17 @@ def _decode_or_422(image_b64: str):
 
 
 @router.post("/detect", response_model=DetectResponse)
-def detect(req: ImageInput) -> DetectResponse:
-    """Multi-face detection. Used by Patrol Mode + by the operator UI for bbox previews."""
+def detect(req: DetectInput) -> DetectResponse:
+    """Multi-face detection.
+
+    Used by Patrol Mode (with_embeddings=True so the orchestrator can run
+    pgvector kNN per face in a single ML round-trip) and by the operator
+    UI for bbox previews (with_embeddings=False, default).
+    """
     img = _decode_or_422(req.image_b64)
-    faces = detect_faces(img.bgr, with_embeddings=False)
+    faces = detect_faces(img.bgr, with_embeddings=req.with_embeddings)
     return DetectResponse(
-        faces=[_face_out(f) for f in faces],
+        faces=[_face_out(f, with_embedding=req.with_embeddings) for f in faces],
         image={"width": img.width, "height": img.height},
     )
 

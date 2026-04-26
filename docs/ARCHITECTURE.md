@@ -409,6 +409,80 @@ Supabase).
 
 ---
 
+## ADR-7 — Supabase Realtime as the only push channel (events + fusion_layers)
+
+**Status:** accepted (2026-04-25). Implemented Tag 6 for `events`;
+re-used Tag 8/9 for `fusion_reports` + `fusion_layers`.
+
+### Context
+
+The operator UI watches two real-time data streams:
+
+1. **Patrol Mode events** — when a face is matched against the POI
+   database, an `events` row appears and the operator should see it
+   without a page refresh.
+2. **Sniper Mode layer results** — when a fusion layer (Identity / Web
+   Presence / Geographic / Authenticity) finishes, its `fusion_layers`
+   row updates and the dashboard column flips from `running` to
+   `done` (or `failed`) with its measured latency.
+
+Two production-grade options:
+
+- **Self-hosted WebSocket / SSE hub** — Express maintains a ws
+  registry, every router publishes to it after a successful insert,
+  the frontend subscribes per channel.
+- **Supabase Realtime** — Postgres `postgres_changes` events are
+  multiplexed by Supabase and delivered to subscribers via WebSocket
+  to the browser, RLS-gated.
+
+### Decision
+
+Use Supabase Realtime exclusively. Migration `0004_rls_policies.sql`
+adds `events`, `fusion_reports`, `fusion_layers` to the
+`supabase_realtime` publication. The frontend subscribes per concern:
+
+```ts
+supabase
+  .channel("argus-events")
+  .on("postgres_changes", { event: "INSERT", schema: "public", table: "events" }, (payload) =>
+    onInsert(payload.new),
+  )
+  .subscribe();
+```
+
+### Consequences
+
+- **Zero new infrastructure.** No ws server, no broker, no protocol
+  to maintain. The Patrol page (Tag 6) and the Sniper dashboard
+  (Tag 9) share the exact same mechanism.
+- **RLS-gated by default.** Realtime delivers only rows the caller
+  could SELECT via the anon key. An operator never sees another
+  operator's resolved-by-someone-else event arriving on their stream.
+- **Source of truth = the row, not the message.** A subscriber that
+  misses a delivery (network blip, page reload) re-fetches via
+  `supabase.from("events").select(...)` on mount. The Realtime push
+  is a hint, not a primary; the database is the canonical state.
+- **Event-feed UX is `INSERT`-only.** Tag 6 implementation watches
+  inserts. Resolutions (`UPDATE` of `status`) propagate only on
+  page refresh — sufficient for an operator who is the one issuing
+  the resolve. Tag 9 may add `UPDATE` subscriptions if the Sniper
+  dashboard wants live-streamed layer transitions.
+- **Patrol Mode debouncing happens server-side** (30 s window per
+  poi+camera, replaced by ByteTrack's per-track dedup at Tag 7).
+  Without it, a person standing still in front of the camera at
+  3 fps would generate one `events` row per frame, flooding the
+  Realtime channel.
+
+### Verification (Tag 6)
+
+`/api/recognize` end-to-end test against the live Supabase project:
+Patrol page subscribes, Patrol-mode webcam frame produces a face,
+recognition match writes `events`, Realtime push delivers to the
+subscribed feed table within < 200 ms. The same channel is reused
+in `pages/Events.tsx` for the audit-trail page.
+
+---
+
 ## ADR-8 — Vanilla CSS Modules + Radix primitives over Tailwind / shadcn
 
 **Status:** accepted (2026-04-25)
@@ -498,4 +572,3 @@ Listed here so the table of contents matches the plan.
 
 - ADR-3 — Track-then-Recognize over frame-by-frame recognition (Tag 7)
 - ADR-6 — Layer fanout with circuit breaker and cost guard (Tag 8)
-- ADR-7 — Supabase Realtime as the only push channel, also for Sniper layer streaming (Tag 9)

@@ -7,6 +7,8 @@ import { cn } from "../lib/cn";
 import PoiList from "./PoiList";
 import PoiNew from "./PoiNew";
 import PoiDetail from "./PoiDetail";
+import Patrol from "./Patrol";
+import Events from "./Events";
 import styles from "./AppShell.module.css";
 
 const NAV = [
@@ -58,13 +60,7 @@ export default function AppShell() {
           <Route path="/poi/new" component={PoiNew} />
           <Route path="/poi/:id" component={PoiDetail} />
           <Route path="/poi" component={PoiList} />
-          <Route path="/patrol">
-            <Placeholder
-              eyebrow="PATROL / LIVE"
-              title="Patrol mode"
-              body="Tag 6 wires up webcam capture, ML detect/embed, pgvector kNN, and Realtime alert push. Tag 7 adds ByteTrack."
-            />
-          </Route>
+          <Route path="/patrol" component={Patrol} />
           <Route path="/sniper">
             <Placeholder
               eyebrow="SNIPER / FUSION"
@@ -72,13 +68,7 @@ export default function AppShell() {
               body="Tag 8–9 wires up the 4-layer fanout (Identity / Web Presence / Geographic / Authenticity) with Supabase Realtime layer-result streaming."
             />
           </Route>
-          <Route path="/events">
-            <Placeholder
-              eyebrow="EVENTS / AUDIT TRAIL"
-              title="Events"
-              body="Tag 6 populates this view via the Patrol pipeline. Per-row confirm/dismiss actions are RLS-gated to operator_id = auth.uid() OR is_admin()."
-            />
-          </Route>
+          <Route path="/events" component={Events} />
           <Route>
             <Placeholder
               eyebrow="404"
