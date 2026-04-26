@@ -53,3 +53,9 @@ docs/figures/*.png
 # Tooling state
 .agent/
 .claude/
+
+# Playwright (Tag 11 E2E)
+e2e/.auth/
+e2e/.env
+playwright-report/
+test-results/

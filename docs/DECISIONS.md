@@ -1354,3 +1354,112 @@ deferred from D-021 (query thumbnail, per-layer cost).
   all clean.
 
 ---
+
+## D-023 — Tag 11: Playwright E2E layer closes the test pyramid
+
+**Date:** 2026-04-26
+**Why a D-entry:** the test pyramid had two layers (54 pytest unit/
+integration + 57 vitest unit/integration) but no end-to-end coverage —
+nothing exercised the full browser → Express → ML → external APIs →
+Realtime → UI vertical. The Sniper E2E is the canonical "one test that
+proves the architecture works" for the defence.
+
+### What landed
+
+1. **Playwright config + setup** at the repo root.
+   `playwright.config.ts` references `e2e/` as the test dir; sets
+   `fullyParallel: false` + `workers: 1` because the tests share live
+   DB state (the Sniper run leaves a real `fusion_reports` row behind).
+   The `setup` project signs in once and writes storage state to
+   `e2e/.auth/operator.json`; the `chromium` project depends on it so
+   every spec starts authenticated.
+2. **Three test specs** covering the golden paths:
+   - `tests/auth.spec.ts` — login redirect on success + error-rendering
+     on wrong password. Uses an empty storage state so the form is
+     actually exercised (the rest of the suite reuses the
+     setup-authenticated state to skip the form on every test).
+   - `tests/poi-list.spec.ts` — registry renders with at least one
+     POI row link. Read-only — does not enrol or delete.
+   - `tests/sniper.spec.ts` — the headline E2E. Uploads the t1.jpg
+     fixture, awaits redirect to `/sniper/<uuid>`, verifies all four
+     column titles render, asserts the final report status is
+     `COMPLETE` or `FAILED` (either is acceptable — the contract is
+     that the orchestrator finalises the report, not that every paid
+     provider says yes).
+3. **Operational ergonomics**: `make e2e` does the pre-flight curl
+   check on `:8001` (ML), `:5000` (Express), `:5173` (Vite client) and
+   fails clearly when one is down. `pnpm e2e` runs Playwright
+   headless; `pnpm e2e:ui` opens Playwright's interactive UI for
+   debugging.
+
+### Tactical decisions worth recording
+
+1. **Don't auto-spawn the stack.** Playwright's `webServer` config
+   can boot the dev servers; rejected because (a) ML on :8001 takes
+   ~5 s to load InsightFace which Playwright would suffer through on
+   every run, (b) Redis already has to be a precondition (brew or
+   docker), and (c) the full-stack `make dev` command is the
+   documented operator workflow — duplicating it inside Playwright
+   would be a second source of truth. `make e2e` does a curl-based
+   pre-flight check instead.
+2. **Use the live Supabase Auth** for the operator credentials.
+   Mocking Supabase in browser context is more code than the real
+   round-trip costs (~1.6 s for the setup spec). The credentials
+   live in gitignored `e2e/.env`; CI substitutes encrypted secrets.
+3. **The Sniper test accepts COMPLETE OR FAILED.** Every other path
+   either upserts to a deterministic mock (`RD_MOCK_MODE=true`) or
+   hits the live SerpAPI / Picarta. Quota outages should not break
+   the test — what matters is that the orchestrator runs all four
+   layers, marks each one terminal, and finalises the report. If
+   the test required `COMPLETE`, a SerpAPI-down day would mark the
+   defence E2E suite red on a problem that's not in our code.
+4. **`fullyParallel: false`.** The Sniper test inserts a real DB row
+   and the cost-guard ledger; running specs in parallel would have
+   them stomp each other's daily-spend total. Tag 13 may revisit
+   with per-test isolation via fresh test users.
+5. **Server must be tsx watch.** During development of D-023 the
+   running Express was started via `npm exec tsx src/index.ts`
+   (one-shot, no watch) — the older Tag-8a build was serving 404
+   on `POST /api/sniper/run`. `make e2e`'s pre-flight curl probe
+   does NOT catch this (it hits `/api/health` only); the Sniper
+   404 was visible only after the file upload. Documented as an
+   operator-side fix: the Express dev script *is* `tsx watch
+   src/index.ts`; whoever started a vanilla `tsx` invocation got
+   stale code. Future hardening: add an explicit endpoint probe
+   for `/api/sniper/cost-summary` to the Makefile pre-flight so a
+   stale build fails the curl check before Playwright launches.
+
+### Tests
+
+5 Playwright tests pass in **21.3 s** wall-clock against the live
+hosted Supabase Mumbai stack:
+  - setup: 1.9 s
+  - auth happy path: 1.6 s
+  - auth wrong password: 0.9 s
+  - poi-list: 1.4 s
+  - sniper end-to-end: 13.4 s (dominated by Layer 1 ML inference +
+    SerpAPI + Picarta + RD mock latency)
+
+The total test pyramid now stands at:
+  - **54 pytest** (unit + integration with InsightFace model)
+  - **57 vitest** (unit + DB-bound + ML-bound integration)
+  - **5 Playwright** (browser → full vertical)
+
+### What did NOT land in 11 (deferred)
+
+- **POI enrolment E2E.** Drag-drops a real photo, runs through the
+  Tag 5 flow, asserts the new face_embeddings row. Skipped because
+  it would burn ~1.5 s of buffalo_l inference per CI run + a
+  mock-RD scan per attempt; cleanup needs careful FK-cascade
+  handling. Worth adding when CI minutes are cheap.
+- **Patrol Mode webcam E2E.** Tag 7 ByteTrack flow with fake video
+  via `--use-fake-device-for-media-stream`. The browser-permissions
+  story is fragile (Chrome flags vary by version). Tag 13 candidate.
+- **Client component vitest.** No client-side unit tests today; the
+  TypeScript surface is verified by tsc + Playwright. Adding a
+  jsdom-or-happy-dom config to client/ is a separate scope.
+- **CI workflow.** Playwright runs locally on the operator's
+  machine. A GitHub Actions workflow that boots the stack +
+  Supabase test project is Tag 14 polish.
+
+---

@@ -44,6 +44,15 @@ test: ## Run all unit tests (TS + Py)
 	pnpm -r run test
 	$(MAKE) ml.test
 
+.PHONY: e2e
+e2e: ## Playwright E2E (assumes ML+server+client+redis already running)
+	@echo "Pre-flight: services must be up. Quick check:"
+	@curl -fs http://127.0.0.1:8001/health > /dev/null || (echo "  ✗ ML on :8001 not reachable — start with 'make ml.dev'" && exit 1)
+	@curl -fs http://127.0.0.1:5000/api/health > /dev/null || (echo "  ✗ server on :5000 not reachable" && exit 1)
+	@curl -fs http://127.0.0.1:5173/ > /dev/null || (echo "  ✗ client on :5173 not reachable" && exit 1)
+	@echo "  ✓ all three services up — running playwright"
+	pnpm e2e
+
 .PHONY: db.generate
 db.generate: ## Drizzle → SQL into supabase/migrations (Tag 3)
 	pnpm --filter @argus/server db:generate

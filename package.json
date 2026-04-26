@@ -20,10 +20,13 @@
     "format:check": "prettier --check .",
     "depcheck": "pnpm -r exec depcheck",
     "test": "pnpm -r run test",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
     "db:push": "tsx scripts/db-push.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@playwright/test": "^1.59.1",
     "@types/node": "^20.19.27",
     "@types/pg": "^8.11.10",
     "depcheck": "^1.4.7",
