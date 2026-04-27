@@ -44,6 +44,16 @@ export default function Patrol() {
     w: FRAME_WIDTH,
     h: FRAME_HEIGHT,
   });
+  // Coarse-pointer (touch) devices default to the back camera so the
+  // operator can scan crowds; laptops keep the front-facing camera which
+  // is what's been there since Tag 7. The toggle is also mobile-only in
+  // the CSS — desktops typically only expose one camera.
+  const [facingMode, setFacingMode] = useState<"user" | "environment">(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches) {
+      return "environment";
+    }
+    return "user";
+  });
 
   // Per-page-mount session id so ByteTrack state on the ML service
   // resets cleanly when the operator reloads the page. Without this
@@ -152,6 +162,14 @@ export default function Patrol() {
         <div className={styles.controls}>
           <button
             type="button"
+            className={styles.flipCam}
+            onClick={() => setFacingMode((m) => (m === "user" ? "environment" : "user"))}
+            aria-label="flip camera"
+          >
+            [ FLIP CAM ]
+          </button>
+          <button
+            type="button"
             className={cn(styles.toggle, running && styles.toggleLive)}
             onClick={() => setRunning((v) => !v)}
           >
@@ -172,7 +190,7 @@ export default function Patrol() {
             videoConstraints={{
               width: { ideal: FRAME_WIDTH },
               height: { ideal: FRAME_HEIGHT },
-              facingMode: "user",
+              facingMode,
             }}
           />
           {running && <div className={styles.scanLine} aria-hidden="true" />}
