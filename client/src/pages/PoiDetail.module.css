@@ -196,6 +196,104 @@
   color: var(--color-fg-subtle);
 }
 
+/* Desktop-only inline-webcam button. Mirrors .cameraTrigger's brutalist
+   solid-accent border so the two camera intents (mobile native vs
+   desktop inline) read the same. Hidden on coarse-pointer devices —
+   the [ take photo ] native intent is the better mobile path. */
+.webcamTrigger {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 6rem;
+  padding: var(--space-4);
+  background: var(--color-bg-raised);
+  border: var(--border-strong) solid var(--color-accent);
+  cursor: pointer;
+  text-align: center;
+  font-family: inherit;
+  color: inherit;
+  transition: background-color var(--motion-fast) var(--ease-out);
+}
+
+.webcamTrigger:active {
+  background: var(--color-bg-active);
+}
+
+@media (pointer: coarse) {
+  .webcamTrigger {
+    display: none;
+  }
+}
+
+/* Inline webcam capture panel — replaces the dropzone+triggers when
+   open (rendered via React conditional). Spans the full gallery row
+   on desktop so the live preview gets real estate; on mobile the
+   gallery is already 1-col so the panel naturally fills the width.
+   No modal, no overlay — pure inline-push, same brutalist doctrine
+   as the AppShell hamburger. */
+.webcamPanel {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-bg-raised);
+  border: var(--border-strong) solid var(--color-accent);
+}
+
+.webcamVideo {
+  width: 100%;
+  max-height: 30rem;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--color-bg-sunken);
+  border: var(--border-hairline) solid var(--color-border);
+}
+
+.webcamActions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.webcamCapture,
+.webcamCancel {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  cursor: pointer;
+  min-height: var(--touch-min);
+  transition:
+    background-color var(--motion-normal) var(--ease-out),
+    color var(--motion-normal) var(--ease-out);
+}
+
+.webcamCapture {
+  color: var(--color-accent-fg);
+  background: var(--color-accent);
+  border: var(--border-hairline) solid var(--color-accent);
+}
+
+.webcamCapture:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.webcamCancel {
+  color: var(--color-fg-muted);
+  border: var(--border-hairline) solid var(--color-border-strong);
+}
+
+.webcamCancel:hover {
+  color: var(--color-fg);
+  border-color: var(--color-fg-muted);
+}
+
 .uploadingTile {
   background: var(--color-bg-raised);
   padding: var(--space-3);

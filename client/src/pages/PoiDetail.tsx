@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { Link, useLocation, useRoute } from "wouter";
+import Webcam from "react-webcam";
 
 import { ApiError } from "../lib/api";
 import { poiApi, type PhotoUploadOutcome, type Poi, type PoiPhoto } from "../lib/poi";
@@ -28,7 +29,9 @@ export default function PoiDetail() {
   const [pageError, setPageError] = useState<string | null>(null);
   const [uploads, setUploads] = useState<UploadingTile[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [webcamOpen, setWebcamOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const captureWebcamRef = useRef<Webcam | null>(null);
 
   const refresh = useCallback(async () => {
     if (!id) return;
@@ -102,6 +105,22 @@ export default function PoiDetail() {
       void handleFiles(e.target.files);
       e.target.value = "";
     }
+  }
+
+  // Single-frame capture from the desktop webcam panel. Pipes the
+  // captured JPEG through handleFiles so the same quality + auth +
+  // server-side upload path runs as for a dropped photo. Closes the
+  // panel on success so the gallery refresh below isn't competing
+  // with a still-mounted webcam stream.
+  async function captureFromWebcam() {
+    const dataUrl = captureWebcamRef.current?.getScreenshot();
+    if (!dataUrl) return;
+    const blob = await (await fetch(dataUrl)).blob();
+    const file = new File([blob], `webcam-${Date.now()}.jpg`, {
+      type: blob.type || "image/jpeg",
+    });
+    setWebcamOpen(false);
+    void handleFiles([file]);
   }
 
   async function onDelete() {
@@ -248,7 +267,7 @@ export default function PoiDetail() {
           </article>
         ))}
 
-        {slotsRemaining > 0 && (
+        {slotsRemaining > 0 && !webcamOpen && (
           <>
             <label
               className={cn(styles.dropzone, dragging && styles.dropzoneDragging)}
@@ -280,8 +299,7 @@ export default function PoiDetail() {
                 accept lists specific MIME types. This second input forces
                 capture="environment" — the OS opens the back camera
                 straight away. CSS hides it on desktop where capture is
-                ignored anyway and a webcam shot is rarely the right
-                input for an enrolment photo. */}
+                ignored anyway. */}
             <label className={styles.cameraTrigger}>
               <input
                 className={styles.fileInputHidden}
@@ -293,7 +311,55 @@ export default function PoiDetail() {
               <span className={styles.cameraTriggerText}>[ take photo ]</span>
               <span className={styles.cameraTriggerSub}>uses your back camera</span>
             </label>
+            {/* Desktop-only inline-webcam shortcut. Browsers ignore the
+                capture attribute on desktop, so the trigger above does
+                nothing useful there — this button opens an inline
+                webcam panel instead and lets the operator capture a
+                still frame straight from their laptop camera. CSS
+                hides it on coarse-pointer devices where the native
+                camera intent above is the better path. */}
+            <button
+              type="button"
+              className={styles.webcamTrigger}
+              onClick={() => setWebcamOpen(true)}
+            >
+              <span className={styles.cameraTriggerText}>[ use webcam ]</span>
+              <span className={styles.cameraTriggerSub}>capture from this computer</span>
+            </button>
           </>
+        )}
+        {slotsRemaining > 0 && webcamOpen && (
+          <div className={styles.webcamPanel}>
+            <Webcam
+              ref={captureWebcamRef}
+              className={styles.webcamVideo}
+              audio={false}
+              mirrored={false}
+              screenshotFormat="image/jpeg"
+              screenshotQuality={0.92}
+              videoConstraints={{
+                width: { ideal: 1280 },
+                height: { ideal: 960 },
+                facingMode: "user",
+              }}
+            />
+            <div className={styles.webcamActions}>
+              <button
+                type="button"
+                className={styles.webcamCapture}
+                onClick={() => void captureFromWebcam()}
+              >
+                [ capture ]
+              </button>
+              <button
+                type="button"
+                className={styles.webcamCancel}
+                onClick={() => setWebcamOpen(false)}
+              >
+                [ cancel ]
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
