@@ -4,7 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0a0a0a" />
     <title>Project Chaw</title>
+
+    <!-- Brand mark — block-C in --signal-red-500 on --surface-100. The
+         SVG is the source of truth for desktop browser tabs (vector
+         scales cleanly at any DPI); the PNGs are rasterised from the
+         same path by client/scripts/build-icons.mjs and only exist
+         because iOS Safari ignores SVG for the home-screen icon and
+         Android Chrome's PWA install dialog wants 192/512 PNGs. -->
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="apple-mobile-web-app-title" content="Project Chaw" />
   </head>
   <body>
     <div id="root"></div>
