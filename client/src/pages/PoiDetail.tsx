@@ -249,30 +249,51 @@ export default function PoiDetail() {
         ))}
 
         {slotsRemaining > 0 && (
-          <label
-            className={cn(styles.dropzone, dragging && styles.dropzoneDragging)}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragging(true);
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={onDrop}
-          >
-            <input
-              ref={fileInputRef}
-              className={styles.fileInputHidden}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              multiple
-              onChange={onPicked}
-            />
-            <div className={styles.dropzoneText}>
-              [ drop a photo here or click ]
-              <span className={styles.dropzoneSub}>
-                jpeg / png / webp · up to 50 MB · one face, looking forward, sharp
-              </span>
-            </div>
-          </label>
+          <>
+            <label
+              className={cn(styles.dropzone, dragging && styles.dropzoneDragging)}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={onDrop}
+            >
+              <input
+                ref={fileInputRef}
+                className={styles.fileInputHidden}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                onChange={onPicked}
+              />
+              <div className={styles.dropzoneText}>
+                [ drop a photo here or click ]
+                <span className={styles.dropzoneSub}>
+                  jpeg / png / webp · up to 50 MB · one face, looking forward, sharp
+                </span>
+              </div>
+            </label>
+            {/* Mobile-only camera shortcut. The default <input> above lets
+                the OS picker choose between Camera and Photo Library, but
+                Android Chrome sometimes strips the camera option when
+                accept lists specific MIME types. This second input forces
+                capture="environment" — the OS opens the back camera
+                straight away. CSS hides it on desktop where capture is
+                ignored anyway and a webcam shot is rarely the right
+                input for an enrolment photo. */}
+            <label className={styles.cameraTrigger}>
+              <input
+                className={styles.fileInputHidden}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                capture="environment"
+                onChange={onPicked}
+              />
+              <span className={styles.cameraTriggerText}>[ take photo ]</span>
+              <span className={styles.cameraTriggerSub}>uses your back camera</span>
+            </label>
+          </>
         )}
       </div>
 
