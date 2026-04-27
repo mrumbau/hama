@@ -269,3 +269,91 @@
   font-size: var(--text-sm);
   color: var(--color-status-fail);
 }
+
+/* ── Mobile (≤ 48rem) ────────────────────────────────────────────────── */
+@media (width <= 48rem) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+
+  .headerActions,
+  .firstRunActions {
+    width: 100%;
+  }
+
+  .primaryButton {
+    width: 100%;
+    text-align: center;
+    min-height: var(--touch-min);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Hide the desktop column header — each row becomes a self-described
+     stacked card. */
+  .tableHeader {
+    display: none;
+  }
+
+  /* Desktop's 7-column grid collapses to a 2-col card: NAME and STATUS
+     share the top row; every other span flows full-width below in DOM
+     order (id → tag → photos → strictness → added). Brutalist manifest
+     stacking — no hidden labels, no decorative wrappers. */
+  .tableRow {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto;
+    gap: var(--space-half) var(--space-3);
+    padding: var(--space-4);
+    margin-bottom: var(--space-3);
+    background: var(--color-bg-sunken);
+    border: var(--border-hairline) solid var(--color-border);
+    border-bottom: var(--border-hairline) solid var(--color-border);
+    min-height: var(--touch-min);
+    align-items: start;
+  }
+
+  .tableRow > * {
+    grid-column: 1 / -1;
+  }
+
+  .tableRow > .name {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: var(--text-lg);
+    white-space: normal;
+  }
+
+  .tableRow > .status {
+    grid-column: 2;
+    grid-row: 1;
+    text-align: right;
+  }
+
+  /* Right-aligned numerics (.embeddings, .threshold) revert to left
+     once they're full-width manifest lines. */
+  .embeddings,
+  .threshold {
+    text-align: left;
+  }
+
+  .firstRun {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .firstRunActions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+
+  .firstRunSecondary {
+    text-align: center;
+    min-height: var(--touch-min);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

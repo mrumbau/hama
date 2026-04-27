@@ -143,3 +143,34 @@
   font-size: var(--text-sm);
   color: var(--color-status-fail);
 }
+
+/* ── Mobile (≤ 48rem) ────────────────────────────────────────────────── */
+@media (width <= 48rem) {
+  .page {
+    max-width: none;
+  }
+
+  .input,
+  .select,
+  .textarea {
+    width: 100%;
+    min-height: var(--touch-min);
+  }
+
+  /* Stack save + cancel full-width so they're easy thumb-targets and
+     don't fight for half-row width on a 360px viewport. */
+  .actions {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .submit,
+  .cancel {
+    width: 100%;
+    text-align: center;
+    min-height: var(--touch-min);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

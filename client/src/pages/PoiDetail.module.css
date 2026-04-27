@@ -300,3 +300,42 @@
   font-size: var(--text-sm);
   color: var(--color-status-fail);
 }
+
+/* ── Mobile (≤ 48rem) ────────────────────────────────────────────────── */
+@media (width <= 48rem) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+
+  .headerActions {
+    width: 100%;
+  }
+
+  .deleteBtn {
+    min-height: var(--touch-min);
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* Photo grid collapses to a single full-width column. The 18rem
+     min-height per tile stays — keeps the gallery's visual rhythm
+     and gives the metadata room to render without overlap. */
+  .gallery {
+    grid-template-columns: 1fr;
+  }
+
+  .summary {
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  /* Mobile has no drag-and-drop, so the dropzone becomes a tap-target
+     "pick a photo" button. Bigger tap-area, more obvious affordance,
+     same brutalist hairline-dashed border. */
+  .dropzone {
+    min-height: 14rem;
+    padding: var(--space-4);
+  }
+}
