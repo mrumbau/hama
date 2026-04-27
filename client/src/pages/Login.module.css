@@ -62,6 +62,7 @@
   color: var(--color-fg);
   border: var(--border-hairline) solid var(--color-border);
   border-radius: var(--radius-1);
+  min-height: var(--touch-min);
   transition: border-color var(--motion-normal) var(--ease-out);
 }
 
@@ -91,6 +92,7 @@
   border: 0;
   border-radius: var(--radius-2);
   cursor: pointer;
+  min-height: var(--touch-min);
   transition:
     transform var(--motion-fast) var(--ease-out),
     background-color var(--motion-normal) var(--ease-out);
@@ -134,4 +136,15 @@
 
 .backLink:hover {
   color: var(--color-fg);
+}
+
+/* ── Mobile (≤ 48rem) ────────────────────────────────────────────────── */
+@media (width <= 48rem) {
+  .page {
+    padding: var(--space-4);
+  }
+
+  .card {
+    padding: var(--space-5);
+  }
 }

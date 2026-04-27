@@ -211,3 +211,41 @@
   letter-spacing: var(--tracking-wide);
   color: var(--color-fg-subtle);
 }
+
+/* ── Mobile (≤ 48rem) ─────────────────────────────────────────────────
+   Tighten the editorial whitespace — desktop's deliberate breathing
+   room (space-8/9/10/11 = 64/96/128/192px) reads as wasteful empty
+   space on a 360px viewport. Stays generous, just not extravagant. */
+@media (width <= 48rem) {
+  .container {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .topbar {
+    padding-bottom: var(--space-5);
+    margin-bottom: var(--space-7);
+  }
+
+  .signInLink {
+    min-height: var(--touch-min);
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .hero {
+    gap: var(--space-5);
+    margin-bottom: var(--space-9);
+  }
+
+  .heroPrimary {
+    min-height: var(--touch-min);
+  }
+
+  .section {
+    padding: var(--space-7) 0;
+  }
+
+  .footer {
+    margin-top: var(--space-7);
+  }
+}

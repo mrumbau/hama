@@ -61,3 +61,19 @@
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
 }
+
+/* ── Mobile (≤ 48rem) ────────────────────────────────────────────────── */
+@media (width <= 48rem) {
+  .actions {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .actionLink,
+  .actionButton {
+    min-height: var(--touch-min);
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-2) var(--space-3);
+  }
+}
