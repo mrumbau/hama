@@ -24,35 +24,60 @@ export default function AppShell() {
   const user = useAuth((s) => s.user);
   const signOut = useAuth((s) => s.signOut);
   const [location] = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Auto-close the mobile menu on every route change. Brutalist
+  // inline-push: nav expands the rail vertically and pushes content
+  // down; once the user navigates we collapse it again so the page
+  // they tapped is not buried behind the menu.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location]);
 
   return (
     <div className={styles.shell}>
       <aside className={styles.rail}>
-        <div>
-          <span className={styles.brand}>PROJECT CHAW</span>
-          <span className={styles.brandRev}>v0.1.0</span>
+        <div className={styles.railHeader}>
+          <div className={styles.brandWrap}>
+            <span className={styles.brand}>PROJECT CHAW</span>
+            <span className={styles.brandRev}>v0.1.0</span>
+          </div>
+          <button
+            type="button"
+            className={styles.menuToggle}
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-expanded={menuOpen}
+            aria-controls="rail-body"
+          >
+            {menuOpen ? "[ CLOSE ]" : "[ MENU ]"}
+          </button>
         </div>
 
-        <nav className={styles.nav}>
-          {NAV.map((n) => (
-            <Link
-              key={n.href}
-              href={n.href}
-              className={cn(styles.navLink, location.startsWith(n.href) && styles.navLinkActive)}
-            >
-              {n.label}
-            </Link>
-          ))}
-        </nav>
+        <div
+          id="rail-body"
+          className={cn(styles.railBody, menuOpen && styles.railBodyOpen)}
+        >
+          <nav className={styles.nav}>
+            {NAV.map((n) => (
+              <Link
+                key={n.href}
+                href={n.href}
+                className={cn(styles.navLink, location.startsWith(n.href) && styles.navLinkActive)}
+              >
+                {n.label}
+              </Link>
+            ))}
+          </nav>
 
-        <div className={styles.spacer} />
+          <div className={styles.spacer} />
 
-        <div className={styles.operatorBlock}>
-          <span className={styles.operatorRole}>SIGNED IN</span>
-          <span className={styles.operatorEmail}>{user?.email ?? "—"}</span>
-          <button type="button" onClick={() => void signOut()} className={styles.signOut}>
-            sign out
-          </button>
+          <div className={styles.operatorBlock}>
+            <span className={styles.operatorRole}>SIGNED IN</span>
+            <span className={styles.operatorEmail}>{user?.email ?? "—"}</span>
+            <button type="button" onClick={() => void signOut()} className={styles.signOut}>
+              sign out
+            </button>
+          </div>
         </div>
       </aside>
 

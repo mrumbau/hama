@@ -117,6 +117,18 @@ canvas {
   color: var(--color-accent-fg);
 }
 
+/* iOS Safari zooms the viewport when a focused form control's font-size
+   is below 16px. Brutalist UI uses --text-sm (13.3px) on inputs by
+   design, which works on desktop but auto-zooms on iPhone. Force >= 1rem
+   on coarse-pointer devices only — desktop typography stays unchanged. */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: max(1rem, 16px);
+  }
+}
+
 /* Reduced motion: emil-design-eng §Accessibility — keep opacity, kill movement. */
 @media (prefers-reduced-motion: reduce) {
   *,

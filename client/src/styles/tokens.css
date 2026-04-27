@@ -174,7 +174,18 @@
   /* ── Layout constants ────────────────────────────────────────────────── */
   --layout-max-public: 72rem; /* minimalist landing/login: max-w-5xl */
   --layout-max-operator: 100%; /* brutalist: full bleed, grid-anchored */
-  --layout-rail: 14rem; /* operator side-rail width */
+  --layout-rail: 14rem; /* operator side-rail width (≥ 64rem viewport) */
+  --layout-rail-tablet: 10rem; /* slimmer rail, 48 ... 64rem tablet band */
+
+  /* WCAG 2.5.5 minimum tap-target. Component CSS must enforce this on
+     touch-targets (buttons, links, inputs) at the mobile breakpoint. */
+  --touch-min: 2.75rem; /* 44px */
+
+  /* Mobile-responsive break-points are documented here for the codebase's
+     desktop-first max-width queries; CSS does not allow var() inside
+     @media, so use the literal values:
+       @media (width <= 48rem)  → mobile  (≤ 768px)
+       @media (width <= 64rem)  → ≤ tablet (≤ 1024px) */
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
