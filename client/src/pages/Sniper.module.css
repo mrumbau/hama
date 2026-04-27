@@ -365,3 +365,49 @@
   color: var(--color-fg-subtle);
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Mobile (≤ 48rem) ────────────────────────────────────────────────── */
+@media (width <= 48rem) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+
+  .budget {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .dropzone {
+    min-height: 11rem;
+  }
+
+  /* Past-reports table → stacked cards. DOM order:
+     1=time 2=id 3=status 4=stats. NAME-ish (id) on top with status
+     badge to the right; time + stats flow as full-width meta lines. */
+  .tableHeader {
+    display: none;
+  }
+
+  .tableRow {
+    grid-template-columns: 1fr auto;
+    gap: var(--space-half) var(--space-3);
+    padding: var(--space-4);
+  }
+
+  .tableRow > * {
+    grid-column: 1 / -1;
+  }
+
+  .tableRow > .idCell {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: var(--text-base);
+  }
+
+  .tableRow > .statusBadge {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}

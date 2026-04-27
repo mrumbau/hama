@@ -555,3 +555,43 @@
   font-variant-numeric: tabular-nums;
   word-break: break-all;
 }
+
+/* ── Mobile (≤ 48rem) ────────────────────────────────────────────────── */
+@media (width <= 48rem) {
+  .header {
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  .backLink {
+    min-height: var(--touch-min);
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .meta {
+    flex-wrap: wrap;
+  }
+
+  /* Identity-layer match row — desktop uses a 5-col grid (name/cat/votes/
+     simBar/value). On mobile that compresses everything into illegible
+     slivers; collapse to 2-col with name + value on the top row. */
+  .identityRow {
+    grid-template-columns: 1fr auto;
+    gap: var(--space-1) var(--space-2);
+  }
+
+  .identityRow > * {
+    grid-column: 1 / -1;
+  }
+
+  .identityRow > .identityName {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .identityRow > .identityValue {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}

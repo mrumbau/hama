@@ -185,3 +185,69 @@
   font-size: var(--text-sm);
   color: var(--color-status-fail);
 }
+
+/* ── Mobile (≤ 48rem) ────────────────────────────────────────────────── */
+@media (width <= 48rem) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+
+  .summary {
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  /* Hide the desktop column header — every match row becomes a self-
+     described stacked card. */
+  .tableHeader {
+    display: none;
+  }
+
+  /* DOM order: 1=time 2=poiName 3=kind-wrapper 4=camera 5=score
+     6=status 7=actions. Promote name+status to the top row;
+     everything else flows full-width. Confirm/dismiss become full-
+     width thumb-targets. */
+  .tableRow {
+    grid-template-columns: 1fr auto;
+    gap: var(--space-half) var(--space-3);
+    padding: var(--space-4);
+    margin-bottom: var(--space-3);
+    background: var(--color-bg-sunken);
+    border: var(--border-hairline) solid var(--color-border);
+  }
+
+  .tableRow > * {
+    grid-column: 1 / -1;
+  }
+
+  .tableRow > .poiName {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: var(--text-base);
+    white-space: normal;
+  }
+
+  .tableRow > .status {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .score {
+    text-align: left;
+  }
+
+  .actions {
+    justify-content: stretch;
+    gap: var(--space-2);
+  }
+
+  .actionConfirm,
+  .actionDismiss {
+    flex: 1;
+    min-height: var(--touch-min);
+    text-align: center;
+    padding: var(--space-2) var(--space-3);
+  }
+}
