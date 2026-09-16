@@ -1,0 +1,118 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 222 25% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 25% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 25% 12%;
+    --primary: 222 60% 30%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 32% 94%;
+    --secondary-foreground: 222 30% 20%;
+    --muted: 214 32% 95%;
+    --muted-foreground: 215 16% 44%;
+    --accent: 214 95% 95%;
+    --accent-foreground: 222 60% 25%;
+    --destructive: 0 72% 46%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 25% 88%;
+    --input: 214 25% 88%;
+    --ring: 222 60% 40%;
+    --radius: 0.5rem;
+
+    --ampel-gruen: 142 62% 38%;
+    --ampel-gelb: 41 94% 48%;
+    --ampel-rot: 0 72% 48%;
+    --ampel-grau: 215 14% 65%;
+  }
+
+  .dark {
+    --background: 222 28% 9%;
+    --foreground: 210 20% 96%;
+    --card: 222 25% 12%;
+    --card-foreground: 210 20% 96%;
+    --popover: 222 25% 12%;
+    --popover-foreground: 210 20% 96%;
+    --primary: 213 90% 62%;
+    --primary-foreground: 222 40% 10%;
+    --secondary: 217 20% 20%;
+    --secondary-foreground: 210 20% 96%;
+    --muted: 217 20% 18%;
+    --muted-foreground: 215 16% 62%;
+    --accent: 217 30% 22%;
+    --accent-foreground: 210 20% 96%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 20% 22%;
+    --input: 217 20% 24%;
+    --ring: 213 90% 55%;
+
+    --ampel-gruen: 142 55% 42%;
+    --ampel-gelb: 41 90% 52%;
+    --ampel-rot: 0 70% 54%;
+    --ampel-grau: 215 12% 48%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'tnum' 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Kompakte, ruhige Scrollbars – die Plantafel scrollt viel. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-border;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+}
+
+@layer components {
+  /* Sticky linke Spalte + Sticky Header der Plantafel. */
+  .board-sticky-col {
+    position: sticky;
+    left: 0;
+    z-index: 20;
+    @apply bg-card;
+  }
+  .board-sticky-head {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    @apply bg-card;
+  }
+  .board-sticky-corner {
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 40;
+    @apply bg-card;
+  }
+}
+
+/* Drag-Vorschau soll nicht am Cursor kleben bleiben. */
+[data-dnd-dragging='true'] {
+  cursor: grabbing;
+}

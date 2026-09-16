@@ -13,6 +13,8 @@ export default [
       "**/coverage/**",
       "python/**",
       "supabase/migrations/**",
+      // Eigenstaendiges Projekt mit eigener Toolchain (siehe dispo/README.md).
+      "dispo/**",
     ],
   },
 

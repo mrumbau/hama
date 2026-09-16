@@ -62,6 +62,14 @@ pnpm dev
 
 ---
 
+## MR Umbau Dispo
+
+Das Verzeichnis [`dispo/`](./dispo) enthaelt ein zweites, eigenstaendiges
+Projekt: die interne Dispositions- und Einsatzplanungs-App der MR Umbau GmbH
+(Next.js + PostgreSQL, eigene Toolchain). Siehe [dispo/README.md](./dispo/README.md).
+
+---
+
 ## Repository layout
 
 ```

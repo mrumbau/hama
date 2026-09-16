@@ -1,0 +1,559 @@
+// MR Umbau GmbH – Dispo / Einsatzplanung
+// Datenmodell Version 1.
+//
+// Grundsatz: Das ERP "Das Programm" bleibt fuehrend fuer kaufmaennische
+// Projektstammdaten. Diese Datenbank ist fuehrend fuer alles Operative
+// (Disposition, Einsaetze, Ampel, Historie, Kommunikation).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum ProjectStatus {
+  NEU
+  TERMINIERUNG_ERFORDERLICH
+  GEPLANT
+  BESTAETIGT
+  IN_AUSFUEHRUNG
+  UNTERBROCHEN
+  WARTEN_AUF_KUNDE
+  WARTEN_AUF_MATERIAL
+  WARTEN_AUF_SUB
+  FERTIG
+  ABNAHME
+  ERLEDIGT
+}
+
+enum Priority {
+  NIEDRIG
+  NORMAL
+  HOCH
+  KRITISCH
+}
+
+enum MaterialStatus {
+  NICHT_ERFORDERLICH
+  OFFEN
+  TEILWEISE
+  VOLLSTAENDIG
+}
+
+enum ConfirmationStatus {
+  OFFEN
+  ANGEFRAGT
+  BESTAETIGT
+  ABGELEHNT
+}
+
+/// Ampelstatus. Wird berechnet, nicht gepflegt – kann aber uebersteuert werden.
+enum TrafficLight {
+  GRUEN
+  GELB
+  ROT
+  GRAU
+}
+
+enum ResourceType {
+  MITARBEITER
+  BAULEITER
+  SUBUNTERNEHMER
+  UNBESETZT
+}
+
+enum AssignmentStatus {
+  GEPLANT
+  BESTAETIGT
+  ABGESAGT
+  ERLEDIGT
+}
+
+/// Herkunft eines Datensatzes bzw. einer Aenderung.
+enum Source {
+  MANUELL
+  DAS_PROGRAMM
+  TELEFON_3CX
+  OUTLOOK
+  AUTOMATISCH
+  SEED
+}
+
+/// Gruende fuer Terminverschiebungen – auswertbar ("warum 3x verschoben?").
+enum ChangeReason {
+  KUNDE
+  MR_UMBAU
+  BAULEITER
+  MITARBEITER
+  SUBUNTERNEHMER
+  MATERIAL
+  LIEFERANT
+  KRANKHEIT
+  URLAUB
+  BAUSTELLENVORLEISTUNG
+  TECHNISCHE_URSACHE
+  WETTER
+  SONSTIGES
+}
+
+enum CommunicationStatus {
+  NEU
+  IN_PRUEFUNG
+  ERLEDIGT
+}
+
+enum CommunicationDirection {
+  EINGEHEND
+  AUSGEHEND
+  UNBEKANNT
+}
+
+enum ChangeRequestType {
+  TERMIN_AENDERUNG
+  STATUS_AENDERUNG
+  MATERIAL_AENDERUNG
+  KUNDENBESTAETIGUNG
+  RUECKRUF
+  NOTIZ
+  SONSTIGES
+}
+
+enum ChangeRequestStatus {
+  OFFEN
+  UEBERNOMMEN
+  ABGELEHNT
+}
+
+enum IntegrationEventStatus {
+  EMPFANGEN
+  VERARBEITET
+  FEHLER
+  IGNORIERT
+}
+
+enum SyncStatus {
+  NIE_GELAUFEN
+  ERFOLGREICH
+  FEHLER
+  LAEUFT
+}
+
+// ---------------------------------------------------------------------------
+// Stammdaten
+// ---------------------------------------------------------------------------
+
+/// Gewerk bzw. Qualifikation. Wird sowohl von Mitarbeitern (Qualifikation)
+/// als auch von Subunternehmern (Gewerk) benutzt.
+model Trade {
+  id        String @id @default(cuid())
+  name      String @unique
+  /// Hex-Farbe fuer die Darstellung in der Plantafel.
+  color     String @default("#64748b")
+  sortOrder Int    @default(100)
+
+  employees      EmployeeTrade[]
+  subcontractors SubcontractorTrade[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("trades")
+}
+
+model SiteManager {
+  id        String  @id @default(cuid())
+  firstName String
+  lastName  String
+  shortCode String  @unique
+  phone     String?
+  email     String?
+  /// Farbe in der Plantafel.
+  color     String  @default("#2563eb")
+  note      String?
+  active    Boolean @default(true)
+  isDemo    Boolean @default(false)
+
+  projectsPrimary   Project[]    @relation("PrimarySiteManager")
+  projectsSecondary Project[]    @relation("SecondarySiteManager")
+  assignments       Assignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active])
+  @@map("site_managers")
+}
+
+model Employee {
+  id             String  @id @default(cuid())
+  firstName      String
+  lastName       String
+  shortCode      String  @unique
+  phone          String?
+  /// Hauptberuf, z.B. "Trockenbau".
+  profession     String?
+  weeklyHours    Int?
+  driversLicense Boolean @default(false)
+  note           String?
+  active         Boolean @default(true)
+  isDemo         Boolean @default(false)
+
+  trades      EmployeeTrade[]
+  assignments Assignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active])
+  @@map("employees")
+}
+
+model EmployeeTrade {
+  employeeId String
+  tradeId    String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  trade      Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@id([employeeId, tradeId])
+  @@map("employee_trades")
+}
+
+model Subcontractor {
+  id          String  @id @default(cuid())
+  companyName String
+  contactName String?
+  phone       String?
+  email       String?
+  street      String?
+  zip         String?
+  city        String?
+  note        String?
+  active      Boolean @default(true)
+  /// Bevorzugter Partner.
+  preferred   Boolean @default(false)
+  /// Interne Bewertung 1..5.
+  rating      Int?
+  /// Verfuegbare Mannschaftsstaerke.
+  crewSize    Int?
+  isDemo      Boolean @default(false)
+
+  trades      SubcontractorTrade[]
+  assignments Assignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active])
+  @@map("subcontractors")
+}
+
+model SubcontractorTrade {
+  subcontractorId String
+  tradeId         String
+  subcontractor   Subcontractor @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
+  trade           Trade         @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@id([subcontractorId, tradeId])
+  @@map("subcontractor_trades")
+}
+
+// ---------------------------------------------------------------------------
+// Projekte / Baustellen
+// ---------------------------------------------------------------------------
+
+model Project {
+  id String @id @default(cuid())
+
+  // --- Aus "Das Programm" (ERP fuehrend) ---
+  erpId         String? @unique
+  orderNumber   String? // Auftragsnummer, z.B. AG-260047
+  projectNumber String?
+  customerName  String
+  name          String
+  street        String?
+  zip           String?
+  city          String?
+  contactName   String?
+  contactPhone  String?
+  contactEmail  String?
+
+  // --- Dispo-App fuehrend ---
+  primarySiteManagerId   String?
+  primarySiteManager     SiteManager? @relation("PrimarySiteManager", fields: [primarySiteManagerId], references: [id], onDelete: SetNull)
+  secondarySiteManagerId String?
+  secondarySiteManager   SiteManager? @relation("SecondarySiteManager", fields: [secondarySiteManagerId], references: [id], onDelete: SetNull)
+
+  plannedStart         DateTime?          @db.Date
+  plannedEnd           DateTime?          @db.Date
+  status               ProjectStatus      @default(NEU)
+  priority             Priority           @default(NORMAL)
+  materialStatus       MaterialStatus     @default(OFFEN)
+  customerConfirmed    ConfirmationStatus @default(OFFEN)
+  /// Manuelle Uebersteuerung der Ampel. Null => automatisch berechnet.
+  trafficLightOverride TrafficLight?
+  internalNotes        String?
+  specialNotes         String?
+  isDemo               Boolean            @default(false)
+
+  assignments    Assignment[]
+  notes          ProjectNote[]
+  communications Communication[]
+  changeRequests ChangeRequest[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([plannedStart])
+  @@index([primarySiteManagerId])
+  @@map("projects")
+}
+
+model ProjectNote {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  body      String
+  author    String?
+  source    Source   @default(MANUELL)
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([projectId, createdAt])
+  @@map("project_notes")
+}
+
+// ---------------------------------------------------------------------------
+// Einsatz – die zentrale Datenstruktur
+// ---------------------------------------------------------------------------
+
+/// Ein Einsatz verbindet genau eine Ressource mit einem Projekt-Zeitraum.
+/// Bewusst eine Ressource pro Einsatz: so bleibt Drag & Drop, Konflikt-
+/// erkennung und die Ressourcenansicht trivial. Mehrere Personen auf einer
+/// Baustelle = mehrere Einsaetze.
+model Assignment {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  resourceType ResourceType
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  siteManagerId String?
+  siteManager   SiteManager? @relation(fields: [siteManagerId], references: [id], onDelete: Cascade)
+
+  subcontractorId String?
+  subcontractor   Subcontractor? @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
+
+  /// Platzhalter fuer einen noch unbesetzten Einsatz ("hier fehlt jemand").
+  placeholderLabel String?
+
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  startTime String? // "07:30"
+  endTime   String? // "16:00"
+
+  note   String?
+  status AssignmentStatus @default(GEPLANT)
+  source Source           @default(MANUELL)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([startDate, endDate])
+  @@index([employeeId, startDate])
+  @@index([subcontractorId, startDate])
+  @@index([siteManagerId, startDate])
+  @@map("assignments")
+}
+
+// ---------------------------------------------------------------------------
+// Kommunikation (3CX / Telefonate)
+// ---------------------------------------------------------------------------
+
+model Communication {
+  id         String                 @id @default(cuid())
+  occurredAt DateTime
+  direction  CommunicationDirection @default(EINGEHEND)
+
+  callerNumber    String?
+  calledNumber    String?
+  /// Normalisierte Gegenstellen-Nummer fuer die Zuordnung.
+  contactNumber   String?
+  durationSeconds Int?
+  callId          String? @unique
+
+  /// Interner Mitarbeiter/Bauleiter, der das Gespraech gefuehrt hat.
+  agentName    String?
+  /// Erkannter Kundenname (aus 3CX oder aus dem Nummernabgleich).
+  customerName String?
+
+  projectId           String?
+  project             Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  /// Kandidaten-Projekte, wenn keine eindeutige Zuordnung moeglich war.
+  candidateProjectIds String[] @default([])
+
+  transcript   String?
+  summary      String?
+  aiNotes      String?
+  actionItems  String[] @default([])
+  recordingUrl String?
+
+  status CommunicationStatus @default(NEU)
+  source Source              @default(TELEFON_3CX)
+  isDemo Boolean             @default(false)
+
+  changeRequests ChangeRequest[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, occurredAt])
+  @@index([projectId])
+  @@map("communications")
+}
+
+// ---------------------------------------------------------------------------
+// Aenderungsvorschlaege – AI darf vorschlagen, nie selbst aendern.
+// ---------------------------------------------------------------------------
+
+model ChangeRequest {
+  id   String            @id @default(cuid())
+  type ChangeRequestType
+
+  communicationId String?
+  communication   Communication? @relation(fields: [communicationId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// Betroffener Einsatz, falls die Aenderung einen konkreten Einsatz meint.
+  assignmentId String?
+
+  title         String
+  description   String?
+  currentValue  Json?
+  proposedValue Json?
+
+  reason     ChangeReason @default(SONSTIGES)
+  reasonText String?
+  /// 0..1 – Sicherheit der AI-Erkennung.
+  confidence Float?
+
+  status       ChangeRequestStatus @default(OFFEN)
+  decidedAt    DateTime?
+  decisionNote String?
+
+  source Source @default(TELEFON_3CX)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@map("change_requests")
+}
+
+// ---------------------------------------------------------------------------
+// Audit / Historie
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id String @id @default(cuid())
+
+  entityType String // "project" | "assignment" | "employee" | ...
+  entityId   String
+  /// Projektbezug, damit die Projekt-Timeline ohne Joins auskommt.
+  projectId  String?
+
+  action String // "created" | "updated" | "deleted" | "moved" | ...
+  /// Menschenlesbare Kurzfassung, z.B. "Termin geaendert".
+  label  String
+
+  oldValue Json?
+  newValue Json?
+
+  source     Source        @default(MANUELL)
+  reason     ChangeReason?
+  reasonText String?
+  note       String?
+
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([createdAt])
+  @@map("audit_log")
+}
+
+// ---------------------------------------------------------------------------
+// Warnungen
+// ---------------------------------------------------------------------------
+
+/// Warnungen werden live berechnet (sie koennen sonst nicht veralten-frei
+/// bleiben). Persistiert wird nur, was der Disponent bewusst weggeklickt hat.
+model WarningDismissal {
+  id          String   @id @default(cuid())
+  /// Stabiler Schluessel der Warnung, z.B. "no_staff:<projectId>:2026-09-17".
+  warningKey  String   @unique
+  note        String?
+  dismissedAt DateTime @default(now())
+
+  @@map("warning_dismissals")
+}
+
+// ---------------------------------------------------------------------------
+// Integrationen
+// ---------------------------------------------------------------------------
+
+model SyncState {
+  id           String     @id @default(cuid())
+  provider     String     @unique // "das-programm"
+  status       SyncStatus @default(NIE_GELAUFEN)
+  lastSyncAt   DateTime?
+  lastMessage  String?
+  itemsCreated Int        @default(0)
+  itemsUpdated Int        @default(0)
+  itemsSkipped Int        @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("sync_state")
+}
+
+/// Roh-Eingang aller externen Ereignisse (3CX, Das Programm, ...).
+/// Wird zuerst gespeichert, dann verarbeitet – nichts geht verloren.
+model IntegrationEvent {
+  id       String @id @default(cuid())
+  provider String // "3cx" | "das-programm"
+  type     String
+  payload  Json
+
+  status          IntegrationEventStatus @default(EMPFANGEN)
+  error           String?
+  processedAt     DateTime?
+  /// Erzeugte Kommunikation, falls zutreffend.
+  communicationId String?
+
+  receivedAt DateTime @default(now())
+
+  @@index([provider, receivedAt])
+  @@map("integration_events")
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
