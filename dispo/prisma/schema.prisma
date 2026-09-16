@@ -11,7 +11,11 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // Laufzeit-Verbindung. Bei Supabase/Serverless die Pooler-URL (Port 6543).
   url      = env("DATABASE_URL")
+  // Direktverbindung (Port 5432) – Migrationen laufen nicht über den Pooler.
+  // Ohne Pooler einfach dieselbe URL wie oben eintragen.
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 // ---------------------------------------------------------------------------

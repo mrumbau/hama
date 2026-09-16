@@ -51,7 +51,8 @@ Beim Öffnen erscheint sofort die **Plantafel** – sie ist die Startseite.
 
 ## 2. Wo die Datenbank liegt
 
-Eine einzige **PostgreSQL**-Datenbank, adressiert über `DATABASE_URL`.
+Eine einzige **PostgreSQL**-Datenbank, adressiert über `DATABASE_URL`
+(Migrationen laufen über `DIRECT_DATABASE_URL`, siehe Abschnitt 6).
 Es gibt keine zweite Datenhaltung, keine Dateiablage, keinen Cache-Dienst –
 alles Operative liegt in dieser Datenbank.
 
@@ -214,7 +215,9 @@ Claude-Analyse hinzu; schlägt sie fehl, greift still die Heuristik.
 
 | Variable | Pflicht | Bedeutung |
 |---|---|---|
-| `DATABASE_URL` | **ja** | PostgreSQL-Verbindung |
+| `DATABASE_URL` | **ja** | PostgreSQL-Verbindung der Anwendung (bei Supabase: Pooler, Port 6543) |
+| `DIRECT_DATABASE_URL` | **ja** | Direktverbindung für Migrationen (Port 5432); lokal identisch mit `DATABASE_URL` |
+| `DISPO_SEED_ON_DEPLOY` | nein | `1` frischt beim Deployment die Demo-Daten auf |
 | `DISPO_ERP_PROVIDER` | nein | `mock` (Standard) oder `das-programm` |
 | `DAS_PROGRAMM_BASE_URL` | bei echter API | Basis-URL des ERP |
 | `DAS_PROGRAMM_API_KEY` | bei echter API | API-Schlüssel |
@@ -233,6 +236,23 @@ Ist die App öffentlich erreichbar, aktivieren `DISPO_BASIC_AUTH_USER` und
 `DISPO_BASIC_AUTH_PASSWORD` einen einfachen serverseitigen Riegel
 (`src/middleware.ts`). Der 3CX-Webhook ist davon ausgenommen – er hat seine
 eigene Signaturprüfung. Das ersetzt keine Rechteverwaltung.
+
+### Deployment (z. B. Vercel)
+
+Die App ist eine gewöhnliche Next.js-Anwendung und lässt sich überall
+betreiben, wo Node läuft. Für Vercel ist alles vorbereitet:
+
+* `npm run vercel-build` wendet vor dem Build die Migrationen an
+  (`scripts/deploy-prepare.mjs`). Das muss dort geschehen, weil die
+  Buildumgebung die Datenbank erreicht.
+* Nötige Variablen im Projekt: `DATABASE_URL`, `DIRECT_DATABASE_URL`,
+  optional `DISPO_SEED_ON_DEPLOY=1` sowie `DISPO_BASIC_AUTH_USER` /
+  `DISPO_BASIC_AUTH_PASSWORD`.
+* **Root Directory** im Vercel-Projekt auf `dispo` setzen – die App liegt in
+  einem Unterverzeichnis des Repositorys.
+
+Ist die Anwendung öffentlich erreichbar, sollte der Basic-Auth-Schutz gesetzt
+sein. Es handelt sich um ein internes Werkzeug.
 
 ---
 
