@@ -18,7 +18,7 @@ cd dispo
 npm install
 
 cp .env.example .env          # DATABASE_URL eintragen
-npm run db:migrate            # Schema anlegen
+npm run db:deploy             # Schema anlegen
 npm run db:seed               # Demo-Daten (optional, klar als „Demo“ markiert)
 
 npm run dev                   # Entwicklung  → http://localhost:3000
@@ -42,8 +42,8 @@ Beim Öffnen erscheint sofort die **Plantafel** – sie ist die Startseite.
 | `npm run build` / `npm start` | Produktionsbuild und -start |
 | `npm run typecheck` | TypeScript prüfen |
 | `npm test` | Unit- und API-Tests (Vitest) |
-| `npm run db:migrate` | Migration in der Entwicklung |
-| `npm run db:deploy` | Migrationen produktiv anwenden |
+| `npm run db:deploy` | Migrationen anwenden (Ersteinrichtung und Produktion) |
+| `npm run db:migrate` | Neue Migration erzeugen (nur bei Schemaänderungen) |
 | `npm run db:seed` | Demo-Daten neu aufsetzen |
 | `npm run db:studio` | Daten im Prisma Studio ansehen |
 
