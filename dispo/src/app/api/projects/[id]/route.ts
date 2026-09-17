@@ -33,8 +33,16 @@ export const GET = handler(async (_request: Request, ctx: Ctx) => {
     resourceType: a.resourceType,
     resourceLabel:
       a.subcontractor?.companyName ??
-      (a.employee ? fullName(a.employee) : a.siteManager ? fullName(a.siteManager) : (a.placeholderLabel ?? 'Unbesetzt')),
-    resourceShort: a.employee?.shortCode ?? a.siteManager?.shortCode ?? a.subcontractor?.companyName?.slice(0, 12) ?? '??',
+      (a.employee
+        ? fullName(a.employee)
+        : a.siteManager
+          ? fullName(a.siteManager)
+          : (a.placeholderLabel ?? 'Unbesetzt')),
+    resourceShort:
+      a.employee?.shortCode ??
+      a.siteManager?.shortCode ??
+      a.subcontractor?.companyName?.slice(0, 12) ??
+      '??',
     resourceKey: a.employeeId
       ? `MITARBEITER:${a.employeeId}`
       : a.siteManagerId
@@ -88,12 +96,19 @@ export const GET = handler(async (_request: Request, ctx: Ctx) => {
 export const PATCH = handler(async (request: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   const input = await parseBody(request, projectUpdateSchema);
-  const { project, changed } = await updateProject(id, input);
-  return ok({
-    project,
-    changed,
-    message: changed.length ? 'Änderungen gespeichert.' : 'Keine Änderungen.',
-  });
+  const { project, changed, erp } = await updateProject(id, input);
+
+  // Der Disponent soll sehen, ob der Status auch im ERP angekommen ist –
+  // sonst verlässt sich jemand darauf, dass „Das Programm" Bescheid weiss.
+  const message = changed.length
+    ? erp?.versucht
+      ? erp.erfolg
+        ? `Änderungen gespeichert. ${erp.nachricht}`
+        : `Änderungen gespeichert. Das Programm meldet: ${erp.nachricht}`
+      : 'Änderungen gespeichert.'
+    : 'Keine Änderungen.';
+
+  return ok({ project, changed, erp, message });
 });
 
 export const DELETE = handler(async (_request: Request, ctx: Ctx) => {

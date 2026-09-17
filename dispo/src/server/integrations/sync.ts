@@ -7,8 +7,9 @@
  *   Dispo-App führend → Einsätze, Ampel, Material, Kundenbestätigung, Notizen,
  *                       Historie und der Fortschritt der Ausführung
  *
- * Der Abgleich läuft nur in eine Richtung: aus dem ERP herein. Zurück
- * schreiben kann die Schnittstelle bei Projekten nicht.
+ * Hereinlesen ist der Normalfall. Den Projektstatus schreibt die Dispo auch
+ * zurück – aber nicht hier, sondern in dem Moment, in dem ihn jemand ändert
+ * (siehe `writeback.ts`).
  */
 import { prisma } from '@/lib/db';
 import { isoToDbDate, dbDateToIso } from '@/lib/dates';
@@ -27,7 +28,7 @@ import {
 export interface SyncResult {
   provider: string;
   projekte: { neu: number; aktualisiert: number; unveraendert: number };
-  mitarbeiter: { neu: number; aktualisiert: number };
+  mitarbeiter: { neu: number; aktualisiert: number; ausgeschieden: number };
   subunternehmer: { neu: number; aktualisiert: number; uebersprungen: number };
   hinweise: string[];
   message: string;
@@ -52,28 +53,58 @@ export async function syncProjects(): Promise<SyncResult> {
     const hinweise: string[] = [];
 
     // --- 1. Personen -----------------------------------------------------
-    // Wer im ERP als Projektleiter hinterlegt ist, kommt als Bauleiter herein.
+    // Wer im ERP als Projektleiter an einem Projekt hängt, ist Bauleiter.
+    // Achtung: `projectManagerId` zeigt auf einen Benutzer (Login), der
+    // Personalstammsatz hat eine eigene ID – verglichen wird deshalb über
+    // `userErpId`.
     const projektleiterIds = new Set(
       erpProjekte.map((p) => p.projectManagerErpId).filter((v): v is string => !!v),
     );
 
-    const mitarbeiter = { neu: 0, aktualisiert: 0 };
+    const mitarbeiter = { neu: 0, aktualisiert: 0, ausgeschieden: 0 };
+    /** Benutzer-ID des Projektleiters → Bauleiter-ID in der Dispo. */
     const bauleiterNachErpId = new Map<string, string>();
 
     for (const person of erpBenutzer) {
       const name = `${person.firstName} ${person.lastName}`.trim();
       if (!name) continue;
 
-      if (projektleiterIds.has(person.erpId) || person.role?.toLowerCase().includes('bauleit')) {
-        const vorhanden = await prisma.siteManager.findFirst({
-          where: { firstName: person.firstName, lastName: person.lastName },
-        });
+      const istProjektleiter =
+        (person.userErpId !== null && projektleiterIds.has(person.userErpId)) ||
+        projektleiterIds.has(person.erpId) ||
+        Boolean(person.role?.toLowerCase().includes('bauleit'));
+
+      // Ausgeschiedene gehören von der Plantafel herunter – aber gelöscht
+      // wird nichts, sonst verschwindet die Historie ihrer Einsätze.
+      if (person.ausgeschieden) {
+        const stillgelegt = await stillegen(person.erpId, person.firstName, person.lastName);
+        if (stillgelegt) {
+          mitarbeiter.ausgeschieden++;
+          hinweise.push(`${name} ist im ERP ausgeschieden und wurde auf inaktiv gesetzt.`);
+        }
+        continue;
+      }
+
+      if (istProjektleiter) {
+        const vorhanden =
+          (await prisma.siteManager.findFirst({ where: { erpId: person.erpId } })) ??
+          (await prisma.siteManager.findFirst({
+            where: { firstName: person.firstName, lastName: person.lastName },
+          }));
         if (vorhanden) {
+          if (!vorhanden.erpId) {
+            await prisma.siteManager.update({
+              where: { id: vorhanden.id },
+              data: { erpId: person.erpId },
+            });
+          }
+          if (person.userErpId) bauleiterNachErpId.set(person.userErpId, vorhanden.id);
           bauleiterNachErpId.set(person.erpId, vorhanden.id);
           mitarbeiter.aktualisiert++;
         } else {
           const angelegt = await prisma.siteManager.create({
             data: {
+              erpId: person.erpId,
               firstName: person.firstName,
               lastName: person.lastName,
               shortCode: await freiesKuerzel(kuerzel(person.firstName, person.lastName)),
@@ -81,6 +112,7 @@ export async function syncProjects(): Promise<SyncResult> {
               phone: person.phone,
             },
           });
+          if (person.userErpId) bauleiterNachErpId.set(person.userErpId, angelegt.id);
           bauleiterNachErpId.set(person.erpId, angelegt.id);
           mitarbeiter.neu++;
           await writeAudit({
@@ -94,20 +126,29 @@ export async function syncProjects(): Promise<SyncResult> {
         continue;
       }
 
-      // Bürokräfte disponieren wir nicht mit.
+      // Bürokräfte disponieren wir nicht mit, sofern das ERP die Funktion kennt.
       if (person.role && /büro|buero|office|verwaltung/i.test(person.role)) {
         hinweise.push(`${name} ist im ERP als „${person.role}" geführt und wurde übersprungen.`);
         continue;
       }
 
-      const vorhanden = await prisma.employee.findFirst({
-        where: { firstName: person.firstName, lastName: person.lastName },
-      });
+      const vorhanden =
+        (await prisma.employee.findFirst({ where: { erpId: person.erpId } })) ??
+        (await prisma.employee.findFirst({
+          where: { firstName: person.firstName, lastName: person.lastName },
+        }));
       if (vorhanden) {
+        // `active` bleibt unangetastet: wer hier von Hand auf inaktiv gesetzt
+        // wurde, soll nicht beim nächsten Sync wieder auftauchen.
+        await prisma.employee.update({
+          where: { id: vorhanden.id },
+          data: { erpId: person.erpId, phone: person.phone ?? vorhanden.phone },
+        });
         mitarbeiter.aktualisiert++;
       } else {
         const angelegt = await prisma.employee.create({
           data: {
+            erpId: person.erpId,
             firstName: person.firstName,
             lastName: person.lastName,
             shortCode: await freiesKuerzel(kuerzel(person.firstName, person.lastName)),
@@ -145,14 +186,16 @@ export async function syncProjects(): Promise<SyncResult> {
         tradeIds.push(trade.id);
       }
 
-      const vorhanden = await prisma.subcontractor.findFirst({
-        where: { companyName: lieferant.name },
-      });
+      const vorhanden =
+        (await prisma.subcontractor.findFirst({ where: { erpId: lieferant.erpId } })) ??
+        (await prisma.subcontractor.findFirst({ where: { companyName: lieferant.name } }));
 
       if (vorhanden) {
         await prisma.subcontractor.update({
           where: { id: vorhanden.id },
           data: {
+            erpId: lieferant.erpId,
+            companyName: lieferant.name,
             phone: lieferant.phone ?? vorhanden.phone,
             email: lieferant.email ?? vorhanden.email,
             street: lieferant.street ?? vorhanden.street,
@@ -165,6 +208,7 @@ export async function syncProjects(): Promise<SyncResult> {
       } else {
         const angelegt = await prisma.subcontractor.create({
           data: {
+            erpId: lieferant.erpId,
             companyName: lieferant.name,
             contactName: leseAnsprechpartner(lieferant.comment),
             phone: lieferant.phone,
@@ -172,7 +216,9 @@ export async function syncProjects(): Promise<SyncResult> {
             street: lieferant.street,
             zip: lieferant.zip,
             city: lieferant.city,
-            trades: tradeIds.length ? { create: tradeIds.map((tradeId) => ({ tradeId })) } : undefined,
+            trades: tradeIds.length
+              ? { create: tradeIds.map((tradeId) => ({ tradeId })) }
+              : undefined,
           },
         });
         subs.neu++;
@@ -294,7 +340,9 @@ export async function syncProjects(): Promise<SyncResult> {
 
     const message =
       `Projekte: ${projekte.neu} neu, ${projekte.aktualisiert} aktualisiert, ${projekte.unveraendert} unverändert. ` +
-      `Personen: ${mitarbeiter.neu} neu. ` +
+      `Personen: ${mitarbeiter.neu} neu` +
+      (mitarbeiter.ausgeschieden > 0 ? `, ${mitarbeiter.ausgeschieden} ausgeschieden` : '') +
+      '. ' +
       `Subunternehmer: ${subs.neu} neu, ${subs.uebersprungen} Lieferanten übersprungen.`;
 
     await prisma.syncState.update({
@@ -309,7 +357,14 @@ export async function syncProjects(): Promise<SyncResult> {
       },
     });
 
-    return { provider: provider.name, projekte, mitarbeiter, subunternehmer: subs, hinweise, message };
+    return {
+      provider: provider.name,
+      projekte,
+      mitarbeiter,
+      subunternehmer: subs,
+      hinweise,
+      message,
+    };
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unbekannter Fehler beim Sync.';
     await prisma.syncState.update({
@@ -318,6 +373,20 @@ export async function syncProjects(): Promise<SyncResult> {
     });
     throw e;
   }
+}
+
+/**
+ * Setzt einen ausgeschiedenen Mitarbeiter inaktiv – egal ob er in der Dispo
+ * als Monteur oder als Bauleiter geführt wird. Gibt zurück, ob sich etwas
+ * geändert hat, damit der Sync-Bericht nicht bei jedem Lauf dasselbe meldet.
+ */
+async function stillegen(erpId: string, firstName: string, lastName: string): Promise<boolean> {
+  const wo = { OR: [{ erpId }, { firstName, lastName }], active: true };
+  const [e, b] = await Promise.all([
+    prisma.employee.updateMany({ where: wo, data: { active: false } }),
+    prisma.siteManager.updateMany({ where: wo, data: { active: false } }),
+  ]);
+  return e.count + b.count > 0;
 }
 
 /** Kürzel müssen über Mitarbeiter und Bauleiter hinweg eindeutig sein. */

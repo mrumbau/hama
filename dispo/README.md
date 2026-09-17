@@ -117,6 +117,7 @@ interface ErpProvider {
   getProject(erpId)
   getEmployees()
   getSuppliers()
+  setProjectStatus(erpId, status)   // einzige schreibende Operation
 }
 ```
 
@@ -127,26 +128,44 @@ interface ErpProvider {
 | `src/server/integrations/das-programm-provider.ts` | Echte GraphQL-API |
 | `src/server/integrations/mapping.ts` | Übersetzungsregeln (Status, SUB-Erkennung, Gewerke) |
 | `src/server/integrations/sync.ts` | Abgleich in die Dispo-Datenbank |
+| `src/server/integrations/writeback.ts` | Statusmeldung zurück ins ERP |
 
 **Umschalten** – ohne Änderung am übrigen Code:
 
 ```bash
 DISPO_ERP_PROVIDER="das-programm"
-DAS_PROGRAMM_GRAPHQL_URL="https://…/graphql"
 DAS_PROGRAMM_API_KEY="…"
-DAS_PROGRAMM_AUTH_HEADER="Authorization"   # falls abweichend
-DAS_PROGRAMM_AUTH_PREFIX="Bearer "         # falls abweichend
+# Die folgenden haben brauchbare Vorgaben und werden nur bei Abweichung gesetzt:
+DAS_PROGRAMM_GRAPHQL_URL="https://app.das-programm.io/api/graphql"
+DAS_PROGRAMM_AUTH_HEADER="Authorization"
+DAS_PROGRAMM_AUTH_PREFIX="Bearer "
+DAS_PROGRAMM_WRITEBACK="1"   # erlaubt das Zurückschreiben des Projektstatus
 ```
+
+**Prüfen:** Einstellungen → Integrationen → *„Verbindung prüfen“*. Zeigt
+Endpunkt, Header und die Antwort des Servers im Klartext – ein falscher
+Auth-Header ist daran sofort zu erkennen.
 
 **Auslösen:** Einstellungen → Integrationen → *„Projekte aus Das Programm
 aktualisieren“*, oder `POST /api/integrations/das-programm/sync`. Für einen
 automatischen Abgleich genügt ein Cron-Job auf diesen Endpunkt.
 
+Gelesen wird über die dokumentierten Abfragen `projectSearch` / `project`,
+`employeeSearch` / `employee` und `supplierSearch` / `supplier`. Listen und
+Details werden gebündelt abgefragt (25 Datensätze je Anfrage), damit aus 200
+Mitarbeitern nicht 200 Anfragen werden.
+
 ### Was übernommen wird
 
-* **Projekte** – Kunde, Anschrift, Projekt- und Auftragsnummer, Projektleiter
-* **Personen** – wer im ERP Projektleiter ist, wird Bauleiter; alle anderen
-  werden Mitarbeiter. Bürokräfte werden übersprungen und gemeldet.
+* **Projekte** – Kunde, Projekt- und Auftragsnummer, Projektleiter, Termine.
+  Als Anschrift zählt die **Objektadresse** des Projekts, nicht die
+  Rechnungsadresse des Kunden – die Dispo interessiert, wo gearbeitet wird.
+* **Personen** – aus `employeeSearch`. Wer an mindestens einem Projekt als
+  Projektleiter hängt, wird Bauleiter; alle anderen werden Mitarbeiter.
+  Wer im ERP archiviert ist oder dessen Vertrag abgelaufen ist, wird in der
+  Dispo **inaktiv gesetzt, nicht gelöscht** – sonst verschwände die Historie
+  seiner Einsätze. Umgekehrt gilt: wer hier von Hand auf inaktiv gesetzt wurde,
+  taucht beim nächsten Abgleich **nicht** wieder auf.
 * **Subunternehmer** – „Das Programm“ kennt keine eigene Gruppe dafür. Ein
   Lieferant gilt als SUB, wenn im Kommentarfeld „Sub“, „Subunternehmer“ oder
   „Nachunternehmer“ als eigenes Wort steht. Das Gewerk wird aus der Zeile
@@ -154,11 +173,14 @@ automatischen Abgleich genügt ein Cron-Job auf diesen Endpunkt.
   Die Wortgrenze ist Absicht: sonst würde „Substrat“ einen Gartenlieferanten
   zum Subunternehmer machen (dieser Fall ist getestet).
 
+Zugeordnet wird über die **ERP-ID**, nicht über den Namen. Eine Korrektur der
+Schreibweise oder eine Heirat legt deshalb keinen zweiten Datensatz an.
+Gehaltsdaten werden bewusst nicht abgefragt – die Dispo hat dort nichts zu
+suchen.
+
 ### Statusregeln
 
-Der Abgleich läuft **nur in eine Richtung** – aus dem ERP herein. Die
-Schnittstelle bietet keine Schreibfunktion für Projekte, ein Status aus der
-Dispo kann also nicht zurückgeschrieben werden.
+**Aus dem ERP in die Dispo** – läuft bei jedem Abgleich:
 
 | Im ERP | In der Dispo |
 |---|---|
@@ -173,6 +195,26 @@ laufende Planung **nicht** zurückdrehen – sonst springt eine Baustelle, die
 gerade in Ausführung ist, zurück auf „Terminierung erforderlich“, nur weil im
 ERP jemand etwas gespeichert hat. Termine ergänzt der Abgleich, überschreibt
 sie aber nie; Abweichungen werden gemeldet.
+
+**Aus der Dispo ins ERP** – nur bei `DAS_PROGRAMM_WRITEBACK=1`, und nur in dem
+Moment, in dem jemand den Status ändert:
+
+| In der Dispo | Im ERP |
+|---|---|
+| **Erledigt** | → `closed` |
+| **Fertig** | → `invoice` |
+| **In Ausführung**, **Abnahme** | → `order_fulfillment` |
+| alles andere (*geplant*, *warten auf Material* …) | nichts – das sind Planungsstände, die das ERP nichts angehen |
+
+Drei Sicherungen dabei:
+
+1. Geschrieben wird **ausschließlich** das Feld `status`, nichts sonst.
+2. Nur **vorwärts**. Steht im ERP schon eine Rechnung, schiebt ein versehentlich
+   zurückgesetzter Dispo-Status das Projekt dort nicht zurück in die
+   Auftragsabwicklung. Ein unbekannter ERP-Status wird nie überschrieben.
+3. Ein Fehler im ERP **blockiert die Dispo nicht**. Gespeichert ist gespeichert;
+   der Versuch steht mit Begründung in der Projekt-Historie, und die
+   Rückmeldung nach dem Speichern sagt, ob es angekommen ist.
 
 > **Voraussetzung im Arbeitsablauf:** Die Übernahme hängt an Projekten. Zu
 > jedem Auftrag muss in „Das Programm“ ein Projekt existieren, sonst taucht
@@ -244,8 +286,10 @@ Claude-Analyse hinzu; schlägt sie fehl, greift still die Heuristik.
 | `DIRECT_DATABASE_URL` | nein | Verbindung für Migrationen. Fehlt sie, wird sie aus `DATABASE_URL` abgeleitet (Port 6543 → 5432). Nur nötig, wenn Ihr Anbieter das anders regelt. |
 | `DISPO_SEED_ON_DEPLOY` | nein | `1` erzwingt Demo-Daten. Ohne die Variable werden sie nur in eine **leere** Datenbank eingespielt. |
 | `DISPO_ERP_PROVIDER` | nein | `mock` (Standard) oder `das-programm` |
-| `DAS_PROGRAMM_BASE_URL` | bei echter API | Basis-URL des ERP |
 | `DAS_PROGRAMM_API_KEY` | bei echter API | API-Schlüssel |
+| `DAS_PROGRAMM_GRAPHQL_URL` | nein | Endpunkt. Standard `https://app.das-programm.io/api/graphql` |
+| `DAS_PROGRAMM_AUTH_HEADER` / `_AUTH_PREFIX` | nein | Standard `Authorization` und `Bearer ` |
+| `DAS_PROGRAMM_WRITEBACK` | nein | `1` erlaubt der Dispo, den Projektstatus im ERP zu setzen |
 | `THREECX_WEBHOOK_SECRET` | empfohlen | HMAC-Secret des 3CX-Webhooks |
 | `ANTHROPIC_API_KEY` | nein | schaltet die AI-Analyse zu |
 | `DISPO_AI_MODEL` | nein | Modell-ID (Standard `claude-opus-5`) |

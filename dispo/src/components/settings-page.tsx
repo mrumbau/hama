@@ -5,7 +5,7 @@
  */
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Database, Download, Plus, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Database, Download, Plug, Plus, RefreshCw, ShieldAlert } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { useTrades } from '@/lib/queries';
 import { formatDateTime } from '@/lib/dates';
@@ -42,6 +42,17 @@ interface SettingsResponse {
     threeCxConfigured: boolean;
     aiConfigured: boolean;
     database: string;
+  };
+}
+
+interface ErpVerbindung {
+  provider: string;
+  health: { ok: boolean; message: string };
+  konfiguration: {
+    endpunkt: string;
+    schluesselGesetzt: boolean;
+    authHeader: string;
+    zurueckschreiben: boolean;
   };
 }
 
@@ -96,12 +107,18 @@ function IntegrationsTab() {
   const queryClient = useQueryClient();
   const { data } = useSettings();
 
+  // Verbindungstest: der einzige Weg, Endpunkt und Schlüssel von der
+  // laufenden App aus zu prüfen – lokal ist „Das Programm" nicht erreichbar.
+  const verbindung = useQuery({
+    queryKey: ['erp-verbindung'],
+    queryFn: () => api.get<ErpVerbindung>('/api/integrations/das-programm/sync'),
+    enabled: false,
+    retry: false,
+  });
+
   const sync = useMutation({
     mutationFn: () =>
-      api.post<{ message: string; hinweise: string[] }>(
-        '/api/integrations/das-programm/sync',
-        {},
-      ),
+      api.post<{ message: string; hinweise: string[] }>('/api/integrations/das-programm/sync', {}),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       queryClient.invalidateQueries({ queryKey: ['board'] });
@@ -159,13 +176,42 @@ function IntegrationsTab() {
               <dd className="text-right">{erpState?.lastMessage ?? '–'}</dd>
             </div>
           </dl>
-          <Button size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>
-            <RefreshCw className={sync.isPending ? 'animate-spin' : ''} /> Projekte aus Das Programm
-            aktualisieren
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>
+              <RefreshCw className={sync.isPending ? 'animate-spin' : ''} /> Projekte aus Das
+              Programm aktualisieren
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => verbindung.refetch()}
+              disabled={verbindung.isFetching}
+            >
+              <Plug className={verbindung.isFetching ? 'animate-pulse' : ''} /> Verbindung prüfen
+            </Button>
+          </div>
+
+          {verbindung.data ? (
+            <div className="space-y-1 rounded-md border bg-muted/40 p-2 text-2xs">
+              <div className="flex items-center gap-2">
+                <Badge variant={verbindung.data.health.ok ? 'gruen' : 'rot'}>
+                  {verbindung.data.health.ok ? 'Verbunden' : 'Kein Zugriff'}
+                </Badge>
+                <span className="text-muted-foreground">{verbindung.data.health.message}</span>
+              </div>
+              <div className="text-muted-foreground">
+                Endpunkt: <code>{verbindung.data.konfiguration.endpunkt}</code> · Header:{' '}
+                <code>{verbindung.data.konfiguration.authHeader}</code> · Schlüssel:{' '}
+                {verbindung.data.konfiguration.schluesselGesetzt ? 'gesetzt' : 'fehlt'} ·
+                Zurückschreiben: {verbindung.data.konfiguration.zurueckschreiben ? 'ein' : 'aus'}
+              </div>
+            </div>
+          ) : null}
+
           <p className="text-2xs text-muted-foreground">
             Umschalten auf die echte API über <code>DISPO_ERP_PROVIDER=das-programm</code> plus
-            Basis-URL und API-Key.
+            <code>DAS_PROGRAMM_API_KEY</code>. Der Status wandert nur zurück ins ERP, wenn
+            <code>DAS_PROGRAMM_WRITEBACK=1</code> gesetzt ist.
           </p>
         </CardContent>
       </Card>
@@ -254,7 +300,11 @@ function TradesTab() {
             }}
           >
             <Field label="Neues Gewerk" className="flex-1">
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. Estrich" />
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="z. B. Estrich"
+              />
             </Field>
             <Field label="Farbe">
               <Input
@@ -413,9 +463,9 @@ function SystemTab() {
             Geschwindigkeit.
           </p>
           <p>
-            Ist die App öffentlich erreichbar, lässt sich über{' '}
-            <code>DISPO_BASIC_AUTH_USER</code> und <code>DISPO_BASIC_AUTH_PASSWORD</code> ein
-            einfacher serverseitiger Schutz aktivieren. Das ersetzt keine Rechteverwaltung.
+            Ist die App öffentlich erreichbar, lässt sich über <code>DISPO_BASIC_AUTH_USER</code>{' '}
+            und <code>DISPO_BASIC_AUTH_PASSWORD</code> ein einfacher serverseitiger Schutz
+            aktivieren. Das ersetzt keine Rechteverwaltung.
           </p>
           <p>
             Datenbank: <code>{data?.env.database ?? '–'}</code>
@@ -430,13 +480,16 @@ function SystemTab() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-1 text-xs text-muted-foreground">
-          <p>Die gesamte Disposition liegt in einer PostgreSQL-Datenbank. Ein Backup ist ein Dump:</p>
+          <p>
+            Die gesamte Disposition liegt in einer PostgreSQL-Datenbank. Ein Backup ist ein Dump:
+          </p>
           <pre className="overflow-auto rounded bg-muted p-2 text-2xs">
             pg_dump &quot;$DATABASE_URL&quot; -Fc -f backups/dispo-$(date +%F).dump
           </pre>
           <p>Wiederherstellen:</p>
           <pre className="overflow-auto rounded bg-muted p-2 text-2xs">
-            pg_restore -d &quot;$DATABASE_URL&quot; --clean --if-exists backups/dispo-2026-09-16.dump
+            pg_restore -d &quot;$DATABASE_URL&quot; --clean --if-exists
+            backups/dispo-2026-09-16.dump
           </pre>
         </CardContent>
       </Card>

@@ -11,7 +11,18 @@ export const GET = handler(async () => {
     prisma.syncState.findUnique({ where: { provider: 'das-programm' } }),
     provider.healthCheck(),
   ]);
-  return ok({ state, provider: provider.name, health });
+  return ok({
+    state,
+    provider: provider.name,
+    health,
+    /** Was ist konfiguriert? Ohne Geheimnisse – nur ob gesetzt oder nicht. */
+    konfiguration: {
+      endpunkt: process.env.DAS_PROGRAMM_GRAPHQL_URL || '(Standard)',
+      schluesselGesetzt: Boolean(process.env.DAS_PROGRAMM_API_KEY),
+      authHeader: process.env.DAS_PROGRAMM_AUTH_HEADER || 'Authorization',
+      zurueckschreiben: provider.canWriteBack,
+    },
+  });
 });
 
 /** „Projekte aus Das Programm aktualisieren“ */

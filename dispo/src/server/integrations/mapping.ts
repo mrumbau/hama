@@ -118,7 +118,8 @@ export function entscheideStatus(
  * als eigenes Wort: sonst würde „Substrat" oder „Subunternehmerhaftung
  * ausgeschlossen" einen Lieferanten fälschlich zum SUB machen.
  */
-const SUB_MUSTER = /(^|[^a-zäöüß])(sub|subunternehmer|subunternehmen|nachunternehmer)([^a-zäöüß]|$)/i;
+const SUB_MUSTER =
+  /(^|[^a-zäöüß])(sub|subunternehmer|subunternehmen|nachunternehmer)([^a-zäöüß]|$)/i;
 
 export function istSubunternehmer(supplier: Pick<ErpSupplier, 'comment' | 'name'>): boolean {
   const text = `${supplier.comment ?? ''} ${supplier.name}`;
@@ -167,4 +168,86 @@ export function kuerzel(firstName: string, lastName: string): string {
   const a = firstName.trim()[0] ?? '';
   const b = lastName.trim()[0] ?? '';
   return (a + b).toUpperCase() || 'XX';
+}
+
+// ---------------------------------------------------------------------------
+// Rückrichtung: Dispo-Status → ERP-Status
+// ---------------------------------------------------------------------------
+
+/**
+ * Position eines ERP-Status im kaufmännischen Ablauf.
+ *
+ * Gebraucht wird die Reihenfolge für eine einzige, aber wichtige Regel: die
+ * Dispo darf ein Projekt im ERP nur *vorwärts* bewegen. Sonst würde ein
+ * Disponent, der eine Baustelle versehentlich zurücksetzt, im ERP eine
+ * bereits geschriebene Rechnung wieder in die Auftragsabwicklung schieben.
+ */
+const ERP_REIHENFOLGE: Record<string, number> = {
+  new: 0,
+  quotation: 1,
+  sales: 1,
+  won: 2,
+  active: 2,
+  order_fulfillment: 3,
+  invoice: 4,
+  waiting_for_payment: 5,
+  closed: 6,
+};
+
+/** Dispo-Status → ERP-Status. Nur die Schritte, die im ERP etwas bedeuten. */
+const DISPO_NACH_ERP: Partial<Record<ProjectStatusKey, string>> = {
+  IN_AUSFUEHRUNG: 'order_fulfillment',
+  ABNAHME: 'order_fulfillment',
+  FERTIG: 'invoice',
+  ERLEDIGT: 'closed',
+};
+
+export interface RueckschreibEntscheidung {
+  /** ERP-Status, der gesetzt werden soll – oder null, wenn nichts zu tun ist. */
+  erpStatus: string | null;
+  grund: string;
+}
+
+/**
+ * Entscheidet, ob eine Statusänderung in der Dispo ins ERP geschrieben wird.
+ *
+ * Bewusst zurückhaltend: geschrieben wird nur, wenn der neue Status im ERP
+ * echt weiter vorne liegt als der aktuelle. Planungs-Zwischenstände
+ * („warten auf Material") interessieren das ERP nicht und werden geschluckt.
+ */
+export function entscheideRueckschreiben(
+  dispoStatus: ProjectStatusKey,
+  aktuellerErpStatus: string | null,
+): RueckschreibEntscheidung {
+  const ziel = DISPO_NACH_ERP[dispoStatus];
+  if (!ziel) {
+    return { erpStatus: null, grund: 'Dieser Dispo-Status hat im ERP keine Entsprechung.' };
+  }
+
+  const aktuell = (aktuellerErpStatus ?? '').trim().toLowerCase();
+
+  if (aktuell === 'lost') {
+    return { erpStatus: null, grund: 'Auftrag ist im ERP als verloren markiert.' };
+  }
+  if (aktuell === ziel) {
+    return { erpStatus: null, grund: 'Status im ERP stimmt bereits.' };
+  }
+
+  const rangJetzt = ERP_REIHENFOLGE[aktuell];
+  const rangZiel = ERP_REIHENFOLGE[ziel];
+
+  if (rangJetzt === undefined) {
+    return {
+      erpStatus: null,
+      grund: `ERP-Status „${aktuellerErpStatus}" ist unbekannt – es wird nichts überschrieben.`,
+    };
+  }
+  if (rangZiel <= rangJetzt) {
+    return {
+      erpStatus: null,
+      grund: `Das ERP ist bereits bei „${aktuell}" – es wird nicht zurückgesetzt.`,
+    };
+  }
+
+  return { erpStatus: ziel, grund: `Dispo meldet „${dispoStatus}" an das ERP.` };
 }

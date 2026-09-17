@@ -187,7 +187,9 @@ model Trade {
 }
 
 model SiteManager {
-  id        String  @id @default(cuid())
+  id String @id @default(cuid())
+  /// Stabile Benutzer-ID in "Das Programm".
+  erpId     String? @unique
   firstName String
   lastName  String
   shortCode String  @unique
@@ -211,7 +213,9 @@ model SiteManager {
 }
 
 model Employee {
-  id             String  @id @default(cuid())
+  id String @id @default(cuid())
+  /// Stabile ID in "Das Programm". Erlaubt den Abgleich auch nach Umbenennung.
+  erpId          String? @unique
   firstName      String
   lastName       String
   shortCode      String  @unique
@@ -245,7 +249,9 @@ model EmployeeTrade {
 }
 
 model Subcontractor {
-  id          String  @id @default(cuid())
+  id String @id @default(cuid())
+  /// Stabile Lieferanten-ID in "Das Programm".
+  erpId       String? @unique
   companyName String
   contactName String?
   phone       String?

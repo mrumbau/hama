@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  entscheideRueckschreiben,
   entscheideStatus,
   istSubunternehmer,
   kuerzel,
@@ -115,5 +116,47 @@ describe('Kürzel', () => {
 
   it('bleibt bei leeren Namen brauchbar', () => {
     expect(kuerzel('', '')).toBe('XX');
+  });
+});
+
+describe('Rückschreiben in Das Programm', () => {
+  it('meldet eine erledigte Baustelle als abgeschlossen', () => {
+    const e = entscheideRueckschreiben('ERLEDIGT', 'order_fulfillment');
+    expect(e.erpStatus).toBe('closed');
+  });
+
+  it('meldet den Beginn der Ausführung', () => {
+    expect(entscheideRueckschreiben('IN_AUSFUEHRUNG', 'won').erpStatus).toBe('order_fulfillment');
+  });
+
+  it('dreht das ERP niemals zurück', () => {
+    // Im ERP ist bereits eine Rechnung geschrieben. Wenn jemand in der Dispo
+    // den Status auf „in Ausführung" zurücksetzt, darf das dort nichts ändern.
+    const e = entscheideRueckschreiben('IN_AUSFUEHRUNG', 'invoice');
+    expect(e.erpStatus).toBeNull();
+    expect(e.grund).toContain('nicht zurückgesetzt');
+  });
+
+  it('fasst ein bereits abgeschlossenes Projekt nicht an', () => {
+    expect(entscheideRueckschreiben('ERLEDIGT', 'closed').erpStatus).toBeNull();
+  });
+
+  it('lässt verlorene Aufträge in Ruhe', () => {
+    expect(entscheideRueckschreiben('ERLEDIGT', 'lost').erpStatus).toBeNull();
+  });
+
+  it('schreibt reine Planungszustände nicht ins ERP', () => {
+    // „Warten auf Material" ist eine Dispo-Angelegenheit und geht das
+    // kaufmännische System nichts an.
+    expect(
+      entscheideRueckschreiben('WARTEN_AUF_MATERIAL', 'order_fulfillment').erpStatus,
+    ).toBeNull();
+    expect(entscheideRueckschreiben('GEPLANT', 'won').erpStatus).toBeNull();
+  });
+
+  it('überschreibt keinen unbekannten ERP-Status', () => {
+    const e = entscheideRueckschreiben('ERLEDIGT', 'irgendwas_neues');
+    expect(e.erpStatus).toBeNull();
+    expect(e.grund).toContain('unbekannt');
   });
 });

@@ -13,6 +13,7 @@ import {
 } from '@/lib/labels';
 import { ApiError } from './api';
 import { diffFields, PROJECT_FIELD_LABEL, writeAudit } from './audit';
+import { meldeStatusAnErp } from './integrations/writeback';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const nullableIso = isoDate.nullish();
@@ -145,7 +146,14 @@ export async function updateProject(id: string, input: z.infer<typeof projectUpd
     }
   }
 
-  return { project: updated, changed };
+  // Statuswechsel zurueck an „Das Programm" melden. Das laeuft bewusst NACH
+  // dem Speichern und schluckt jeden Fehler: das ERP darf die Dispo nicht
+  // aufhalten, und der Versuch steht in der Projekt-Historie.
+  const erp = changed.includes('status' as never)
+    ? await meldeStatusAnErp(id, updated.erpId, updated.status as never)
+    : null;
+
+  return { project: updated, changed, erp };
 }
 
 export async function deleteProject(id: string) {
@@ -167,10 +175,26 @@ export async function deleteProject(id: string) {
 function scalarData(input: Partial<z.infer<typeof projectInputSchema>>) {
   const data: Record<string, unknown> = {};
   const fields = [
-    'erpId', 'orderNumber', 'projectNumber', 'customerName', 'name', 'street', 'zip', 'city',
-    'contactName', 'contactPhone', 'contactEmail', 'primarySiteManagerId',
-    'secondarySiteManagerId', 'status', 'priority', 'materialStatus', 'customerConfirmed',
-    'trafficLightOverride', 'internalNotes', 'specialNotes',
+    'erpId',
+    'orderNumber',
+    'projectNumber',
+    'customerName',
+    'name',
+    'street',
+    'zip',
+    'city',
+    'contactName',
+    'contactPhone',
+    'contactEmail',
+    'primarySiteManagerId',
+    'secondarySiteManagerId',
+    'status',
+    'priority',
+    'materialStatus',
+    'customerConfirmed',
+    'trafficLightOverride',
+    'internalNotes',
+    'specialNotes',
   ] as const;
   for (const f of fields) {
     if (input[f] !== undefined) data[f] = input[f] === '' ? null : input[f];

@@ -34,18 +34,26 @@ export interface ErpProject {
 }
 
 /**
- * Ein Benutzer aus „Das Programm“. Bauleiter und gewerbliche Mitarbeiter
- * stehen dort in derselben Liste; wer was ist, entscheidet die Dispo-App
- * beim ersten Import und bleibt danach dabei.
+ * Ein Mitarbeiter aus „Das Programm“ (`employeeSearch` / `employee`).
+ *
+ * Bauleiter und gewerbliche Mitarbeiter stehen dort in derselben Liste. Wer
+ * Bauleiter ist, verrät erst das Projekt: dessen `projectManagerId` zeigt auf
+ * einen Benutzer (User), nicht auf den Personalstammsatz – deshalb führen wir
+ * beide IDs mit.
  */
 export interface ErpEmployee {
+  /** ID des Personalstammsatzes. */
   erpId: string;
+  /** ID des zugehörigen Logins, falls vorhanden. Passt zu `projectManagerErpId`. */
+  userErpId: string | null;
   firstName: string;
   lastName: string;
   email: string | null;
   phone: string | null;
   /** Rolle/Funktion, soweit das ERP sie kennt. */
   role: string | null;
+  /** Archiviert oder Vertrag ausgelaufen – gehört nicht mehr auf die Plantafel. */
+  ausgeschieden: boolean;
 }
 
 /**
@@ -74,4 +82,14 @@ export interface ErpProvider {
   getProject(erpId: string): Promise<ErpProject | null>;
   getEmployees(): Promise<ErpEmployee[]>;
   getSuppliers(): Promise<ErpSupplier[]>;
+  /**
+   * Schreibt den Projektstatus zurueck ins ERP.
+   *
+   * Absichtlich die einzige schreibende Operation: alles andere gehoert dem
+   * ERP, und je weniger die Dispo dort anfasst, desto weniger kann sie
+   * kaputtmachen. `null` bedeutet: dieser Provider kann nicht zurueckschreiben.
+   */
+  setProjectStatus?(erpId: string, erpStatus: string): Promise<void>;
+  /** Ist das Zurueckschreiben eingeschaltet und konfiguriert? */
+  readonly canWriteBack: boolean;
 }

@@ -119,11 +119,68 @@ const PROJEKTE: ErpProject[] = [
 ];
 
 const BENUTZER: ErpEmployee[] = [
-  { erpId: 'U-CR', firstName: 'Carsten', lastName: 'Reuter', email: 'c.reuter@mrumbau.example', phone: '+49 89 1234567-11', role: 'Bauleitung' },
-  { erpId: 'U-MT', firstName: 'Marlon', lastName: 'Tschon', email: 'm.tschon@mrumbau.example', phone: '+49 89 1234567-12', role: 'Bauleitung' },
-  { erpId: 'U-LC', firstName: 'Luigi', lastName: 'Curatolo', email: null, phone: '+49 170 1111111', role: null },
-  { erpId: 'U-GP', firstName: 'Gerhard', lastName: 'Pettkat', email: null, phone: '+49 170 3333333', role: null },
-  { erpId: 'U-NJ', firstName: 'Nada', lastName: 'Jerinic', email: null, phone: null, role: 'Büro' },
+  {
+    erpId: 'E-1',
+    userErpId: 'U-CR',
+    firstName: 'Carsten',
+    lastName: 'Reuter',
+    email: 'c.reuter@mrumbau.example',
+    phone: '+49 89 1234567-11',
+    role: 'Bauleitung',
+    ausgeschieden: false,
+  },
+  {
+    erpId: 'E-2',
+    userErpId: 'U-MT',
+    firstName: 'Marlon',
+    lastName: 'Tschon',
+    email: 'm.tschon@mrumbau.example',
+    phone: '+49 89 1234567-12',
+    role: 'Bauleitung',
+    ausgeschieden: false,
+  },
+  {
+    erpId: 'E-3',
+    userErpId: 'U-LC',
+    firstName: 'Luigi',
+    lastName: 'Curatolo',
+    email: null,
+    phone: '+49 170 1111111',
+    role: null,
+    ausgeschieden: false,
+  },
+  {
+    erpId: 'E-4',
+    userErpId: 'U-GP',
+    firstName: 'Gerhard',
+    lastName: 'Pettkat',
+    email: null,
+    phone: '+49 170 3333333',
+    role: null,
+    ausgeschieden: false,
+  },
+  {
+    erpId: 'E-5',
+    userErpId: 'U-NJ',
+    firstName: 'Nada',
+    lastName: 'Jerinic',
+    email: null,
+    phone: null,
+    role: 'Büro',
+    ausgeschieden: false,
+  },
+  // Ausgeschieden: darf nicht auf der Plantafel landen, und ein bereits
+  // angelegter Mitarbeiter muss beim Sync inaktiv werden.
+  {
+    erpId: 'E-6',
+    userErpId: 'U-AV',
+    firstName: 'Andreas',
+    lastName: 'Vorbei',
+    email: null,
+    phone: null,
+    role: null,
+    ausgeschieden: true,
+  },
 ];
 
 const LIEFERANTEN: ErpSupplier[] = [
@@ -191,8 +248,18 @@ const LIEFERANTEN: ErpSupplier[] = [
   },
 ];
 
+/**
+ * Im Mock zurückgeschriebene Status.
+ *
+ * Bewusst ausserhalb der Klasse: `getErpProvider()` erzeugt bei jedem Aufruf
+ * eine neue Instanz, und der Testmodus soll den kompletten Weg zeigen –
+ * Status in der Dispo setzen, danach synchronisieren, Wert steht im ERP.
+ */
+const MOCK_GESCHRIEBEN = new Map<string, string>();
+
 export class MockErpProvider implements ErpProvider {
   readonly name = 'Das Programm (Mock)';
+  readonly canWriteBack = true;
 
   async healthCheck() {
     return { ok: true, message: 'Testmodus – es werden Beispieldaten geliefert.' };
@@ -201,11 +268,24 @@ export class MockErpProvider implements ErpProvider {
   async getProjects(): Promise<ErpProject[]> {
     // Kleine Latenz, damit sich der Sync-Button im UI realistisch verhält.
     await new Promise((r) => setTimeout(r, 200));
-    return PROJEKTE;
+    return PROJEKTE.map((p) => this.mitStatus(p));
   }
 
   async getProject(erpId: string): Promise<ErpProject | null> {
-    return PROJEKTE.find((p) => p.erpId === erpId) ?? null;
+    const treffer = PROJEKTE.find((p) => p.erpId === erpId);
+    return treffer ? this.mitStatus(treffer) : null;
+  }
+
+  async setProjectStatus(erpId: string, erpStatus: string): Promise<void> {
+    if (!PROJEKTE.some((p) => p.erpId === erpId)) {
+      throw new Error(`Projekt ${erpId} gibt es im ERP nicht.`);
+    }
+    MOCK_GESCHRIEBEN.set(erpId, erpStatus);
+  }
+
+  private mitStatus(p: ErpProject): ErpProject {
+    const ueberschrieben = MOCK_GESCHRIEBEN.get(p.erpId);
+    return ueberschrieben ? { ...p, status: ueberschrieben } : p;
   }
 
   async getEmployees(): Promise<ErpEmployee[]> {
