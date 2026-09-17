@@ -43,6 +43,7 @@ import {
 
 const RANGE_LABEL: Record<BoardRange, string> = {
   tag: 'Tag',
+  sieben: '7 Tage',
   woche: 'Woche',
   zweiwochen: '2 Wochen',
   monat: 'Monat',
@@ -114,11 +115,7 @@ export function BoardToolbar({
         <Button variant="outline" size="icon-sm" onClick={() => onShift(-1)} aria-label="Zurück">
           <ChevronLeft />
         </Button>
-        <Button
-          variant={anchor === todayIso() ? 'default' : 'outline'}
-          size="sm"
-          onClick={onToday}
-        >
+        <Button variant={anchor === todayIso() ? 'default' : 'outline'} size="sm" onClick={onToday}>
           Heute
         </Button>
         <Button variant="outline" size="icon-sm" onClick={() => onShift(1)} aria-label="Weiter">
@@ -139,16 +136,7 @@ export function BoardToolbar({
         ))}
       </Select>
 
-      <div className="relative">
-        <CalendarDays className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          type="date"
-          value={anchor}
-          onChange={(e) => e.target.value && onAnchor(e.target.value)}
-          className="h-8 w-[10.5rem] pl-7 text-xs"
-          aria-label="Datum wählen"
-        />
-      </div>
+      <MonatsSprung anchor={anchor} onAnchor={onAnchor} />
 
       <span className="hidden min-w-0 px-1 text-xs text-muted-foreground sm:block">
         {rangeCaption(range, from, to)}
@@ -292,8 +280,61 @@ export function BoardToolbar({
   );
 }
 
+/**
+ * Monat und Jahr direkt wählen.
+ *
+ * Das Datumsfeld des Browsers ist gut für „übermorgen" und schlecht für
+ * „März 2028" – dorthin klickt man sich sonst durch zwanzig Monate. Zwei
+ * Auswahlfelder sind hier schneller als jeder Kalender.
+ */
+function MonatsSprung({ anchor, onAnchor }: { anchor: IsoDate; onAnchor: (d: IsoDate) => void }) {
+  const [jahr, monat] = anchor.split('-').map(Number);
+  const heute = Number(todayIso().slice(0, 4));
+  // Ein Jahr zurück genügt für Nachträge, fünf nach vorn für Rahmentermine.
+  const jahre = Array.from({ length: 7 }, (_, i) => heute - 1 + i);
+
+  const springe = (j: number, m: number) => {
+    const letzterTag = new Date(j, m, 0).getDate();
+    const tag = Math.min(Number(anchor.slice(8, 10)), letzterTag);
+    onAnchor(`${j}-${String(m).padStart(2, '0')}-${String(tag).padStart(2, '0')}` as IsoDate);
+  };
+
+  return (
+    <div className="flex items-center gap-0.5">
+      <CalendarDays className="mr-0.5 size-3.5 text-muted-foreground" />
+      <Select
+        value={String(monat)}
+        onChange={(e) => springe(jahr, Number(e.target.value))}
+        className="h-8 w-auto text-xs"
+        aria-label="Monat wählen"
+      >
+        {MONTH_LONG.map((name, i) => (
+          <option key={name} value={i + 1}>
+            {name}
+          </option>
+        ))}
+      </Select>
+      <Select
+        value={String(jahr)}
+        onChange={(e) => springe(Number(e.target.value), monat)}
+        className="h-8 w-auto text-xs"
+        aria-label="Jahr wählen"
+      >
+        {(jahre.includes(jahr) ? jahre : [jahr, ...jahre].sort()).map((j) => (
+          <option key={j} value={j}>
+            {j}
+          </option>
+        ))}
+      </Select>
+    </div>
+  );
+}
+
 function rangeCaption(range: BoardRange, from: IsoDate, to: IsoDate) {
   if (range === 'tag') return formatDayLong(from);
+  if (range === 'sieben') {
+    return `7 Tage · ${formatDateShort(from)} – ${formatDateShort(to)}`;
+  }
   if (range === 'monat') {
     const [y, m] = from.split('-').map(Number);
     return `${MONTH_LONG[m - 1]} ${y}`;

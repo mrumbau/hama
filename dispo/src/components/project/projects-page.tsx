@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, Plus, TriangleAlert } from 'lucide-react';
+import { Archive, Building2, Plus, TriangleAlert } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { useSiteManagers } from '@/lib/queries';
 import { formatDateShort } from '@/lib/dates';
@@ -37,6 +37,9 @@ export function ProjectsPage() {
   const [ampel, setAmpel] = React.useState('');
   const [manager, setManager] = React.useState('');
   const [onlyProblems, setOnlyProblems] = React.useState(false);
+  // Abgeschlossene sind standardmäßig aus dem Weg: Angebote, die nie zum
+  // Auftrag geworden sind, gehören nicht in die tägliche Liste.
+  const [showClosed, setShowClosed] = React.useState(false);
   const [create, setCreate] = React.useState(false);
 
   const { data: managers } = useSiteManagers();
@@ -48,8 +51,9 @@ export function ProjectsPage() {
     if (ampel) p.set('ampel', ampel);
     if (manager) p.set('bauleiter', manager);
     if (onlyProblems) p.set('nurProbleme', '1');
+    if (showClosed) p.set('abgeschlossen', '1');
     return p.toString();
-  }, [search, status, ampel, manager, onlyProblems]);
+  }, [search, status, ampel, manager, onlyProblems, showClosed]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['projects', query],
@@ -122,6 +126,14 @@ export function ProjectsPage() {
             onClick={() => setOnlyProblems((v) => !v)}
           >
             <TriangleAlert /> Nur Probleme
+          </Button>
+          <Button
+            variant={showClosed ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={() => setShowClosed((v) => !v)}
+            title="Erledigte Baustellen und Projekte, die nicht zum Auftrag geführt haben"
+          >
+            <Archive /> Abgeschlossene
           </Button>
           <span className="ml-auto text-2xs text-muted-foreground">{projects.length} Projekte</span>
         </div>
@@ -325,7 +337,10 @@ function CreateProjectDialog({
               />
             </Field>
             <Field label="Projektname *">
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <Input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
             </Field>
             <Field label="Auftragsnummer">
               <Input
@@ -348,13 +363,19 @@ function CreateProjectDialog({
               </Select>
             </Field>
             <Field label="Straße" className="col-span-2">
-              <Input value={form.street} onChange={(e) => setForm({ ...form, street: e.target.value })} />
+              <Input
+                value={form.street}
+                onChange={(e) => setForm({ ...form, street: e.target.value })}
+              />
             </Field>
             <Field label="PLZ">
               <Input value={form.zip} onChange={(e) => setForm({ ...form, zip: e.target.value })} />
             </Field>
             <Field label="Ort">
-              <Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+              <Input
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+              />
             </Field>
             <Field label="Geplanter Beginn">
               <Input

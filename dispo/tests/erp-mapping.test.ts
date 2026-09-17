@@ -254,3 +254,22 @@ describe('Gewerke ohne hängenden Bindestrich', () => {
     expect(leseGewerke('Tätigkeit: Putz- und Malerarbeiten')).toEqual(['Putz', 'Malerarbeiten']);
   });
 });
+
+describe('Weitere Sperrvermerke', () => {
+  it('erkennt „Nicht mehr aktiv"', () => {
+    // So steht es bei Badalli Arton im ERP.
+    expect(
+      istGesperrt('Lieferant seit: 02.02.2026\nHaftpflicht fehlt !!!!\nNicht mehr aktiv'),
+    ).toBe(true);
+  });
+
+  it('erkennt „Sub inaktiv"', () => {
+    expect(istGesperrt('Tätigkeit: Subunternehmer – Trockenbau\nSub inaktiv')).toBe(true);
+  });
+
+  it('hält „Sub aktiv" NICHT für eine Sperre', () => {
+    // Die Stolperfalle: „aktiv" steckt in „inaktiv", aber nicht umgekehrt.
+    expect(istGesperrt('Tätigkeit: Subunternehmer – Trockenbau\nSub aktiv')).toBe(false);
+    expect(istGesperrt('Lieferant seit: 29.05.2024\nSub aktiv')).toBe(false);
+  });
+});

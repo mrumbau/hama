@@ -76,7 +76,9 @@ export function BoardResources({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto">
+    // pb-32: Luft unter der letzten Zeile. Ohne sie klebt sie am
+    // Fensterrand und man sieht nicht, dass die Liste zu Ende ist.
+    <div className="min-h-0 flex-1 overflow-auto pb-32">
       <table className="w-full border-separate border-spacing-0 text-sm">
         <BoardHeader
           days={board.days}
@@ -99,7 +101,7 @@ export function BoardResources({
                 <tr key={resource.key}>
                   <ResourceRowHeader resource={resource} />
                   {board.days.map((day) => {
-                    const items = byResourceDay.get(`${resource.key}|${day}`) ?? [];
+                    const items = nachUhrzeit(byResourceDay.get(`${resource.key}|${day}`) ?? []);
                     const conflict = Boolean(board.conflicts[`${resource.key}|${day}`]);
                     return (
                       <BoardCell
@@ -224,4 +226,20 @@ function ResourceRowHeader({ resource }: { resource: ResourceDTO }) {
       </span>
     </th>
   );
+}
+
+/**
+ * Einsätze eines Tages in die Reihenfolge bringen, in der sie stattfinden.
+ *
+ * Wer vormittags auf der einen und nachmittags auf der anderen Baustelle ist,
+ * soll das auch so lesen können. Einsätze ohne Uhrzeit gelten als ganztägig
+ * und stehen oben.
+ */
+function nachUhrzeit(items: AssignmentDTO[]): AssignmentDTO[] {
+  const minuten = (zeit: string | null) => {
+    if (!zeit) return -1;
+    const t = /^(\d{1,2}):(\d{2})/.exec(zeit.trim());
+    return t ? Number(t[1]) * 60 + Number(t[2]) : -1;
+  };
+  return [...items].sort((a, b) => minuten(a.startTime) - minuten(b.startTime));
 }

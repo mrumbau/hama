@@ -46,7 +46,15 @@ export function countActiveFilters(f: BoardFilterState) {
   );
 }
 
-const STEP: Record<BoardRange, number> = { tag: 1, woche: 7, zweiwochen: 14, monat: 0 };
+// Geblättert wird immer wochenweise – auch in der rollenden Sieben-Tage-
+// Ansicht. Wer „weiter" drückt, denkt in Wochen, nicht in einzelnen Tagen.
+const STEP: Record<BoardRange, number> = {
+  tag: 1,
+  sieben: 7,
+  woche: 7,
+  zweiwochen: 14,
+  monat: 0,
+};
 
 /**
  * Plantafel-Zustand liegt in der URL: damit ist jede Ansicht teilbar,

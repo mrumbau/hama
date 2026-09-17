@@ -3,7 +3,18 @@
  */
 import { createHmac } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { addDays, BASE_URL, del, get, isoIn, post, postSigned, sign, TAG, webhookSecret } from './helpers';
+import {
+  addDays,
+  BASE_URL,
+  del,
+  get,
+  isoIn,
+  post,
+  postSigned,
+  sign,
+  TAG,
+  webhookSecret,
+} from './helpers';
 
 const created: { projects: string[]; managers: string[] } = { projects: [], managers: [] };
 
@@ -59,9 +70,10 @@ describe('Das Programm – Synchronisation', () => {
   });
 
   it('übernimmt Gewerk und Ansprechpartner aus dem Kommentarfeld', async () => {
-    const subs = await get<
-      { companyName: string; contactName: string | null; tradeNames: string[] }[]
-    >('/api/subcontractors');
+    const subs =
+      await get<{ companyName: string; contactName: string | null; tradeNames: string[] }[]>(
+        '/api/subcontractors',
+      );
     const elektro = subs.body.find((s) => s.companyName === 'Elektro Müller GmbH');
     expect(elektro?.contactName).toBe('Stefan Müller');
     expect(elektro?.tradeNames).toContain('Elektro');
@@ -128,8 +140,7 @@ describe('3CX – Ereigniseingang', () => {
       durationSeconds: 392,
       agentName: 'Carsten Reuter',
       customerName: `Telefonkunde ${TAG}`,
-      summary:
-        'Der Kunde kann am Dienstag nicht. Die Arbeiten sollen am Donnerstag stattfinden.',
+      summary: 'Der Kunde kann am Dienstag nicht. Die Arbeiten sollen am Donnerstag stattfinden.',
       isDemo: true,
     });
 

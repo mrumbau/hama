@@ -106,9 +106,7 @@ export function AssignmentChip({
           </span>
         ) : null}
         {conflict ? <AlertTriangle className="size-3 shrink-0 text-destructive" /> : null}
-        {assignment.note ? (
-          <StickyNote className="size-3 shrink-0 text-muted-foreground" />
-        ) : null}
+        {assignment.note ? <StickyNote className="size-3 shrink-0 text-muted-foreground" /> : null}
         {assignment.status === 'BESTAETIGT' ? (
           <span className="size-1.5 shrink-0 rounded-full bg-ampel-gruen" title="Bestätigt" />
         ) : null}
@@ -229,8 +227,12 @@ function ChipTooltip({
       <p>
         <span className="text-muted-foreground">Zeitraum: </span>
         {formatDateShort(assignment.startDate)}
-        {assignment.endDate !== assignment.startDate ? ` – ${formatDateShort(assignment.endDate)}` : ''}
-        {assignment.startTime ? ` · ${assignment.startTime}${assignment.endTime ? `–${assignment.endTime}` : ''}` : ''}
+        {assignment.endDate !== assignment.startDate
+          ? ` – ${formatDateShort(assignment.endDate)}`
+          : ''}
+        {assignment.startTime
+          ? ` · ${assignment.startTime}${assignment.endTime ? `–${assignment.endTime}` : ''}`
+          : ''}
       </p>
       <p>
         <span className="text-muted-foreground">Art: </span>

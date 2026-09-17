@@ -15,12 +15,26 @@ export const GET = handler(async (request: Request) => {
   const today = todayIso();
   const board = await loadBoard(addDays(today, -60), addDays(today, 120), {
     query: params.get('q') || undefined,
-    statuses: params.getAll('status').flatMap((s) => s.split(',')).filter(Boolean) || undefined,
+    statuses:
+      params
+        .getAll('status')
+        .flatMap((s) => s.split(','))
+        .filter(Boolean) || undefined,
     siteManagerIds:
-      params.getAll('bauleiter').flatMap((s) => s.split(',')).filter(Boolean) || undefined,
-    trafficLights: params.getAll('ampel').flatMap((s) => s.split(',')).filter(Boolean) || undefined,
+      params
+        .getAll('bauleiter')
+        .flatMap((s) => s.split(','))
+        .filter(Boolean) || undefined,
+    trafficLights:
+      params
+        .getAll('ampel')
+        .flatMap((s) => s.split(','))
+        .filter(Boolean) || undefined,
     onlyProblems: params.get('nurProbleme') === '1',
-    includeClosed: params.get('abgeschlossen') !== '0',
+    // Abgeschlossenes ist standardmaessig aus dem Weg. Wer danach sucht,
+    // schaltet es ein - andersherum steht die Liste voll mit Angeboten, die
+    // nie zum Auftrag geworden sind.
+    includeClosed: params.get('abgeschlossen') === '1',
   });
 
   return ok({ projects: board.projects, assignments: board.assignments });

@@ -97,7 +97,10 @@ export function Plantafel() {
 
   /** Führt den Move aus und bietet danach Undo an. */
   const performMove = React.useCallback(
-    async (move: PendingMove, options: { force?: boolean; reason?: string; reasonText?: string; silent?: boolean } = {}) => {
+    async (
+      move: PendingMove,
+      options: { force?: boolean; reason?: string; reasonText?: string; silent?: boolean } = {},
+    ) => {
       try {
         const res = await api.post<{
           message: string;
@@ -586,7 +589,10 @@ function NoteDialog({
             e.preventDefault();
             setBusy(true);
             try {
-              await api.patch(`/api/assignments/${assignment.id}`, { note: note || null, force: true });
+              await api.patch(`/api/assignments/${assignment.id}`, {
+                note: note || null,
+                force: true,
+              });
               onSaved();
               toast({ title: 'Notiz gespeichert.', tone: 'success' });
               onClose();

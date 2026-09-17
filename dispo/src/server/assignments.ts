@@ -111,6 +111,8 @@ export async function findConflicts(params: {
   subcontractorId?: string | null;
   startDate: IsoDate;
   endDate: IsoDate;
+  startTime?: string | null;
+  endTime?: string | null;
 }): Promise<ConflictInfo[]> {
   const resourceWhere = params.employeeId
     ? { employeeId: params.employeeId }
@@ -141,14 +143,27 @@ export async function findConflicts(params: {
     take: 20,
   });
 
-  return overlapping.map((a) => ({
-    assignmentId: a.id,
-    resourceLabel:
-      a.subcontractor?.companyName ??
-      (a.employee ? fullName(a.employee) : a.siteManager ? fullName(a.siteManager) : 'Ressource'),
-    date: dbDateToIso(a.startDate),
-    projectLabel: `${a.project.customerName} – ${a.project.name}`,
-  }));
+  return (
+    overlapping
+      // Zweimal am Tag ist Alltag: vormittags die eine Baustelle, nachmittags
+      // die andere. Gewarnt wird nur, wenn die Uhrzeiten sich wirklich ins
+      // Gehege kommen – oder wenn bei einem der beiden keine steht.
+      .filter((a) =>
+        zeitenUeberschneidenSich(params.startTime, params.endTime, a.startTime, a.endTime),
+      )
+      .map((a) => ({
+        assignmentId: a.id,
+        resourceLabel:
+          a.subcontractor?.companyName ??
+          (a.employee
+            ? fullName(a.employee)
+            : a.siteManager
+              ? fullName(a.siteManager)
+              : 'Ressource'),
+        date: dbDateToIso(a.startDate),
+        projectLabel: `${a.project.customerName} – ${a.project.name}`,
+      }))
+  );
 }
 
 function conflictMessage(conflicts: ConflictInfo[]): string {
@@ -199,6 +214,8 @@ export async function createAssignment(input: CreateAssignmentInput) {
     subcontractorId: input.subcontractorId,
     startDate,
     endDate,
+    startTime: input.startTime,
+    endTime: input.endTime,
   });
 
   const istSub = input.resourceType === 'SUBUNTERNEHMER';
@@ -245,7 +262,13 @@ export async function createAssignment(input: CreateAssignmentInput) {
       (input.kind && input.kind !== 'ARBEIT'
         ? ` (${ASSIGNMENT_KIND_LABEL[input.kind as keyof typeof ASSIGNMENT_KIND_LABEL]})`
         : ''),
-    newValue: { resource: label, startDate, endDate, art: input.kind ?? 'ARBEIT', taetigkeiten: input.tasks ?? [] },
+    newValue: {
+      resource: label,
+      startDate,
+      endDate,
+      art: input.kind ?? 'ARBEIT',
+      taetigkeiten: input.tasks ?? [],
+    },
     source: (input.source ?? 'MANUELL') as never,
     note: conflicts.length > 0 ? 'Trotz Terminüberschneidung eingeplant.' : null,
   });
@@ -263,7 +286,8 @@ export async function updateAssignment(id: string, input: z.infer<typeof updateA
   const oldStart = dbDateToIso(existing.startDate);
   const oldEnd = dbDateToIso(existing.endDate);
   const startDate = input.startDate ?? oldStart;
-  const endDate = input.endDate ?? (input.startDate ? addSameLength(input.startDate, oldStart, oldEnd) : oldEnd);
+  const endDate =
+    input.endDate ?? (input.startDate ? addSameLength(input.startDate, oldStart, oldEnd) : oldEnd);
   if (endDate < startDate) throw new ApiError('Das Ende liegt vor dem Beginn.', 422);
 
   const projectId = input.projectId ?? existing.projectId;
@@ -429,4 +453,33 @@ export async function deleteAssignment(id: string) {
   });
 
   return { label, existing };
+}
+
+/** Minuten seit Mitternacht, oder null ohne Uhrzeit. */
+function minuten(zeit: string | null | undefined): number | null {
+  if (!zeit) return null;
+  const treffer = /^(\d{1,2}):(\d{2})/.exec(zeit.trim());
+  return treffer ? Number(treffer[1]) * 60 + Number(treffer[2]) : null;
+}
+
+/**
+ * Ueberschneiden sich zwei Zeitfenster am selben Tag?
+ *
+ * Fehlt auch nur eine Grenze, gilt der Einsatz als ganztaegig. Das ist die
+ * vorsichtige Auslegung: lieber einmal zu viel nachfragen als jemanden
+ * doppelt verplanen, weil niemand eine Uhrzeit eingetragen hat.
+ */
+export function zeitenUeberschneidenSich(
+  aStart: string | null | undefined,
+  aEnde: string | null | undefined,
+  bStart: string | null | undefined,
+  bEnde: string | null | undefined,
+): boolean {
+  const aVon = minuten(aStart);
+  const aBis = minuten(aEnde);
+  const bVon = minuten(bStart);
+  const bBis = minuten(bEnde);
+
+  if (aVon === null || aBis === null || bVon === null || bBis === null) return true;
+  return aVon < bBis && bVon < aBis;
 }

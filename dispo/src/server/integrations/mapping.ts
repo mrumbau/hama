@@ -149,7 +149,8 @@ export function istSubunternehmer(supplier: Pick<ErpSupplier, 'comment' | 'name'
  * mehr beauftragt werden darf, hat auf der Plantafel nichts verloren, egal
  * was sonst noch im Feld steht.
  */
-const GESPERRT_MUSTER = /(gesperrt|nicht\s+mehr\s+(nutzen|beauftragen)|keine\s+zusammenarbeit)/i;
+const GESPERRT_MUSTER =
+  /(gesperrt|sperre|nicht\s+mehr\s+(aktiv|nutzen|verwenden|beauftragen|einsetzen)|keine\s+zusammenarbeit|zusammenarbeit\s+beendet|\binaktiv\b)/i;
 
 export function istGesperrt(comment: string | null): boolean {
   return comment ? GESPERRT_MUSTER.test(comment) : false;

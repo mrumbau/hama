@@ -54,7 +54,9 @@ export function BoardProjects({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto">
+    // pb-32: Luft unter der letzten Zeile. Ohne sie klebt sie am
+    // Fensterrand und man sieht nicht, dass die Liste zu Ende ist.
+    <div className="min-h-0 flex-1 overflow-auto pb-32">
       <table className="w-full border-separate border-spacing-0 text-sm">
         <BoardHeader
           days={board.days}
@@ -67,7 +69,7 @@ export function BoardProjects({
             <tr key={project.id} className="group/row">
               <ProjectRowHeader project={project} onOpen={() => onOpenProject(project.id)} />
               {board.days.map((day) => {
-                const items = byProjectDay.get(`${project.id}|${day}`) ?? [];
+                const items = nachUhrzeit(byProjectDay.get(`${project.id}|${day}`) ?? []);
                 return (
                   <BoardCell
                     key={day}
@@ -104,13 +106,7 @@ export function BoardProjects({
   );
 }
 
-function ProjectRowHeader({
-  project,
-  onOpen,
-}: {
-  project: ProjectSummaryDTO;
-  onOpen: () => void;
-}) {
+function ProjectRowHeader({ project, onOpen }: { project: ProjectSummaryDTO; onOpen: () => void }) {
   return (
     <th scope="row" className="board-sticky-col border-b border-r p-0 text-left align-top">
       <button
@@ -182,4 +178,20 @@ function ProjectRowHeader({
       </button>
     </th>
   );
+}
+
+/**
+ * Einsätze eines Tages in die Reihenfolge bringen, in der sie stattfinden.
+ *
+ * Wer vormittags auf der einen und nachmittags auf der anderen Baustelle ist,
+ * soll das auch so lesen können. Einsätze ohne Uhrzeit gelten als ganztägig
+ * und stehen oben.
+ */
+function nachUhrzeit(items: AssignmentDTO[]): AssignmentDTO[] {
+  const minuten = (zeit: string | null) => {
+    if (!zeit) return -1;
+    const t = /^(\d{1,2}):(\d{2})/.exec(zeit.trim());
+    return t ? Number(t[1]) * 60 + Number(t[2]) : -1;
+  };
+  return [...items].sort((a, b) => minuten(a.startTime) - minuten(b.startTime));
 }

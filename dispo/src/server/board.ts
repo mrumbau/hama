@@ -143,28 +143,36 @@ export async function loadBoard(
     else byProject.set(a.projectId, [a]);
   }
 
-  // --- Konflikte: dieselbe Ressource am selben Tag auf mehreren Baustellen ---
-  const dayIndex = new Map<string, Set<string>>(); // resourceKey|date -> projectIds
+  // --- Konflikte: dieselbe Ressource am selben Tag, zur selben Zeit ---
+  //
+  // Zweimal am Tag eingeplant ist kein Fehler, sondern Alltag: vormittags
+  // Baustelle A, nachmittags Baustelle B. Ein Konflikt ist es erst, wenn die
+  // Uhrzeiten sich überschneiden – oder wenn bei mindestens einem Einsatz gar
+  // keine Zeit steht, denn dann weiß niemand, wann er wo ist.
+  const dayIndex = new Map<string, AssignmentDTO[]>(); // resourceKey|date -> Einsätze
   for (const a of assignments) {
     if (a.status === 'ABGESAGT' || a.resourceType === 'UNBESETZT') continue;
     for (let d = a.startDate; d <= a.endDate; d = addDays(d, 1)) {
       const k = `${a.resourceKey}|${d}`;
-      const set = dayIndex.get(k) ?? new Set<string>();
-      set.add(a.projectId);
-      dayIndex.set(k, set);
+      const list = dayIndex.get(k);
+      if (list) list.push(a);
+      else dayIndex.set(k, [a]);
     }
   }
   const conflicts: Record<string, string[]> = {};
   const staffConflictProjects = new Set<string>();
   const subConflictProjects = new Set<string>();
-  for (const [key, projectIds] of dayIndex) {
-    if (projectIds.size < 2) continue;
+  for (const [key, list] of dayIndex) {
     // Bauleiter zaehlen nicht als Konflikt – sie betreuen naturgemaess mehrere
     // Baustellen gleichzeitig.
     if (key.startsWith('BAULEITER:')) continue;
-    conflicts[key] = [...projectIds];
+
+    const betroffen = ueberschneidendeProjekte(list);
+    if (betroffen.size < 2) continue;
+
+    conflicts[key] = [...betroffen];
     const target = key.startsWith('SUBUNTERNEHMER:') ? subConflictProjects : staffConflictProjects;
-    for (const p of projectIds) target.add(p);
+    for (const p of betroffen) target.add(p);
   }
 
   // --- Projekte + Ampel ---
@@ -359,4 +367,45 @@ const BAULEITUNG_FAEHIGKEIT = 'bauleitung';
 
 function hatFaehigkeit(trades: { trade: { name: string } }[], gesucht: string): boolean {
   return trades.some((t) => t.trade.name.trim().toLowerCase() === gesucht);
+}
+
+/** Minuten seit Mitternacht, oder null wenn keine Uhrzeit hinterlegt ist. */
+function minuten(zeit: string | null): number | null {
+  if (!zeit) return null;
+  const treffer = /^(\d{1,2}):(\d{2})/.exec(zeit.trim());
+  return treffer ? Number(treffer[1]) * 60 + Number(treffer[2]) : null;
+}
+
+/**
+ * Welche Baustellen kollidieren an diesem Tag wirklich?
+ *
+ * Zwei Einsätze derselben Person überschneiden sich, wenn ihre Zeitfenster
+ * sich überlappen. Fehlt bei einem von beiden die Uhrzeit, gilt er als
+ * ganztägig – dann ist jede weitere Baustelle am selben Tag eine Kollision,
+ * weil sich sonst niemand darauf verlassen kann.
+ */
+function ueberschneidendeProjekte(list: AssignmentDTO[]): Set<string> {
+  const betroffen = new Set<string>();
+
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      const a = list[i];
+      const b = list[j];
+      if (a.projectId === b.projectId) continue;
+
+      const aVon = minuten(a.startTime);
+      const aBis = minuten(a.endTime);
+      const bVon = minuten(b.startTime);
+      const bBis = minuten(b.endTime);
+
+      // Ganztägig, sobald eine der beiden Grenzen fehlt.
+      const ganztags = aVon === null || aBis === null || bVon === null || bBis === null;
+      if (ganztags || (aVon! < bBis! && bVon! < aBis!)) {
+        betroffen.add(a.projectId);
+        betroffen.add(b.projectId);
+      }
+    }
+  }
+
+  return betroffen;
 }

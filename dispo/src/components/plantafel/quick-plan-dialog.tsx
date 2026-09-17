@@ -89,7 +89,9 @@ export function QuickPlanDialog({
 
   const options = React.useMemo(() => {
     if (resourceType === 'MITARBEITER') {
-      return (employees ?? []).filter((e) => e.active).map((e) => ({ id: e.id, label: `${e.name}${e.profession ? ` · ${e.profession}` : ''}` }));
+      return (employees ?? [])
+        .filter((e) => e.active)
+        .map((e) => ({ id: e.id, label: `${e.name}${e.profession ? ` · ${e.profession}` : ''}` }));
     }
     if (resourceType === 'BAULEITER') {
       return (managers ?? []).filter((m) => m.active).map((m) => ({ id: m.id, label: m.name }));
@@ -142,7 +144,8 @@ export function QuickPlanDialog({
   const submit = (force: boolean) => {
     setError(null);
     if (!projectId) return setError('Bitte ein Projekt wählen.');
-    if (resourceType !== 'UNBESETZT' && !resourceId) return setError('Bitte eine Ressource wählen.');
+    if (resourceType !== 'UNBESETZT' && !resourceId)
+      return setError('Bitte eine Ressource wählen.');
     if (!startDate) return setError('Bitte ein Startdatum wählen.');
     save.mutate(force);
   };
@@ -255,7 +258,11 @@ export function QuickPlanDialog({
 
             <div className="grid grid-cols-3 gap-3">
               <Field label="Beginn">
-                <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                <Input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                />
               </Field>
               <Field label="Ende">
                 <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
@@ -288,7 +295,10 @@ export function QuickPlanDialog({
               </Select>
             </Field>
 
-            <Field label="Tätigkeiten" hint="Was ist an diesem Tag konkret zu tun? Enter legt die nächste Zeile an.">
+            <Field
+              label="Tätigkeiten"
+              hint="Was ist an diesem Tag konkret zu tun? Enter legt die nächste Zeile an."
+            >
               <TaskListInput
                 value={tasks}
                 onChange={setTasks}

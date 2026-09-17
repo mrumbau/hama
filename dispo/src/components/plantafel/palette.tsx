@@ -90,7 +90,9 @@ export function Palette({
     ) : (
       <div className="flex flex-wrap gap-1">
         {board.projects
-          .filter((p) => passt(`${p.customerName} ${p.name} ${p.orderNumber ?? ''} ${p.city ?? ''}`))
+          .filter((p) =>
+            passt(`${p.customerName} ${p.name} ${p.orderNumber ?? ''} ${p.city ?? ''}`),
+          )
           .map((p) => (
             <ProjectChip key={p.id} project={p} />
           ))}
