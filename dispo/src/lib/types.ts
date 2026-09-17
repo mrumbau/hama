@@ -91,6 +91,12 @@ export interface ResourceDTO {
   subtitle: string | null;
   color: string;
   active: boolean;
+  /**
+   * Bevorzugt = "gehoert zu denen, mit denen wir ueblicherweise arbeiten".
+   * Nur diese stehen in der Ablageleiste; der Rest kommt ueber "Hinzufuegen"
+   * dazu. Von 34 Subunternehmern braucht man taeglich eine Handvoll.
+   */
+  bevorzugt: boolean;
 }
 
 export type WarningSeverity = 'KRITISCH' | 'WARNUNG' | 'HINWEIS';

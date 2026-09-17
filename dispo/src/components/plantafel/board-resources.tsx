@@ -4,7 +4,7 @@
  * Spalten sind Tage. Doppelbelegungen springen hier sofort ins Auge.
  */
 import * as React from 'react';
-import { Users } from 'lucide-react';
+import { ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AssignmentDTO, BoardResponse, ResourceDTO } from '@/lib/types';
 import { type IsoDate } from '@/lib/dates';
@@ -54,6 +54,12 @@ export function BoardResources({
     [board.projects],
   );
 
+  // Zugeklappte Gruppen merken wir uns nur fuer diese Sitzung – das ist eine
+  // Arbeitshaltung, keine Einstellung, die in die URL gehoert.
+  const [zugeklappt, setZugeklappt] = React.useState<string[]>([]);
+  const umschalten = (type: string) =>
+    setZugeklappt((v) => (v.includes(type) ? v.filter((x) => x !== type) : [...v, type]));
+
   const resources = board.resources.filter((r) => showInactive || r.active);
   const grouped = GROUP_ORDER.map((type) => ({
     type,
@@ -92,12 +98,29 @@ export function BoardResources({
               <tr>
                 <th
                   colSpan={board.days.length + 1}
-                  className="board-sticky-col border-b bg-muted/60 px-2 py-1 text-left text-2xs font-semibold uppercase tracking-wide text-muted-foreground"
+                  className="board-sticky-col border-b bg-muted/60 p-0 text-left"
                 >
-                  {GROUP_LABEL[group.type]} ({group.items.length})
+                  {/*
+                    Die Gruppe laesst sich zuklappen. Wer gerade nur die
+                    eigenen Leute verteilt, braucht dreissig
+                    Subunternehmerzeilen nicht im Weg.
+                  */}
+                  <button
+                    type="button"
+                    onClick={() => umschalten(group.type)}
+                    className="flex w-full items-center gap-1.5 px-2 py-1 text-2xs font-semibold uppercase tracking-wide text-muted-foreground transition hover:text-foreground"
+                    aria-expanded={!zugeklappt.includes(group.type)}
+                  >
+                    {zugeklappt.includes(group.type) ? (
+                      <ChevronRight className="size-3" />
+                    ) : (
+                      <ChevronDown className="size-3" />
+                    )}
+                    {GROUP_LABEL[group.type]} ({group.items.length})
+                  </button>
                 </th>
               </tr>
-              {group.items.map((resource) => (
+              {(zugeklappt.includes(group.type) ? [] : group.items).map((resource) => (
                 <tr key={resource.key}>
                   <ResourceRowHeader resource={resource} />
                   {board.days.map((day) => {

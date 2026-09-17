@@ -275,6 +275,7 @@ export async function loadBoard(
       subtitle: 'Bauleiter',
       color: m.color,
       active: m.active,
+      bevorzugt: true,
     })),
     // Bürokräfte disponiert niemand – sie gehören nicht auf die Tafel.
     ...employees
@@ -295,6 +296,7 @@ export async function loadBoard(
           subtitle: gewerke.join(', ') || e.profession,
           color: leitetBau ? '#7c3aed' : '#0f766e',
           active: e.active,
+          bevorzugt: true,
         };
       }),
     ...subcontractors.map<ResourceDTO>((s) => ({
@@ -307,6 +309,7 @@ export async function loadBoard(
       subtitle: s.trades.map((t) => t.trade.name).join(', ') || 'Subunternehmer',
       color: s.trades[0]?.trade.color ?? colorFromString(s.companyName),
       active: s.active,
+      bevorzugt: s.preferred,
     })),
   ];
 
@@ -315,7 +318,7 @@ export async function loadBoard(
     to,
     days,
     projects,
-    resources,
+    resources: gefilterteRessourcen(resources, filters),
     assignments: visibleAssignments,
     conflicts,
     kpis,
@@ -429,4 +432,22 @@ function ueberschneidendeProjekte(list: AssignmentDTO[]): Set<string> {
   }
 
   return betroffen;
+}
+
+/**
+ * Ressourcenzeilen auf die Auswahl eindampfen.
+ *
+ * Wer im Filter „Luigi" antippt, will Luigis Zeile sehen – nicht Luigis
+ * Zeile und darunter weiter alle Bauleiter und dreissig Subunternehmer.
+ * Sobald irgendeine Ressource ausgewaehlt ist, zeigen wir genau die
+ * ausgewaehlten, ueber alle drei Arten hinweg.
+ */
+function gefilterteRessourcen(resources: ResourceDTO[], f: BoardFilters): ResourceDTO[] {
+  const gewaehlt = new Set<string>([
+    ...(f.siteManagerIds ?? []).map((id) => `BAULEITER:${id}`),
+    ...(f.employeeIds ?? []).map((id) => `MITARBEITER:${id}`),
+    ...(f.subcontractorIds ?? []).map((id) => `SUBUNTERNEHMER:${id}`),
+  ]);
+  if (gewaehlt.size === 0) return resources;
+  return resources.filter((r) => gewaehlt.has(r.key));
 }

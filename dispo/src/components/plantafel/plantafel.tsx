@@ -396,7 +396,12 @@ export function Plantafel() {
         />
       ) : board ? (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-          <Palette view={state.view} board={board} belegtAm={state.anchor} />
+          <Palette
+            view={state.view}
+            board={board}
+            belegtAm={state.anchor}
+            onAktualisieren={refresh}
+          />
 
           {state.view === 'baustellen' ? (
             <BoardProjects

@@ -3,8 +3,10 @@ import * as React from 'react';
 import {
   CalendarCheck,
   CalendarDays,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Filter,
   LayoutGrid,
   RotateCcw,
@@ -20,7 +22,6 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -33,7 +34,7 @@ import {
   todayIso,
   type IsoDate,
 } from '@/lib/dates';
-import { PROJECT_STATUS_KEYS, PROJECT_STATUS_LABEL, TRAFFIC_LIGHT_LABEL } from '@/lib/labels';
+import { TRAFFIC_LIGHT_LABEL } from '@/lib/labels';
 import type { BoardResponse } from '@/lib/types';
 import {
   countActiveFilters,
@@ -184,85 +185,89 @@ export function BoardToolbar({
             ) : null}
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="max-h-[70vh] w-64 overflow-auto">
-          <DropdownMenuLabel>Bauleiter</DropdownMenuLabel>
-          {managers.length === 0 ? (
-            <p className="px-2 py-1 text-2xs text-muted-foreground">Keine Bauleiter angelegt.</p>
-          ) : (
-            managers.map((m) => (
+        <DropdownMenuContent align="end" className="max-h-[70vh] w-72 overflow-auto p-1">
+          {/*
+            Jede Gruppe ist eine Kachel, die nach unten aufgeht. Vorher stand
+            alles untereinander und man scrollte an dreissig Subunternehmern
+            vorbei, um zum Ort zu kommen.
+          */}
+          <FilterKachel titel="Bauleiter" gewaehlt={filters.bauleiter.length}>
+            {managers.length === 0 ? (
+              <p className="px-2 py-1 text-2xs text-muted-foreground">Keine Bauleiter angelegt.</p>
+            ) : (
+              managers.map((m) => (
+                <DropdownMenuCheckboxItem
+                  key={m.id}
+                  checked={filters.bauleiter.includes(m.id)}
+                  onCheckedChange={() => onFilters({ bauleiter: toggle(filters.bauleiter, m.id) })}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {m.label}
+                </DropdownMenuCheckboxItem>
+              ))
+            )}
+          </FilterKachel>
+
+          <FilterKachel titel="Ampel" gewaehlt={filters.ampel.length}>
+            {(['ROT', 'GELB', 'GRUEN', 'GRAU'] as const).map((light) => (
               <DropdownMenuCheckboxItem
-                key={m.id}
-                checked={filters.bauleiter.includes(m.id)}
-                onCheckedChange={() => onFilters({ bauleiter: toggle(filters.bauleiter, m.id) })}
+                key={light}
+                checked={filters.ampel.includes(light)}
+                onCheckedChange={() => onFilters({ ampel: toggle(filters.ampel, light) })}
                 onSelect={(e) => e.preventDefault()}
               >
-                {m.label}
+                {TRAFFIC_LIGHT_LABEL[light]}
               </DropdownMenuCheckboxItem>
-            ))
-          )}
+            ))}
+          </FilterKachel>
 
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Ampel</DropdownMenuLabel>
-          {(['ROT', 'GELB', 'GRUEN', 'GRAU'] as const).map((light) => (
-            <DropdownMenuCheckboxItem
-              key={light}
-              checked={filters.ampel.includes(light)}
-              onCheckedChange={() => onFilters({ ampel: toggle(filters.ampel, light) })}
-              onSelect={(e) => e.preventDefault()}
-            >
-              {TRAFFIC_LIGHT_LABEL[light]}
-            </DropdownMenuCheckboxItem>
-          ))}
+          <FilterKachel titel="Mitarbeiter" gewaehlt={filters.mitarbeiter.length}>
+            {employees.length === 0 ? (
+              <p className="px-2 py-1 text-2xs text-muted-foreground">
+                Keine Mitarbeiter angelegt.
+              </p>
+            ) : (
+              employees.map((e) => (
+                <DropdownMenuCheckboxItem
+                  key={e.id}
+                  checked={filters.mitarbeiter.includes(e.id)}
+                  onCheckedChange={() =>
+                    onFilters({ mitarbeiter: toggle(filters.mitarbeiter, e.id) })
+                  }
+                  onSelect={(ev) => ev.preventDefault()}
+                >
+                  {e.label}
+                </DropdownMenuCheckboxItem>
+              ))
+            )}
+          </FilterKachel>
 
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Projektstatus</DropdownMenuLabel>
-          {PROJECT_STATUS_KEYS.map((status) => (
-            <DropdownMenuCheckboxItem
-              key={status}
-              checked={filters.status.includes(status)}
-              onCheckedChange={() => onFilters({ status: toggle(filters.status, status) })}
-              onSelect={(e) => e.preventDefault()}
-            >
-              {PROJECT_STATUS_LABEL[status]}
-            </DropdownMenuCheckboxItem>
-          ))}
+          {/* Subunternehmer sind Dutzende – hier hilft nur Suchen. */}
+          <FilterKachel titel="Subunternehmer" gewaehlt={filters.sub.length} suchbar items={subs}>
+            {(gefiltert) =>
+              gefiltert.map((sub) => (
+                <DropdownMenuCheckboxItem
+                  key={sub.id}
+                  checked={filters.sub.includes(sub.id)}
+                  onCheckedChange={() => onFilters({ sub: toggle(filters.sub, sub.id) })}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {sub.label}
+                </DropdownMenuCheckboxItem>
+              ))
+            }
+          </FilterKachel>
 
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Mitarbeiter</DropdownMenuLabel>
-          {employees.map((e) => (
-            <DropdownMenuCheckboxItem
-              key={e.id}
-              checked={filters.mitarbeiter.includes(e.id)}
-              onCheckedChange={() => onFilters({ mitarbeiter: toggle(filters.mitarbeiter, e.id) })}
-              onSelect={(ev) => ev.preventDefault()}
-            >
-              {e.label}
-            </DropdownMenuCheckboxItem>
-          ))}
-
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Subunternehmer</DropdownMenuLabel>
-          {subs.map((s) => (
-            <DropdownMenuCheckboxItem
-              key={s.id}
-              checked={filters.sub.includes(s.id)}
-              onCheckedChange={() => onFilters({ sub: toggle(filters.sub, s.id) })}
-              onSelect={(e) => e.preventDefault()}
-            >
-              {s.label}
-            </DropdownMenuCheckboxItem>
-          ))}
-
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Ort</DropdownMenuLabel>
-          <div className="px-1.5 pb-1.5">
-            <Input
-              value={filters.ort}
-              onChange={(e) => onFilters({ ort: e.target.value })}
-              placeholder="z. B. München"
-              className="h-8 text-xs"
-            />
-          </div>
+          <FilterKachel titel="Ort" gewaehlt={filters.ort ? 1 : 0}>
+            <div className="px-1.5 pb-1.5">
+              <Input
+                value={filters.ort}
+                onChange={(e) => onFilters({ ort: e.target.value })}
+                placeholder="z. B. München"
+                className="h-8 text-xs"
+              />
+            </div>
+          </FilterKachel>
 
           <DropdownMenuSeparator />
           <DropdownMenuCheckboxItem
@@ -296,6 +301,71 @@ export function BoardToolbar({
             : ''}
         </span>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Eine Filtergruppe, die nach unten aufgeht.
+ *
+ * Zu ist der Normalzustand – wer filtert, sucht meistens nur eine Sache.
+ * Eine Gruppe mit Auswahl steht offen, sonst sieht man nicht, was gerade
+ * eingestellt ist, und wundert sich über die halbleere Tafel.
+ */
+function FilterKachel({
+  titel,
+  gewaehlt,
+  suchbar,
+  items,
+  children,
+}: {
+  titel: string;
+  gewaehlt: number;
+  suchbar?: boolean;
+  items?: { id: string; label: string }[];
+  children: React.ReactNode | ((gefiltert: { id: string; label: string }[]) => React.ReactNode);
+}) {
+  const [offen, setOffen] = React.useState(gewaehlt > 0);
+  const [suche, setSuche] = React.useState('');
+
+  const gefiltert = (items ?? []).filter(
+    (i) => !suche || i.label.toLowerCase().includes(suche.toLowerCase()),
+  );
+
+  return (
+    <div className="rounded-md border-b last:border-b-0">
+      <button
+        type="button"
+        onClick={() => setOffen((v) => !v)}
+        className="flex w-full items-center gap-1.5 px-2 py-1.5 text-xs font-medium transition hover:bg-accent/60"
+        aria-expanded={offen}
+      >
+        {offen ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+        {titel}
+        {gewaehlt > 0 ? (
+          <Badge variant="primary" className="ml-auto">
+            {gewaehlt}
+          </Badge>
+        ) : null}
+      </button>
+
+      {offen ? (
+        <div className="pb-1">
+          {suchbar ? (
+            <div className="px-1.5 pb-1">
+              <Input
+                value={suche}
+                onChange={(e) => setSuche(e.target.value)}
+                placeholder="Suchen …"
+                className="h-7 text-xs"
+              />
+            </div>
+          ) : null}
+          <div className="max-h-56 overflow-auto">
+            {typeof children === 'function' ? children(gefiltert) : children}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

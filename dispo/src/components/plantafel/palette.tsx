@@ -13,7 +13,8 @@
  */
 import * as React from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { ChevronDown, ChevronUp, GripVertical, Search } from 'lucide-react';
+import { ChevronDown, ChevronUp, GripVertical, Plus, Search } from 'lucide-react';
+import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import type { BoardResponse, ProjectSummaryDTO, ResourceDTO } from '@/lib/types';
 import type { IsoDate } from '@/lib/dates';
@@ -43,11 +44,14 @@ export function Palette({
   view,
   board,
   belegtAm,
+  onAktualisieren,
 }: {
   view: BoardView;
   board: BoardResponse;
   /** Tag, auf den sich die Verfügbarkeitsanzeige bezieht. */
   belegtAm: IsoDate;
+  /** Neu laden, nachdem ein Subunternehmer zur Auswahl hinzugekommen ist. */
+  onAktualisieren: () => void;
 }) {
   const [offen, setOffen] = React.useState(true);
   const [suche, setSuche] = React.useState('');
@@ -69,14 +73,27 @@ export function Palette({
     view === 'baustellen' ? (
       <div className="flex flex-wrap items-start gap-2">
         {GRUPPEN.map((gruppe) => {
-          const items = board.resources.filter(
+          const alle = board.resources.filter(
             (r) => r.gruppe === gruppe.type && r.active && passt(`${r.label} ${r.subtitle ?? ''}`),
           );
+          // Subunternehmer: nur die üblichen. Von dreissig braucht man
+          // täglich eine Handvoll – der Rest kommt über „Hinzufügen" dazu
+          // und bleibt dann auch da.
+          const items =
+            gruppe.type === 'SUBUNTERNEHMER' && !suche ? alle.filter((r) => r.bevorzugt) : alle;
           return (
             <Gruppenkachel
               key={gruppe.type}
               titel={gruppe.titel}
               anzahl={items.length}
+              zusatz={
+                gruppe.type === 'SUBUNTERNEHMER' ? (
+                  <SubHinzufuegen
+                    alle={alle.filter((r) => !r.bevorzugt)}
+                    onFertig={onAktualisieren}
+                  />
+                ) : null
+              }
               // Mitarbeiter stehen immer offen – das sind die paar Leute, die
               // man täglich verteilt. Subunternehmer sind Dutzende und würden
               // die Leiste zuschütten, deshalb zugeklappt mit Suche.
@@ -213,18 +230,20 @@ function Gruppenkachel({
   anzahl,
   standardOffen,
   gesucht,
+  zusatz,
   children,
 }: {
   titel: string;
   anzahl: number;
   standardOffen: boolean;
   gesucht: boolean;
+  zusatz?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [offen, setOffen] = React.useState(standardOffen);
   const zeigen = offen || gesucht;
 
-  if (anzahl === 0 && gesucht) return null;
+  if (anzahl === 0 && gesucht && !zusatz) return null;
 
   return (
     <div className={cn('min-w-0 rounded-md border bg-card', zeigen && 'flex-1 basis-64')}>
@@ -241,14 +260,91 @@ function Gruppenkachel({
         </Badge>
       </button>
       {zeigen ? (
-        <div className="flex max-h-28 flex-wrap gap-1 overflow-auto border-t p-1.5">
-          {anzahl === 0 ? (
-            <span className="text-2xs text-muted-foreground">Niemand verfügbar.</span>
-          ) : (
-            children
-          )}
+        <div className="border-t p-1.5">
+          <div className="flex max-h-28 flex-wrap gap-1 overflow-auto">
+            {anzahl === 0 ? (
+              <span className="text-2xs text-muted-foreground">Niemand verfügbar.</span>
+            ) : (
+              children
+            )}
+          </div>
+          {zusatz ? <div className="mt-1">{zusatz}</div> : null}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Einen weiteren Subunternehmer in die Ablageleiste holen.
+ *
+ * Wer dazugewählt wird, bekommt den Stern – er bleibt also da und muss nicht
+ * jedes Mal neu gesucht werden. Genau so wächst die Leiste über ein paar
+ * Wochen zu der Handvoll Betriebe zusammen, mit denen tatsächlich gearbeitet
+ * wird, statt alle vierunddreißig aus dem ERP zu zeigen.
+ */
+function SubHinzufuegen({ alle, onFertig }: { alle: ResourceDTO[]; onFertig: () => void }) {
+  const [offen, setOffen] = React.useState(false);
+  const [suche, setSuche] = React.useState('');
+  const [laeuft, setLaeuft] = React.useState<string | null>(null);
+
+  const treffer = alle.filter(
+    (r) => !suche || `${r.label} ${r.subtitle ?? ''}`.toLowerCase().includes(suche.toLowerCase()),
+  );
+
+  const hinzufuegen = async (r: ResourceDTO) => {
+    setLaeuft(r.id);
+    try {
+      await api.patch(`/api/subcontractors/${r.id}`, { preferred: true });
+      onFertig();
+      setSuche('');
+      setOffen(false);
+    } finally {
+      setLaeuft(null);
+    }
+  };
+
+  if (alle.length === 0) return null;
+
+  if (!offen) {
+    return (
+      <Button variant="ghost" size="xs" className="w-full" onClick={() => setOffen(true)}>
+        <Plus /> Subunternehmer hinzufügen ({alle.length})
+      </Button>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      <Input
+        autoFocus
+        value={suche}
+        onChange={(e) => setSuche(e.target.value)}
+        placeholder="Betrieb oder Gewerk suchen …"
+        className="h-7 text-xs"
+      />
+      <div className="max-h-32 space-y-0.5 overflow-auto">
+        {treffer.length === 0 ? (
+          <p className="px-1 py-0.5 text-2xs text-muted-foreground">Nichts gefunden.</p>
+        ) : (
+          treffer.slice(0, 40).map((r) => (
+            <button
+              key={r.key}
+              type="button"
+              disabled={laeuft === r.id}
+              onClick={() => hinzufuegen(r)}
+              className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-2xs transition hover:bg-accent disabled:opacity-50"
+            >
+              <Plus className="size-2.5 shrink-0" />
+              <span className="min-w-0 flex-1 truncate">{r.label}</span>
+              <span className="shrink-0 truncate text-muted-foreground">{r.subtitle}</span>
+            </button>
+          ))
+        )}
+      </div>
+      <Button variant="ghost" size="xs" className="w-full" onClick={() => setOffen(false)}>
+        Schließen
+      </Button>
     </div>
   );
 }
