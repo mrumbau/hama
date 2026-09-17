@@ -118,8 +118,12 @@ export function computeAmpel(input: AmpelInput, today: IsoDate = todayIso()): Am
   if (input.customerConfirmed !== 'BESTAETIGT') {
     gelb.push('Kunde hat den Termin noch nicht bestätigt');
   }
-  if (input.materialStatus === 'TEILWEISE') {
-    gelb.push('Material nur teilweise vorhanden');
+  // „Teilweise" ist wochenlang vor Beginn der Normalzustand – es wird ja
+  // nach und nach geliefert. Gelb wird es erst, wenn der Beginn naeherrueckt
+  // und immer noch etwas fehlt. Eine Warnung, die immer leuchtet, liest
+  // nach zwei Tagen niemand mehr.
+  if (input.materialStatus === 'TEILWEISE' && tageBisStart <= MATERIAL_VORLAUF_TAGE) {
+    gelb.push('Material nur teilweise vorhanden, Beginn steht bevor');
   }
   if (input.materialStatus === 'OFFEN' && tageBisStart <= MATERIAL_VORLAUF_TAGE) {
     gelb.push('Material noch offen');

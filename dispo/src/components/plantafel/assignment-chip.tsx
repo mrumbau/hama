@@ -69,6 +69,11 @@ export function AssignmentChip({
 
   const abgesagt = assignment.status === 'ABGESAGT';
   const unbesetzt = assignment.resourceType === 'UNBESETZT';
+  // „Geplant" heisst bei MR Umbau: kurzfristig hingeschrieben, noch nicht
+  // mit dem Kunden abgestimmt. Das muss man sehen, ohne hinzuklicken –
+  // deshalb gestrichelt und blasser. „Bestätigt" ist der feste Termin.
+  const vorlaeufig = assignment.status === 'GEPLANT' && !unbesetzt;
+  const bestaetigt = assignment.status === 'BESTAETIGT';
 
   const chip = (
     <div
@@ -81,6 +86,8 @@ export function AssignmentChip({
         'hover:shadow-md hover:ring-border',
         isDragging && 'opacity-40',
         abgesagt && 'opacity-50 line-through',
+        vorlaeufig && 'border-dashed bg-card/60',
+        bestaetigt && 'ring-ampel-gruen/50',
         unbesetzt && 'border-dashed bg-destructive/5',
         muted && 'bg-muted/40 text-muted-foreground',
         conflict && 'ring-2 ring-destructive',
@@ -107,8 +114,26 @@ export function AssignmentChip({
         ) : null}
         {conflict ? <AlertTriangle className="size-3 shrink-0 text-destructive" /> : null}
         {assignment.note ? <StickyNote className="size-3 shrink-0 text-muted-foreground" /> : null}
-        {assignment.status === 'BESTAETIGT' ? (
-          <span className="size-1.5 shrink-0 rounded-full bg-ampel-gruen" title="Bestätigt" />
+        {/*
+          Das „T“ steht für Termin: bestätigt, mit dem Kunden abgestimmt,
+          steht fest. Ein Buchstabe liest sich über die ganze Tafel hinweg
+          schneller als ein Punkt, den man erst deuten muss.
+        */}
+        {bestaetigt ? (
+          <span
+            className="flex size-3.5 shrink-0 items-center justify-center rounded-sm bg-ampel-gruen text-[9px] font-bold leading-none text-white"
+            title="Bestätigter Termin"
+          >
+            T
+          </span>
+        ) : null}
+        {vorlaeufig ? (
+          <span
+            className="shrink-0 text-2xs font-medium text-muted-foreground"
+            title="Nur geplant – noch nicht bestätigt"
+          >
+            vorl.
+          </span>
         ) : null}
       </div>
       {assignment.kind !== 'ARBEIT' ? (

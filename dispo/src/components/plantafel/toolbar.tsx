@@ -288,8 +288,37 @@ export function BoardToolbar({
         </Button>
       ) : null}
 
-      <span className={cn('ml-auto hidden text-2xs text-muted-foreground md:block')}>
-        {board ? `${board.projects.length} Baustellen · ${board.assignments.length} Einsätze` : ''}
+      <div className="ml-auto flex items-center gap-3">
+        <Legende />
+        <span className={cn('hidden text-2xs text-muted-foreground md:block')}>
+          {board
+            ? `${board.projects.length} Baustellen · ${board.assignments.length} Einsätze`
+            : ''}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Was die Zeichen auf den Einsatzkarten bedeuten.
+ *
+ * Zwei Zustände muss man über die ganze Tafel hinweg auseinanderhalten:
+ * kurzfristig hingeschrieben und mit dem Kunden fest vereinbart. Ohne
+ * Legende fragt der Nächste, was das „T“ soll.
+ */
+function Legende() {
+  return (
+    <div className="hidden items-center gap-2 text-2xs text-muted-foreground lg:flex">
+      <span className="flex items-center gap-1">
+        <span className="flex size-3.5 items-center justify-center rounded-sm bg-ampel-gruen text-[9px] font-bold leading-none text-white">
+          T
+        </span>
+        Termin bestätigt
+      </span>
+      <span className="flex items-center gap-1">
+        <span className="h-3.5 w-0 border-l-[3px] border-dashed border-muted-foreground/60" />
+        nur geplant
       </span>
     </div>
   );

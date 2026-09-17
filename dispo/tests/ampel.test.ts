@@ -129,3 +129,52 @@ describe('Ampelsystem', () => {
     expect(result.light).toBe('GRUEN');
   });
 });
+
+describe('Material – nur warnen, wenn es zählt', () => {
+  /**
+   * „Teilweise“ ist wochenlang vor Beginn der Normalzustand: Material wird
+   * nach und nach geliefert. Eine Ampel, die deshalb dauerhaft gelb steht,
+   * wird ignoriert – und dann auch dort, wo sie berechtigt wäre.
+   */
+  const heute = '2026-09-17';
+
+  it('bleibt grün, wenn der Beginn noch weit weg ist', () => {
+    const a = computeAmpel(
+      base({
+        plannedStart: '2026-11-03',
+        plannedEnd: '2026-11-14',
+        materialStatus: 'TEILWEISE',
+        assignments: [assignment({ startDate: '2026-11-03', endDate: '2026-11-14' })],
+      }),
+      heute,
+    );
+    expect(a.light).toBe('GRUEN');
+  });
+
+  it('wird gelb, sobald der Beginn näherrückt', () => {
+    const a = computeAmpel(
+      base({
+        plannedStart: '2026-09-20',
+        plannedEnd: '2026-09-22',
+        materialStatus: 'TEILWEISE',
+      }),
+      heute,
+    );
+    expect(a.light).toBe('GELB');
+    expect(a.reasons.join(' ')).toMatch(/teilweise/i);
+  });
+
+  it('bleibt bei fehlendem Material unmittelbar vor Beginn rot', () => {
+    // Die Regel wird gelockert, nicht abgeschafft.
+    const a = computeAmpel(
+      base({
+        plannedStart: '2026-09-18',
+        plannedEnd: '2026-09-20',
+        materialStatus: 'OFFEN',
+        assignments: [assignment({ startDate: '2026-09-18', endDate: '2026-09-20' })],
+      }),
+      heute,
+    );
+    expect(a.light).toBe('ROT');
+  });
+});
