@@ -2,6 +2,10 @@ import { handler, ok } from '@/server/api';
 import { syncProjects } from '@/server/integrations/sync';
 import { prisma } from '@/lib/db';
 import { getErpProvider } from '@/server/integrations';
+import {
+  DAS_PROGRAMM_STANDARD_URL,
+  findeAuthVariante,
+} from '@/server/integrations/das-programm-provider';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,10 +15,23 @@ export const GET = handler(async () => {
     prisma.syncState.findUnique({ where: { provider: 'das-programm' } }),
     provider.healthCheck(),
   ]);
+  // Schlaegt die Anmeldung fehl, ist die naechste Frage immer dieselbe:
+  // stimmt der Header oder der Schluessel? Das beantworten wir hier gleich
+  // mit, statt es den Benutzer raten zu lassen.
+  const schluessel = process.env.DAS_PROGRAMM_API_KEY?.trim();
+  const diagnose =
+    !health.ok && schluessel
+      ? await findeAuthVariante(
+          process.env.DAS_PROGRAMM_GRAPHQL_URL || DAS_PROGRAMM_STANDARD_URL,
+          schluessel.replace(/^Bearer\s+/i, ''),
+        )
+      : null;
+
   return ok({
     state,
     provider: provider.name,
     health,
+    diagnose,
     /** Was ist konfiguriert? Ohne Geheimnisse – nur ob gesetzt oder nicht. */
     konfiguration: {
       endpunkt: process.env.DAS_PROGRAMM_GRAPHQL_URL || '(Standard)',

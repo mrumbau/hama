@@ -33,9 +33,11 @@ export class DasProgrammProvider implements ErpProvider {
   readonly name = 'Das Programm';
   readonly canWriteBack: boolean;
 
+  private readonly apiKey: string;
+
   constructor(
     private readonly endpoint: string,
-    private readonly apiKey: string,
+    apiKey: string,
     private readonly authHeader = 'Authorization',
     private readonly authPrefix = 'Bearer ',
     writeBack = false,
@@ -43,6 +45,11 @@ export class DasProgrammProvider implements ErpProvider {
     if (!endpoint) throw new Error('DAS_PROGRAMM_GRAPHQL_URL ist nicht gesetzt.');
     if (!apiKey) throw new Error('DAS_PROGRAMM_API_KEY ist nicht gesetzt.');
     this.canWriteBack = writeBack;
+
+    // Beim Kopieren aus einer Oberflaeche kommt gern ein Zeilenumbruch mit,
+    // und manche schreiben das "Bearer " versehentlich in den Wert. Beides
+    // fuehrt zu einem 401, den man dem Schluessel nicht ansieht.
+    this.apiKey = apiKey.trim().replace(/^Bearer\s+/i, '');
   }
 
   private async anfrage<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
@@ -435,4 +442,89 @@ export function mapProjekt(
     status: detail?.status ?? suche?.status ?? null,
     updatedAt: detail?.updatedOn ?? suche?.updatedOn ?? null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Einrichtungshilfe
+// ---------------------------------------------------------------------------
+
+/**
+ * Wie Schlüssel üblicherweise mitgeschickt werden.
+ *
+ * Steht in der Dokumentation nicht eindeutig, welcher Header erwartet wird,
+ * ist Ausprobieren schneller als Nachfragen – aber nur von Hand angestossen,
+ * nie im laufenden Betrieb.
+ */
+export const AUTH_VARIANTEN: { header: string; prefix: string; name: string }[] = [
+  { header: 'Authorization', prefix: 'Bearer ', name: 'Authorization: Bearer <Schlüssel>' },
+  { header: 'Authorization', prefix: '', name: 'Authorization: <Schlüssel>' },
+  { header: 'Authorization', prefix: 'Token ', name: 'Authorization: Token <Schlüssel>' },
+  { header: 'X-API-KEY', prefix: '', name: 'X-API-KEY: <Schlüssel>' },
+  { header: 'x-api-key', prefix: '', name: 'x-api-key: <Schlüssel>' },
+  { header: 'apikey', prefix: '', name: 'apikey: <Schlüssel>' },
+];
+
+export interface VariantenErgebnis {
+  name: string;
+  header: string;
+  prefix: string;
+  ok: boolean;
+  status: number | null;
+  antwort: string;
+}
+
+/**
+ * Probiert die gängigen Header-Formen durch und meldet, welche der Server
+ * akzeptiert. Antworten alle mit demselben Fehler, liegt es nicht am Header,
+ * sondern am Schlüssel selbst – auch das ist eine brauchbare Auskunft.
+ */
+export async function findeAuthVariante(
+  endpoint: string,
+  apiKey: string,
+): Promise<VariantenErgebnis[]> {
+  const ergebnisse: VariantenErgebnis[] = [];
+
+  for (const variante of AUTH_VARIANTEN) {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          [variante.header]: `${variante.prefix}${apiKey}`,
+        },
+        body: JSON.stringify({
+          query:
+            'query Test($request: QueryRequest) { projectStatusSearch(request: $request) { id } }',
+          variables: { request: { limit: 1, offset: 0 } },
+        }),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(15_000),
+      });
+
+      const text = (await res.text().catch(() => '')).trim().slice(0, 200);
+      // Erfolg heisst: HTTP 200 *und* keine GraphQL-Fehler im Rumpf.
+      const ok = res.ok && !/"errors"\s*:/.test(text) && !/invalid_token/i.test(text);
+      ergebnisse.push({
+        name: variante.name,
+        header: variante.header,
+        prefix: variante.prefix,
+        ok,
+        status: res.status,
+        antwort: text,
+      });
+      if (ok) break; // Die erste, die funktioniert, genügt.
+    } catch (e) {
+      ergebnisse.push({
+        name: variante.name,
+        header: variante.header,
+        prefix: variante.prefix,
+        ok: false,
+        status: null,
+        antwort: e instanceof Error ? e.message : 'Unbekannter Fehler.',
+      });
+    }
+  }
+
+  return ergebnisse;
 }

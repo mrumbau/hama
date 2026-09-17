@@ -48,6 +48,16 @@ interface SettingsResponse {
 interface ErpVerbindung {
   provider: string;
   health: { ok: boolean; message: string };
+  diagnose:
+    | {
+        name: string;
+        header: string;
+        prefix: string;
+        ok: boolean;
+        status: number | null;
+        antwort: string;
+      }[]
+    | null;
   konfiguration: {
     endpunkt: string;
     schluesselGesetzt: boolean;
@@ -205,13 +215,16 @@ function IntegrationsTab() {
                 {verbindung.data.konfiguration.schluesselGesetzt ? 'gesetzt' : 'fehlt'} ·
                 Zurückschreiben: {verbindung.data.konfiguration.zurueckschreiben ? 'ein' : 'aus'}
               </div>
+              {verbindung.data.diagnose ? (
+                <AuthDiagnose ergebnisse={verbindung.data.diagnose} />
+              ) : null}
             </div>
           ) : null}
 
           <p className="text-2xs text-muted-foreground">
-            Umschalten auf die echte API über <code>DISPO_ERP_PROVIDER=das-programm</code>{' '}
-            plus <code>DAS_PROGRAMM_API_KEY</code>. Der Status wandert nur zurück ins ERP,{' '}
-            wenn <code>DAS_PROGRAMM_WRITEBACK=1</code> gesetzt ist.
+            Umschalten auf die echte API über <code>DISPO_ERP_PROVIDER=das-programm</code> plus{' '}
+            <code>DAS_PROGRAMM_API_KEY</code>. Der Status wandert nur zurück ins ERP, wenn{' '}
+            <code>DAS_PROGRAMM_WRITEBACK=1</code> gesetzt ist.
           </p>
         </CardContent>
       </Card>
@@ -493,6 +506,59 @@ function SystemTab() {
           </pre>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/**
+ * Ergebnis der Header-Suche.
+ *
+ * Findet sich eine Variante, die durchgeht, steht hier genau, was in die
+ * Umgebungsvariablen gehört. Scheitern alle mit derselben Meldung, liegt es
+ * nicht am Header – dann ist der Schlüssel selbst das Problem, und auch das
+ * soll dastehen statt „Verbindung fehlgeschlagen".
+ */
+function AuthDiagnose({ ergebnisse }: { ergebnisse: NonNullable<ErpVerbindung['diagnose']> }) {
+  const treffer = ergebnisse.find((e) => e.ok);
+
+  if (treffer) {
+    return (
+      <div className="mt-2 space-y-1 border-t pt-2">
+        <p className="font-medium">
+          Diese Variante funktioniert: <code>{treffer.name}</code>
+        </p>
+        <p className="text-muted-foreground">
+          Dafür in Vercel setzen: <code>DAS_PROGRAMM_AUTH_HEADER={treffer.header}</code>
+          {treffer.prefix ? (
+            <>
+              {' '}
+              und <code>DAS_PROGRAMM_AUTH_PREFIX={treffer.prefix}</code>
+            </>
+          ) : (
+            <>
+              {' '}
+              und <code>DAS_PROGRAMM_AUTH_PREFIX</code> auf leer
+            </>
+          )}
+          . Danach neu deployen.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 space-y-1 border-t pt-2">
+      <p className="font-medium">Keine der üblichen Header-Formen wurde akzeptiert:</p>
+      <ul className="space-y-0.5">
+        {ergebnisse.map((e) => (
+          <li key={e.name} className="text-muted-foreground">
+            <code>{e.name}</code> → {e.status ?? 'kein Kontakt'} {e.antwort}
+          </li>
+        ))}
+      </ul>
+      <p className="text-muted-foreground">
+        Antworten alle gleich, liegt es nicht am Header, sondern am Schlüssel selbst.
+      </p>
     </div>
   );
 }

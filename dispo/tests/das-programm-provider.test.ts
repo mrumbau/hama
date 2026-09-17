@@ -7,7 +7,11 @@
  * richtig übersetzt wird.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DasProgrammProvider } from '@/server/integrations/das-programm-provider';
+import {
+  AUTH_VARIANTEN,
+  DasProgrammProvider,
+  findeAuthVariante,
+} from '@/server/integrations/das-programm-provider';
 
 interface Aufruf {
   query: string;
@@ -278,5 +282,94 @@ describe('Fehler beim Einrichten', () => {
 
     const health = await provider().healthCheck();
     expect(health.message).toContain('Cannot query field');
+  });
+});
+
+describe('Header-Variante finden', () => {
+  /** Ein ERP, das nur eine bestimmte Header-Form akzeptiert. */
+  function erpMitHeader(erwartet: { header: string; wert: string }) {
+    const versuche: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const headers = init.headers as Record<string, string>;
+        versuche.push(Object.keys(headers).join(','));
+        if (headers[erwartet.header] === erwartet.wert) {
+          return {
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            text: async () => JSON.stringify({ data: { projectStatusSearch: [{ id: '1' }] } }),
+          } as unknown as Response;
+        }
+        return {
+          ok: false,
+          status: 401,
+          statusText: 'Unauthorized',
+          text: async () => '{"error":"invalid_token","error_description":"Invalid token"}',
+        } as unknown as Response;
+      }),
+    );
+    return versuche;
+  }
+
+  it('findet einen Schlüssel, der ohne Bearer-Präfix erwartet wird', async () => {
+    erpMitHeader({ header: 'X-API-KEY', wert: 'abc123' });
+
+    const r = await findeAuthVariante('https://example.invalid/graphql', 'abc123');
+    const treffer = r.find((e) => e.ok);
+
+    expect(treffer?.header).toBe('X-API-KEY');
+    expect(treffer?.prefix).toBe('');
+    // Nach dem Treffer wird nicht weiter probiert.
+    expect(r[r.length - 1].ok).toBe(true);
+  });
+
+  it('meldet bei durchgehend abgelehntem Schlüssel alle Versuche', async () => {
+    erpMitHeader({ header: 'Authorization', wert: 'Bearer der-echte-schluessel' });
+
+    const r = await findeAuthVariante('https://example.invalid/graphql', 'falscher-schluessel');
+
+    expect(r.every((e) => !e.ok)).toBe(true);
+    expect(r).toHaveLength(AUTH_VARIANTEN.length);
+    // Der Antworttext muss durchgereicht werden – er ist die eigentliche Auskunft.
+    expect(r[0].antwort).toContain('invalid_token');
+  });
+
+  it('wertet einen GraphQL-Fehler trotz HTTP 200 nicht als Erfolg', async () => {
+    // Manche Server antworten auf eine abgelehnte Anmeldung mit 200 und
+    // schreiben den Fehler in den Rumpf.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          ({
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            text: async () => '{"errors":[{"message":"Not authorized"}]}',
+          }) as unknown as Response,
+      ),
+    );
+
+    const r = await findeAuthVariante('https://example.invalid/graphql', 'egal');
+    expect(r.some((e) => e.ok)).toBe(false);
+  });
+});
+
+describe('Schlüssel aufräumen', () => {
+  it('entfernt Zeilenumbrüche und ein versehentliches Bearer im Wert', async () => {
+    const { aufrufe, fetchMock } = erpNachbau(() => ({ projectStatusSearch: [] }));
+    const p = new DasProgrammProvider(
+      'https://example.invalid/graphql',
+      '  Bearer abc123\n',
+      'Authorization',
+      'Bearer ',
+    );
+    await p.healthCheck();
+
+    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer abc123');
+    expect(aufrufe).toHaveLength(1);
   });
 });
