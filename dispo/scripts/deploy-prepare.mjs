@@ -28,6 +28,31 @@ if (!process.env.DIRECT_DATABASE_URL) {
   process.env.DIRECT_DATABASE_URL = ableitenDirektverbindung(process.env.DATABASE_URL);
 }
 
+// Umgekehrt gilt dasselbe fuer die Skripte, die gleich laufen: Sie verbinden
+// sich ueber den Prisma-Client und muessen an den Transaction-Pooler. Die App
+// zieht sich die Adresse zur Laufzeit selbst zurecht (src/lib/db-url.ts) -
+// hier im Build kommt sie an dem Code nicht vorbei, deshalb dieselbe Regel
+// noch einmal. Ohne sie bricht der Build mit
+//   FATAL: (EMAXCONNSESSION) max clients reached in session mode
+// ab, sobald die App parallel laeuft und die 15 Sitzungsplaetze belegt sind.
+process.env.DATABASE_URL = ableitenPoolverbindung(process.env.DATABASE_URL);
+
+function ableitenPoolverbindung(url) {
+  try {
+    const parsed = new URL(url);
+    if (!/\.pooler\.supabase\.com$/i.test(parsed.hostname)) return url;
+    if (parsed.port === '5432' || parsed.port === '') parsed.port = '6543';
+    parsed.searchParams.set('pgbouncer', 'true');
+    if (!parsed.searchParams.has('connection_limit')) {
+      parsed.searchParams.set('connection_limit', '1');
+    }
+    console.log('Build-Skripte verbinden ueber den Transaction-Pooler (Port 6543).');
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
 function ableitenDirektverbindung(url) {
   try {
     const parsed = new URL(url);

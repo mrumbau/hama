@@ -45,6 +45,15 @@ try {
   if (offen.length === 0) {
     console.log('Alle Konten haben bereits ein Passwort.');
   }
+} catch (e) {
+  // Ein fehlgeschlagenes Startpasswort darf das Deployment nicht kosten.
+  // Es laesst sich jederzeit nachholen; ein abgebrochener Build bedeutet,
+  // dass der ganze neue Stand nicht live geht.
+  console.warn(
+    '⚠ Startpasswort konnte nicht gesetzt werden:',
+    e instanceof Error ? e.message.split('\n')[0] : e,
+  );
+  console.warn('  Nachholbar unter Einstellungen → Benutzer.');
 } finally {
   await prisma.$disconnect();
 }
