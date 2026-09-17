@@ -429,3 +429,87 @@ describe('Aufrufform – die Falle aus der Online-Dokumentation', () => {
     expect(headers.Authorization).toBeUndefined();
   });
 });
+
+describe('Pflichtangaben im GraphQL-Kopf', () => {
+  /**
+   * `project(id: ID!)` verlangt eine Pflicht-ID. Wird die Variable als `ID`
+   * deklariert, weist der Server die komplette Abfrage ab – und zwar erst
+   * zur Laufzeit, mit einer Meldung pro Bündel-Alias.
+   */
+  it('deklariert die IDs der Detailabfragen als ID!', async () => {
+    const { aufrufe } = erpNachbau((a) => {
+      if (a.query.includes('projectSearch')) {
+        return { projectSearch: [{ id: 'P1' }, { id: 'P2' }] };
+      }
+      return { d0: { id: 'P1' }, d1: { id: 'P2' } };
+    });
+
+    await provider().getProjects();
+
+    const detail = aufrufe.find((a) => a.query.includes('project(id:'));
+    expect(detail?.query).toContain('$id0: ID!');
+    expect(detail?.query).toContain('$id1: ID!');
+    expect(detail?.query).not.toMatch(/\$id\d+: ID[^!]/);
+  });
+
+  it('deklariert auch die Einzelabfrage als ID!', async () => {
+    const { aufrufe } = erpNachbau(() => ({ project: { id: 'P1', name: 'Bad' } }));
+    await provider().getProject('P1');
+
+    expect(aufrufe[0].query).toContain('$id: ID!');
+  });
+});
+
+describe('Wenn die Detailabfrage scheitert', () => {
+  /**
+   * Die Feldauswahl der Detailabfragen ist die unsicherste Stelle der
+   * Anbindung – ein einziger falscher Feldname lässt den Server die ganze
+   * Abfrage zurückweisen. Dann sollen trotzdem alle Baustellen ankommen.
+   */
+  it('liefert die Baustellen trotzdem, nur mit weniger Angaben', async () => {
+    erpNachbau((a) => {
+      if (a.query.includes('projectSearch')) {
+        return {
+          projectSearch: [
+            { id: 'P1', name: 'Bad', referenceNumber: 'P-26-1', companyName: 'Müller GmbH' },
+          ],
+        };
+      }
+      throw new Error('unerreichbar');
+    });
+    // Die Detailabfrage antwortet mit einem GraphQL-Fehler.
+    const echterFetch = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    echterFetch.mockImplementation(async (_url: string, init: RequestInit) => {
+      const a = JSON.parse(String(init.body)) as { query: string };
+      if (a.query.includes('projectSearch')) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => ({
+            data: {
+              projectSearch: [
+                { id: 'P1', name: 'Bad', referenceNumber: 'P-26-1', companyName: 'Müller GmbH' },
+              ],
+            },
+          }),
+        } as unknown as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({ errors: [{ message: 'Cannot query field "objectAddress"' }] }),
+      } as unknown as Response;
+    });
+
+    const p = provider();
+    const projekte = await p.getProjects();
+
+    expect(projekte).toHaveLength(1);
+    expect(projekte[0].customerName).toBe('Müller GmbH');
+    expect(projekte[0].referenceNumber).toBe('P-26-1');
+    // Und der Ausfall wird gemeldet, nicht verschwiegen.
+    expect(p.hinweise.join(' ')).toContain('objectAddress');
+  });
+});

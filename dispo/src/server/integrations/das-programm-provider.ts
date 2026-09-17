@@ -42,6 +42,8 @@ interface GraphQLAntwort<T> {
 export class DasProgrammProvider implements ErpProvider {
   readonly name = 'Das Programm';
   readonly canWriteBack: boolean;
+  /** Was beim letzten Abruf nicht geklappt hat. Wird im Sync-Bericht gemeldet. */
+  readonly hinweise: string[] = [];
 
   private readonly apiKey: string;
 
@@ -129,17 +131,29 @@ export class DasProgrammProvider implements ErpProvider {
     const ergebnis = new Map<string, T>();
     for (let i = 0; i < ids.length; i += BUENDEL) {
       const teil = ids.slice(i, i + BUENDEL);
-      const deklaration = teil.map((_, n) => `$id${n}: ID`).join(', ');
+      // ID! – die Einzelabfragen verlangen eine Pflicht-ID. Mit `ID` lehnt
+      // der Server die ganze Abfrage ab, noch bevor er sie ausführt.
+      const deklaration = teil.map((_, n) => `$id${n}: ID!`).join(', ');
       const rumpf = teil.map((_, n) => `d${n}: ${wurzel}(id: $id${n}) { ${felder} }`).join('\n');
       const variables = Object.fromEntries(teil.map((id, n) => [`id${n}`, id]));
-      const data = await this.anfrage<Record<string, T | null>>(
-        `query Details(${deklaration}) {\n${rumpf}\n}`,
-        variables,
-      );
-      teil.forEach((id, n) => {
-        const treffer = data[`d${n}`];
-        if (treffer) ergebnis.set(id, treffer);
-      });
+
+      try {
+        const data = await this.anfrage<Record<string, T | null>>(
+          `query Details(${deklaration}) {\n${rumpf}\n}`,
+          variables,
+        );
+        teil.forEach((id, n) => {
+          const treffer = data[`d${n}`];
+          if (treffer) ergebnis.set(id, treffer);
+        });
+      } catch (e) {
+        // Die Detailabfrage ist das Kür, die Liste ist die Pflicht. Fällt ein
+        // Feld weg, sollen trotzdem alle Baustellen ankommen – mit weniger
+        // Angaben, aber sichtbar gemeldet statt still.
+        const grund = e instanceof Error ? e.message : 'Unbekannter Fehler.';
+        const meldung = `Details zu ${wurzel} konnten nicht gelesen werden: ${grund}`;
+        if (!this.hinweise.includes(meldung)) this.hinweise.push(meldung);
+      }
     }
     return ergebnis;
   }
@@ -291,7 +305,7 @@ const PROJEKT_FELDER = `
 `;
 
 const QUERY_PROJECT = `
-  query Projekt($id: ID) {
+  query Projekt($id: ID!) {
     project(id: $id) { ${PROJEKT_FELDER} }
   }
 `;
@@ -322,7 +336,7 @@ const LIEFERANT_FELDER = `
 `;
 
 const MUTATION_UPDATE_PROJECT = `
-  mutation StatusZurueckschreiben($payload: ProjectInputObjectType) {
+  mutation StatusZurueckschreiben($payload: ProjectInputObjectType!) {
     updateProject(payload: $payload) { id referenceNumber name status }
   }
 `;

@@ -50,7 +50,8 @@ export async function syncProjects(): Promise<SyncResult> {
       provider.getSuppliers(),
     ]);
 
-    const hinweise: string[] = [];
+    // Was der Provider beim Abruf gemeldet hat, gehört in denselben Bericht.
+    const hinweise: string[] = [...(provider.hinweise ?? [])];
 
     // --- 1. Personen -----------------------------------------------------
     // Wer im ERP als Projektleiter an einem Projekt hängt, ist Bauleiter.

@@ -92,4 +92,9 @@ export interface ErpProvider {
   setProjectStatus?(erpId: string, erpStatus: string): Promise<void>;
   /** Ist das Zurueckschreiben eingeschaltet und konfiguriert? */
   readonly canWriteBack: boolean;
+  /**
+   * Was beim Abruf nicht geklappt hat, ohne dass er deshalb scheitern musste.
+   * Gehoert in den Sync-Bericht, damit niemand glaubt, alles sei vollstaendig.
+   */
+  readonly hinweise?: string[];
 }
