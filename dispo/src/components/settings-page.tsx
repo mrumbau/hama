@@ -209,9 +209,9 @@ function IntegrationsTab() {
           ) : null}
 
           <p className="text-2xs text-muted-foreground">
-            Umschalten auf die echte API über <code>DISPO_ERP_PROVIDER=das-programm</code> plus
-            <code>DAS_PROGRAMM_API_KEY</code>. Der Status wandert nur zurück ins ERP, wenn
-            <code>DAS_PROGRAMM_WRITEBACK=1</code> gesetzt ist.
+            Umschalten auf die echte API über <code>DISPO_ERP_PROVIDER=das-programm</code>{' '}
+            plus <code>DAS_PROGRAMM_API_KEY</code>. Der Status wandert nur zurück ins ERP,{' '}
+            wenn <code>DAS_PROGRAMM_WRITEBACK=1</code> gesetzt ist.
           </p>
         </CardContent>
       </Card>
