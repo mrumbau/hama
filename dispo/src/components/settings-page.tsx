@@ -98,7 +98,7 @@ function IntegrationsTab() {
 
   const sync = useMutation({
     mutationFn: () =>
-      api.post<{ message: string; conflicts: string[] }>(
+      api.post<{ message: string; hinweise: string[] }>(
         '/api/integrations/das-programm/sync',
         {},
       ),
@@ -108,7 +108,7 @@ function IntegrationsTab() {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       toast({
         title: `Synchronisation abgeschlossen: ${res.message}`,
-        description: res.conflicts[0],
+        description: res.hinweise[0],
         tone: 'success',
         duration: 8000,
       });

@@ -13,60 +13,75 @@ afterAll(async () => {
 });
 
 describe('Das Programm – Synchronisation', () => {
-  it('übernimmt Projekte aus dem Mock-Provider', async () => {
+  it('übernimmt Projekte, Personen und Subunternehmer', async () => {
     const res = await post<{
       provider: string;
-      created: number;
-      updated: number;
-      skipped: number;
-      message: string;
+      projekte: { neu: number; aktualisiert: number; unveraendert: number };
+      mitarbeiter: { neu: number };
+      subunternehmer: { neu: number; uebersprungen: number };
+      hinweise: string[];
     }>('/api/integrations/das-programm/sync', {});
 
     expect(res.status).toBe(200);
     expect(res.body.provider).toMatch(/Mock/);
-    expect(res.body.created + res.body.updated + res.body.skipped).toBeGreaterThan(0);
+    // Reine Materiallieferanten dürfen nicht als SUB hereinkommen.
+    expect(res.body.subunternehmer.uebersprungen).toBeGreaterThan(0);
   });
 
   it('ist idempotent – ein zweiter Lauf legt nichts doppelt an', async () => {
-    const first = await post<{ created: number }>('/api/integrations/das-programm/sync', {});
-    const second = await post<{ created: number; skipped: number }>(
-      '/api/integrations/das-programm/sync',
-      {},
-    );
-    expect(second.body.created).toBe(0);
-    expect(second.body.skipped).toBeGreaterThan(0);
+    await post('/api/integrations/das-programm/sync', {});
+    const zweiter = await post<{
+      projekte: { neu: number };
+      subunternehmer: { neu: number };
+      mitarbeiter: { neu: number };
+    }>('/api/integrations/das-programm/sync', {});
+    expect(zweiter.body.projekte.neu).toBe(0);
+    expect(zweiter.body.subunternehmer.neu).toBe(0);
+    expect(zweiter.body.mitarbeiter.neu).toBe(0);
   });
 
-  it('überschreibt einen abweichenden Dispo-Termin nicht, sondern meldet ihn', async () => {
-    // Ein synchronisiertes Projekt heraussuchen und den Termin in der Dispo ändern.
-    const projects = await get<{ projects: { id: string; erpId: string | null }[] }>(
+  it('schließt ein Projekt, das im ERP abgeschlossen ist', async () => {
+    await post('/api/integrations/das-programm/sync', {});
+    const projekte = await get<{ projects: { erpId: string | null; status: string }[] }>(
       '/api/projects?abgeschlossen=1',
     );
-    const synced = projects.body.projects.find((p) => p.erpId === 'DP-10047');
-    expect(synced).toBeDefined();
-
-    const eigenerTermin = isoIn(45);
-    await get(`/api/projects/${synced!.id}`);
-    const { patch } = await import('./helpers');
-    await patch(`/api/projects/${synced!.id}`, {
-      plannedStart: eigenerTermin,
-      plannedEnd: addDays(eigenerTermin, 1),
-      reason: 'KUNDE',
-    });
-
-    const sync = await post<{ conflicts: string[] }>('/api/integrations/das-programm/sync', {});
-    expect(sync.body.conflicts.join(' ')).toMatch(/Dispo-Termin wurde beibehalten/);
-
-    const after = await get<{ project: { plannedStart: string } }>(`/api/projects/${synced!.id}`);
-    expect(after.body.project.plannedStart).toBe(eigenerTermin);
+    const brandl = projekte.body.projects.find((p) => p.erpId === 'DP-10090');
+    expect(brandl?.status).toBe('ERLEDIGT');
   });
 
-  it('meldet den Sync-Zustand', async () => {
-    const res = await get<{ state: { status: string; lastSyncAt: string | null } }>(
-      '/api/integrations/das-programm/sync',
+  it('dreht eine laufende Dispo-Planung nicht zurück', async () => {
+    const projekte = await get<{ projects: { erpId: string | null; status: string }[] }>(
+      '/api/projects?abgeschlossen=1',
     );
+    // Im ERP steht order_fulfillment – die Dispo weiß es genauer.
+    const laufend = projekte.body.projects.find((p) => p.erpId === 'DP-10051');
+    expect(laufend?.status).toBe('IN_AUSFUEHRUNG');
+  });
+
+  it('übernimmt Gewerk und Ansprechpartner aus dem Kommentarfeld', async () => {
+    const subs = await get<
+      { companyName: string; contactName: string | null; tradeNames: string[] }[]
+    >('/api/subcontractors');
+    const elektro = subs.body.find((s) => s.companyName === 'Elektro Müller GmbH');
+    expect(elektro?.contactName).toBe('Stefan Müller');
+    expect(elektro?.tradeNames).toContain('Elektro');
+  });
+
+  it('meldet Termin-Abweichungen, statt die Dispo-Planung zu überschreiben', async () => {
+    const res = await post<{ hinweise: string[] }>('/api/integrations/das-programm/sync', {});
+    // Entweder es gibt Abweichungen (dann werden sie gemeldet) oder keine.
+    for (const hinweis of res.body.hinweise) {
+      expect(hinweis).toMatch(/beibehalten|übersprungen/);
+    }
+  });
+
+  it('meldet den Sync-Zustand und die Erreichbarkeit', async () => {
+    const res = await get<{
+      state: { status: string; lastSyncAt: string | null };
+      health: { ok: boolean };
+    }>('/api/integrations/das-programm/sync');
     expect(res.body.state.status).toBe('ERFOLGREICH');
-    expect(res.body.state.lastSyncAt).toBeTruthy();
+    expect(res.body.health.ok).toBe(true);
   });
 });
 

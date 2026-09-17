@@ -6,8 +6,12 @@ import { getErpProvider } from '@/server/integrations';
 export const dynamic = 'force-dynamic';
 
 export const GET = handler(async () => {
-  const state = await prisma.syncState.findUnique({ where: { provider: 'das-programm' } });
-  return ok({ state, provider: getErpProvider().name });
+  const provider = getErpProvider();
+  const [state, health] = await Promise.all([
+    prisma.syncState.findUnique({ where: { provider: 'das-programm' } }),
+    provider.healthCheck(),
+  ]);
+  return ok({ state, provider: provider.name, health });
 });
 
 /** „Projekte aus Das Programm aktualisieren“ */

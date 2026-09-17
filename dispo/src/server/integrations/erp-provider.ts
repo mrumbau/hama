@@ -2,33 +2,76 @@
  * Integrationsschicht zu „Das Programm“ (Master-Prompt Abschnitt 16 + 44).
  *
  * Die restliche Anwendung kennt ausschliesslich dieses Interface. Ob dahinter
- * der Mock oder die echte API steckt, entscheidet eine Umgebungsvariable –
- * getauscht wird nur die Implementierung, kein Aufrufer.
+ * der Mock oder die echte GraphQL-API steckt, entscheidet eine
+ * Umgebungsvariable – getauscht wird nur die Implementierung.
  */
 
 export interface ErpProject {
   /** Stabile ID im ERP. Schluessel fuer den Abgleich. */
   erpId: string;
+  /** Projektnummer, z.B. P-2026-47. */
+  referenceNumber: string | null;
+  /** Auftragsnummer, falls ein Auftrag am Projekt haengt. */
   orderNumber: string | null;
-  projectNumber: string | null;
   customerName: string;
   name: string;
+  description: string | null;
   street: string | null;
   zip: string | null;
   city: string | null;
   contactName: string | null;
   contactPhone: string | null;
   contactEmail: string | null;
-  /** Name des Projektleiters/Bauleiters, soweit im ERP gepflegt. */
-  siteManagerName: string | null;
+  /** ERP-Benutzer-ID des Projektleiters. */
+  projectManagerErpId: string | null;
+  projectManagerName: string | null;
   plannedStart: string | null; // YYYY-MM-DD
   plannedEnd: string | null;
-  /** Roh-Status aus dem ERP. Die Zuordnung erfolgt in der Sync-Schicht. */
+  /** Roh-Status aus dem ERP (new, active, order_fulfillment, closed, …). */
   status: string | null;
+  /** Wann der Datensatz im ERP zuletzt geaendert wurde – fuer den Abgleich. */
+  updatedAt: string | null;
+}
+
+/**
+ * Ein Benutzer aus „Das Programm“. Bauleiter und gewerbliche Mitarbeiter
+ * stehen dort in derselben Liste; wer was ist, entscheidet die Dispo-App
+ * beim ersten Import und bleibt danach dabei.
+ */
+export interface ErpEmployee {
+  erpId: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phone: string | null;
+  /** Rolle/Funktion, soweit das ERP sie kennt. */
+  role: string | null;
+}
+
+/**
+ * Ein Lieferant aus „Das Programm“. Subunternehmer sind dort nicht eigens
+ * gruppiert – sie werden im Kommentarfeld als solche gekennzeichnet.
+ */
+export interface ErpSupplier {
+  erpId: string;
+  referenceNumber: string | null;
+  name: string;
+  contactName: string | null;
+  phone: string | null;
+  email: string | null;
+  street: string | null;
+  zip: string | null;
+  city: string | null;
+  /** Freitext. Enthaelt u.a. „Tätigkeit: …“ und die SUB-Kennzeichnung. */
+  comment: string | null;
 }
 
 export interface ErpProvider {
   readonly name: string;
+  /** Laeuft die Verbindung ueberhaupt? Fuer die Anzeige in den Einstellungen. */
+  healthCheck(): Promise<{ ok: boolean; message: string }>;
   getProjects(): Promise<ErpProject[]>;
   getProject(erpId: string): Promise<ErpProject | null>;
+  getEmployees(): Promise<ErpEmployee[]>;
+  getSuppliers(): Promise<ErpSupplier[]>;
 }

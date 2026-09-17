@@ -112,46 +112,71 @@ Anwendung kennt das ERP nicht:
 
 ```ts
 interface ErpProvider {
-  getProjects(): Promise<ErpProject[]>;
-  getProject(erpId: string): Promise<ErpProject | null>;
+  healthCheck()
+  getProjects()
+  getProject(erpId)
+  getEmployees()
+  getSuppliers()
 }
 ```
 
 | Datei | Rolle |
 |---|---|
 | `src/server/integrations/erp-provider.ts` | Schnittstelle und Datenmodell |
-| `src/server/integrations/mock-erp-provider.ts` | Testmodus mit Beispielaufträgen |
-| `src/server/integrations/das-programm-provider.ts` | Echte API |
+| `src/server/integrations/mock-erp-provider.ts` | Testmodus, den echten Datensätzen nachgebildet |
+| `src/server/integrations/das-programm-provider.ts` | Echte GraphQL-API |
+| `src/server/integrations/mapping.ts` | Übersetzungsregeln (Status, SUB-Erkennung, Gewerke) |
 | `src/server/integrations/sync.ts` | Abgleich in die Dispo-Datenbank |
 
-**Umschalten** – ohne eine einzige Änderung am übrigen Code:
+**Umschalten** – ohne Änderung am übrigen Code:
 
 ```bash
 DISPO_ERP_PROVIDER="das-programm"
-DAS_PROGRAMM_BASE_URL="https://…"
+DAS_PROGRAMM_GRAPHQL_URL="https://…/graphql"
 DAS_PROGRAMM_API_KEY="…"
+DAS_PROGRAMM_AUTH_HEADER="Authorization"   # falls abweichend
+DAS_PROGRAMM_AUTH_PREFIX="Bearer "         # falls abweichend
 ```
 
-Anzupassen bleibt nur `mapProject()` in `das-programm-provider.ts` – dort
-werden die tatsächlichen Feldnamen der ERP-Antwort zugeordnet.
-
 **Auslösen:** Einstellungen → Integrationen → *„Projekte aus Das Programm
-aktualisieren“*, oder `POST /api/integrations/das-programm/sync`. Für eine
-automatische Synchronisation genügt ein Cron-Job auf diesen Endpoint.
+aktualisieren“*, oder `POST /api/integrations/das-programm/sync`. Für einen
+automatischen Abgleich genügt ein Cron-Job auf diesen Endpunkt.
 
-### Sync-Regeln
+### Was übernommen wird
 
-| Führend | Felder |
+* **Projekte** – Kunde, Anschrift, Projekt- und Auftragsnummer, Projektleiter
+* **Personen** – wer im ERP Projektleiter ist, wird Bauleiter; alle anderen
+  werden Mitarbeiter. Bürokräfte werden übersprungen und gemeldet.
+* **Subunternehmer** – „Das Programm“ kennt keine eigene Gruppe dafür. Ein
+  Lieferant gilt als SUB, wenn im Kommentarfeld „Sub“, „Subunternehmer“ oder
+  „Nachunternehmer“ als eigenes Wort steht. Das Gewerk wird aus der Zeile
+  `Tätigkeit: …` gelesen, der Ansprechpartner aus `AP bei: …`.
+  Die Wortgrenze ist Absicht: sonst würde „Substrat“ einen Gartenlieferanten
+  zum Subunternehmer machen (dieser Fall ist getestet).
+
+### Statusregeln
+
+Der Abgleich läuft **nur in eine Richtung** – aus dem ERP herein. Die
+Schnittstelle bietet keine Schreibfunktion für Projekte, ein Status aus der
+Dispo kann also nicht zurückgeschrieben werden.
+
+| Im ERP | In der Dispo |
 |---|---|
-| **ERP** | Kunde, Anschrift, Auftrags- und Projektnummer, Projektname, Ansprechpartner |
-| **Dispo-App** | Einsätze, Bauleiterzuordnung, Status, Ampel, Materialstatus, Kundenbestätigung, Notizen, Historie |
+| `closed`, `lost` | → **Erledigt** (setzt sich immer durch) |
+| `invoice`, `waiting_for_payment` | → **Fertig** |
+| `won`, `active` | → *Terminierung erforderlich*, **aber nur**, solange die Dispo noch nichts entschieden hat |
+| `order_fulfillment` | bleibt unberührt – wie weit die Baustelle ist, weiß nur die Dispo |
+| `new`, `quotation`, `sales` | → *Neu* |
 
-Termine werden aus dem ERP nur **ergänzt**, nie überschrieben: Weicht der
-ERP-Termin von der Dispo-Planung ab, gewinnt die Dispo-Planung und der Sync
-meldet die Abweichung. Eine telefonisch vereinbarte Verschiebung darf nicht
-stillschweigend zurückgesetzt werden.
+Der Grundsatz dahinter: Ein Abschluss im ERP gilt. Alles andere darf eine
+laufende Planung **nicht** zurückdrehen – sonst springt eine Baustelle, die
+gerade in Ausführung ist, zurück auf „Terminierung erforderlich“, nur weil im
+ERP jemand etwas gespeichert hat. Termine ergänzt der Abgleich, überschreibt
+sie aber nie; Abweichungen werden gemeldet.
 
----
+> **Voraussetzung im Arbeitsablauf:** Die Übernahme hängt an Projekten. Zu
+> jedem Auftrag muss in „Das Programm“ ein Projekt existieren, sonst taucht
+> er in der Plantafel nicht auf.
 
 ## 5. 3CX anbinden
 
