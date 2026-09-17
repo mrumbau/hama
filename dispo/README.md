@@ -143,8 +143,11 @@ DAS_PROGRAMM_WRITEBACK="1"   # erlaubt das Zurückschreiben des Projektstatus
 ```
 
 **Prüfen:** Einstellungen → Integrationen → *„Verbindung prüfen“*. Zeigt
-Endpunkt, Header und die Antwort des Servers im Klartext – ein falscher
-Auth-Header ist daran sofort zu erkennen.
+Endpunkt, Header und die Antwort des Servers im Klartext. Scheitert die
+Anmeldung, probiert der Test von sich aus die gängigen Header-Formen durch
+und sucht anschließend den OAuth2-Token-Endpunkt. Ein `invalid_client` gilt
+dabei als Treffer: es beweist, dass der Endpunkt existiert und nur die
+Zugangsdaten fehlen.
 
 **Auslösen:** Einstellungen → Integrationen → *„Projekte aus Das Programm
 aktualisieren“*, oder `POST /api/integrations/das-programm/sync`. Für einen

@@ -14,6 +14,7 @@
  *   DAS_PROGRAMM_WRITEBACK=1   erlaubt das Zurückschreiben des Projektstatus
  */
 import type { ErpEmployee, ErpProject, ErpProvider, ErpSupplier } from './erp-provider';
+import { holeZugriffstoken, type OAuthKonfiguration } from './das-programm-auth';
 
 export const DAS_PROGRAMM_STANDARD_URL = 'https://app.das-programm.io/api/graphql';
 
@@ -41,9 +42,13 @@ export class DasProgrammProvider implements ErpProvider {
     private readonly authHeader = 'Authorization',
     private readonly authPrefix = 'Bearer ',
     writeBack = false,
+    /** Sind Client-Zugangsdaten hinterlegt, holt sich die App ihr Token selbst. */
+    private readonly oauth: OAuthKonfiguration | null = null,
   ) {
     if (!endpoint) throw new Error('DAS_PROGRAMM_GRAPHQL_URL ist nicht gesetzt.');
-    if (!apiKey) throw new Error('DAS_PROGRAMM_API_KEY ist nicht gesetzt.');
+    if (!apiKey && !oauth) {
+      throw new Error('Weder DAS_PROGRAMM_API_KEY noch Client-Zugangsdaten sind gesetzt.');
+    }
     this.canWriteBack = writeBack;
 
     // Beim Kopieren aus einer Oberflaeche kommt gern ein Zeilenumbruch mit,
@@ -52,13 +57,27 @@ export class DasProgrammProvider implements ErpProvider {
     this.apiKey = apiKey.trim().replace(/^Bearer\s+/i, '');
   }
 
+  /**
+   * Der Anmelde-Header fuer eine Abfrage.
+   *
+   * Mit Client-Zugangsdaten ist es ein frisch geholtes (und danach
+   * zwischengespeichertes) Zugriffstoken, sonst der hinterlegte Schluessel.
+   */
+  private async anmeldung(): Promise<Record<string, string>> {
+    if (this.oauth) {
+      const token = await holeZugriffstoken(this.oauth);
+      return { Authorization: `Bearer ${token}` };
+    }
+    return { [this.authHeader]: `${this.authPrefix}${this.apiKey}` };
+  }
+
   private async anfrage<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
     const res = await fetch(this.endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        [this.authHeader]: `${this.authPrefix}${this.apiKey}`,
+        ...(await this.anmeldung()),
       },
       body: JSON.stringify({ query, variables }),
       // Secrets bleiben serverseitig – dieser Code läuft nie im Browser.

@@ -58,9 +58,13 @@ interface ErpVerbindung {
         antwort: string;
       }[]
     | null;
+  tokenEndpunkte:
+    | { url: string; status: number | null; sieht_aus_wie_oauth: boolean; antwort: string }[]
+    | null;
   konfiguration: {
     endpunkt: string;
     schluesselGesetzt: boolean;
+    clientZugangsdaten: boolean;
     authHeader: string;
     zurueckschreiben: boolean;
   };
@@ -217,6 +221,9 @@ function IntegrationsTab() {
               </div>
               {verbindung.data.diagnose ? (
                 <AuthDiagnose ergebnisse={verbindung.data.diagnose} />
+              ) : null}
+              {verbindung.data.tokenEndpunkte ? (
+                <TokenSuche befunde={verbindung.data.tokenEndpunkte} />
               ) : null}
             </div>
           ) : null}
@@ -559,6 +566,53 @@ function AuthDiagnose({ ergebnisse }: { ergebnisse: NonNullable<ErpVerbindung['d
       <p className="text-muted-foreground">
         Antworten alle gleich, liegt es nicht am Header, sondern am Schlüssel selbst.
       </p>
+    </div>
+  );
+}
+
+/**
+ * Suche nach dem Token-Endpunkt.
+ *
+ * Wird ein dauerhafter Schlüssel überall abgelehnt, verlangt der Server ein
+ * OAuth2-Zugriffstoken. Dann ist die einzig sinnvolle nächste Frage, wo man
+ * sich eines abholt – und ein `invalid_client` ist dabei ein Treffer, kein
+ * Fehlschlag: es beweist, dass der Endpunkt existiert.
+ */
+function TokenSuche({ befunde }: { befunde: NonNullable<ErpVerbindung['tokenEndpunkte']> }) {
+  const treffer = befunde.filter((b) => b.sieht_aus_wie_oauth);
+
+  return (
+    <div className="mt-2 space-y-1 border-t pt-2">
+      <p className="font-medium">
+        Der Server verlangt ein OAuth2-Zugriffstoken, keinen dauerhaften Schlüssel.
+      </p>
+      {treffer.length > 0 ? (
+        <>
+          <p className="text-muted-foreground">Gefundene Anmelde-Endpunkte:</p>
+          <ul className="space-y-0.5">
+            {treffer.map((b) => (
+              <li key={b.url} className="text-muted-foreground">
+                <code>{b.url}</code> → {b.status} {b.antwort}
+              </li>
+            ))}
+          </ul>
+          <p className="text-muted-foreground">
+            Tragen Sie <code>DAS_PROGRAMM_CLIENT_ID</code> und{' '}
+            <code>DAS_PROGRAMM_CLIENT_SECRET</code> ein – die App holt sich das Token dann selbst.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-muted-foreground">Unter den üblichen Pfaden war keiner zu finden:</p>
+          <ul className="space-y-0.5">
+            {befunde.map((b) => (
+              <li key={b.url} className="text-muted-foreground">
+                <code>{b.url}</code> → {b.status ?? 'kein Kontakt'}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }

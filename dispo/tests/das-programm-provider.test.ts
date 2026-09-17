@@ -12,6 +12,7 @@ import {
   DasProgrammProvider,
   findeAuthVariante,
 } from '@/server/integrations/das-programm-provider';
+import { vergissTokens } from '@/server/integrations/das-programm-auth';
 
 interface Aufruf {
   query: string;
@@ -371,5 +372,75 @@ describe('Schlüssel aufräumen', () => {
     const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer abc123');
     expect(aufrufe).toHaveLength(1);
+  });
+});
+
+describe('Anmeldung über Client-Zugangsdaten', () => {
+  it('holt ein Token und schickt es als Bearer mit', async () => {
+    vergissTokens();
+    const aufrufe: { url: string; headers: Record<string, string> }[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit) => {
+        aufrufe.push({ url, headers: init.headers as Record<string, string> });
+        if (url.includes('/oauth/token')) {
+          return {
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            text: async () => '{"access_token":"frisches-token","expires_in":3600}',
+          } as unknown as Response;
+        }
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => ({ data: { projectStatusSearch: [{ id: '1' }] } }),
+        } as unknown as Response;
+      }),
+    );
+
+    const p = new DasProgrammProvider(
+      'https://app.das-programm.io/api/graphql',
+      '',
+      'Authorization',
+      'Bearer ',
+      false,
+      {
+        tokenUrl: 'https://app.das-programm.io/api/oauth/token',
+        clientId: 'dispo',
+        clientSecret: 'geheim',
+        scope: null,
+      },
+    );
+    const health = await p.healthCheck();
+
+    expect(health.ok).toBe(true);
+    const graphql = aufrufe.find((a) => a.url.endsWith('/graphql'));
+    expect(graphql?.headers.Authorization).toBe('Bearer frisches-token');
+  });
+
+  it('kommt ohne API-Schlüssel aus, wenn Client-Zugangsdaten da sind', () => {
+    expect(
+      () =>
+        new DasProgrammProvider(
+          'https://example.invalid/graphql',
+          '',
+          'Authorization',
+          'Bearer ',
+          false,
+          {
+            tokenUrl: 'https://example.invalid/api/oauth/token',
+            clientId: 'a',
+            clientSecret: 'b',
+            scope: null,
+          },
+        ),
+    ).not.toThrow();
+
+    // Ohne beides darf die App gar nicht erst starten.
+    expect(() => new DasProgrammProvider('https://example.invalid/graphql', '')).toThrow(
+      /Weder DAS_PROGRAMM_API_KEY noch/,
+    );
   });
 });
