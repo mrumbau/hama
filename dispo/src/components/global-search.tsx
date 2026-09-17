@@ -143,7 +143,9 @@ export function GlobalSearch() {
                     {hit.subtitle}
                   </span>
                   {hit.meta ? (
-                    <span className="block truncate text-2xs text-muted-foreground">{hit.meta}</span>
+                    <span className="block truncate text-2xs text-muted-foreground">
+                      {hit.meta}
+                    </span>
                   ) : null}
                 </span>
               </button>

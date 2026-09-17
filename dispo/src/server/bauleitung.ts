@@ -64,6 +64,17 @@ export async function pflegeBauleitung(
         phone: mitarbeiter.phone,
       },
     });
+    // Gibt es zu dieser Person ein Benutzerkonto, hängen wir es gleich an –
+    // davon hängt ab, welche Baustellen in „Offene Punkte" als seine gelten.
+    await prisma.user.updateMany({
+      where: {
+        firstName: mitarbeiter.firstName,
+        lastName: mitarbeiter.lastName,
+        siteManagerId: null,
+      },
+      data: { siteManagerId: angelegt.id },
+    });
+
     await writeAudit({
       entityType: 'site_manager',
       entityId: angelegt.id,

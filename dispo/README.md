@@ -333,51 +333,41 @@ Claude-Analyse hinzu; schlägt sie fehl, greift still die Heuristik.
 | `THREECX_WEBHOOK_SECRET` | empfohlen | HMAC-Secret des 3CX-Webhooks |
 | `ANTHROPIC_API_KEY` | nein | schaltet die AI-Analyse zu |
 | `DISPO_AI_MODEL` | nein | Modell-ID (Standard `claude-opus-5`) |
-| `DISPO_BASIC_AUTH_USER` / `_PASSWORD` | nein | einfacher Zugriffsschutz, falls öffentlich erreichbar |
+| `DISPO_SETUP_CODE` | **ja** | Einmalcode, mit dem ein Benutzer sein erstes Passwort vergibt |
+| `DISPO_AUTH_SECRET` | empfohlen | Schlüssel für das Sitzungs-Cookie. Fehlt er, wird er aus `DATABASE_URL` abgeleitet |
+| `DISPO_BASIC_AUTH_USER` / `_PASSWORD` | nein | zusätzlicher Riegel davor, unabhängig von der Anmeldung |
 
 Alle Secrets werden ausschließlich serverseitig gelesen. Es gibt keine
 `NEXT_PUBLIC_*`-Variable und keinen Schlüssel im Frontend.
 
-### Zugriff in Version 1
+### Anmeldung und Rechte
 
-Version 1 hat **bewusst keine Benutzerverwaltung**: ein Disponent, ein Zugang.
-Ist die App öffentlich erreichbar, aktivieren `DISPO_BASIC_AUTH_USER` und
-`DISPO_BASIC_AUTH_PASSWORD` einen einfachen serverseitigen Riegel
-(`src/middleware.ts`). Der 3CX-Webhook ist davon ausgenommen – er hat seine
-eigene Signaturprüfung. Das ersetzt keine Rechteverwaltung.
+Die App ist nur nach Anmeldung erreichbar. Angelegt sind drei Konten:
 
-### Deployment (z. B. Vercel)
+| Person | Rolle | Darf zusätzlich |
+|---|---|---|
+| Marlon Tschon | Verwaltung | Einstellungen ändern, Systemansicht, Änderungsprotokoll |
+| Carsten Reuter | Leitung | Änderungsprotokoll |
+| Philipp Chama-Schmidt | Bauleitung | – |
 
-Die App ist eine gewöhnliche Next.js-Anwendung und lässt sich überall
-betreiben, wo Node läuft. Für Vercel ist alles vorbereitet:
+Alles Übrige – Plantafel, Projekte, Mitarbeiter, Subunternehmer, Gewerke
+anlegen, Abgleich anstoßen, Verbindung prüfen – darf jeder. Was nicht
+ausdrücklich eingeschränkt ist, gehört zur täglichen Arbeit; dort etwas zu
+sperren kostet nur Rückfragen.
 
-* `npm run vercel-build` wendet vor dem Build die Migrationen an
-  (`scripts/deploy-prepare.mjs`). Das muss dort geschehen, weil die
-  Buildumgebung die Datenbank erreicht.
-* Nötig ist im Projekt genau eine Variable: `DATABASE_URL`. Demo-Daten legt
-  der Build selbsttätig an, solange die Datenbank leer ist.
-* **Serverlos zwingend den Transaction-Pooler benutzen.** Jeder Funktions-
-  aufruf öffnet eine eigene Verbindung. Über eine Sitzungsverbindung
-  (Port 5432) bleiben die offen, und nach 15 gleichzeitigen Aufrufen
-  antwortet die Datenbank nur noch mit
-  `FATAL: (EMAXCONNSESSION) max clients reached in session mode`.
-  Port 6543 plus `pgbouncer=true&connection_limit=1` gibt jede Verbindung
-  sofort wieder frei.
-* **Die Variable muss für alle Umgebungen gelten** – Production *und* Preview
-  *und* Development. Vercel setzt beim Anlegen standardmäßig nur Production;
-  Builds von einem Branch sind aber Preview-Builds und sehen die Variable
-  dann nicht. Der Build bricht in dem Fall mit „DATABASE_URL ist nicht
-  gesetzt" ab, obwohl der Wert im Projekt hinterlegt ist.
-* **Root Directory** im Vercel-Projekt auf `dispo` setzen – die App liegt in
-  einem Unterverzeichnis des Repositorys.
-* `vercel.json` legt die Region auf `fra1` (Frankfurt) fest. Anwendung und
-  Datenbank sollten am selben Ort stehen: jede Abfrage über den Atlantik
-  kostet rund 100 ms, und die Plantafel stellt mehrere pro Aufruf.
+**Erstes Anmelden:** Es gibt kein Startpasswort. Jeder vergibt beim ersten
+Mal selbst eines – dafür braucht er einmalig den **Einrichtungscode** aus
+`DISPO_SETUP_CODE`. So steht kein Passwort im Repository und keines muss
+verschickt werden.
 
-Ist die Anwendung öffentlich erreichbar, sollte der Basic-Auth-Schutz gesetzt
-sein. Es handelt sich um ein internes Werkzeug.
+**Offene Punkte** zeigt jedem seine eigenen Baustellen. `?alle=1` zeigt alle.
 
----
+**Wichtig:** Ausgeblendete Knöpfe sind kein Schutz. Jede Berechtigung wird
+serverseitig geprüft – wer eine Adresse direkt aufruft, bekommt 403.
+
+Das Sitzungs-Cookie ist HttpOnly und läuft nach sieben Tagen ab. Signiert
+wird es mit `DISPO_AUTH_SECRET`; fehlt die Variable, wird der Schlüssel aus
+`DATABASE_URL` abgeleitet (stabil über Neustarts, nicht zu erraten).
 
 ## 7. Was Version 2 bringt
 

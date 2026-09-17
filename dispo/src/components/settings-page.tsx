@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Database, Download, Plug, Plus, RefreshCw, ShieldAlert, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { useTrades } from '@/lib/queries';
+import { useIch } from '@/lib/ich';
 import { formatDateTime } from '@/lib/dates';
 import { SOURCE_LABEL, type SourceKey } from '@/lib/labels';
 import { Button } from '@/components/ui/button';
@@ -66,8 +67,29 @@ interface ErpVerbindung {
   };
 }
 
+const TABS = [
+  { value: 'integrationen', label: 'Integrationen' },
+  { value: 'gewerke', label: 'Gewerke' },
+  { value: 'protokoll', label: 'Änderungsprotokoll' },
+  { value: 'system', label: 'System' },
+] as const;
+
 export function SettingsPage() {
   const [tab, setTab] = React.useState('integrationen');
+  const { data: ich } = useIch();
+  const rechte = ich?.rechte;
+
+  // Tabs, die nicht jeder sehen soll. Ausgeblendet ist kein Schutz – jede
+  // dieser Ansichten prüft ihre Berechtigung auch auf dem Server.
+  const sichtbar = TABS.filter((t) => {
+    if (t.value === 'protokoll') return rechte?.protokoll ?? false;
+    if (t.value === 'system') return rechte?.system ?? false;
+    return true;
+  });
+
+  React.useEffect(() => {
+    if (!sichtbar.some((t) => t.value === tab)) setTab('integrationen');
+  }, [sichtbar, tab]);
 
   return (
     <div className="flex h-full flex-col">
@@ -77,10 +99,11 @@ export function SettingsPage() {
       >
         <Tabs value={tab} onValueChange={setTab} className="mt-2">
           <TabsList>
-            <TabsTrigger value="integrationen">Integrationen</TabsTrigger>
-            <TabsTrigger value="gewerke">Gewerke</TabsTrigger>
-            <TabsTrigger value="protokoll">Änderungsprotokoll</TabsTrigger>
-            <TabsTrigger value="system">System</TabsTrigger>
+            {sichtbar.map((t) => (
+              <TabsTrigger key={t.value} value={t.value}>
+                {t.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </Tabs>
       </PageHeader>
@@ -576,6 +599,7 @@ function AuthDiagnose({ ergebnisse }: { ergebnisse: NonNullable<ErpVerbindung['d
 function DemoEntfernen() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: ich } = useIch();
   const [sicher, setSicher] = React.useState(false);
 
   const { data } = useQuery({
@@ -594,6 +618,9 @@ function DemoEntfernen() {
   });
 
   if (!data) return null;
+  // Löschen ist Systemsache. Wer es nicht darf, sieht den Knopf nicht –
+  // der Server würde ihn ohnehin abweisen.
+  if (!ich?.rechte?.system) return null;
 
   if (data.offen === 0) {
     return (

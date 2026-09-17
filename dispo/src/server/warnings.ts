@@ -30,13 +30,26 @@ const BUCKET_RANK: Record<WarningBucket, number> = {
   SPAETER: 3,
 };
 
-export async function computeWarnings(options: { includeDismissed?: boolean } = {}) {
+export async function computeWarnings(
+  options: {
+    includeDismissed?: boolean;
+    /**
+     * Nur die Baustellen dieses Bauleiters. Jeder der drei soll seine
+     * eigenen offenen Punkte sehen – eine Liste mit den Sorgen der Kollegen
+     * liest niemand zu Ende.
+     */
+    siteManagerId?: string | null;
+  } = {},
+) {
   const today = todayIso();
   const horizonEnd = addDays(today, 28);
   const horizonStart = addDays(today, -14);
 
   const [board, dismissals, communications, changeRequests] = await Promise.all([
-    loadBoard(horizonStart, horizonEnd, { includeClosed: true }),
+    loadBoard(horizonStart, horizonEnd, {
+      includeClosed: true,
+      ...(options.siteManagerId ? { siteManagerIds: [options.siteManagerId] } : {}),
+    }),
     prisma.warningDismissal.findMany(),
     prisma.communication.findMany({
       where: { status: { in: ['NEU', 'IN_PRUEFUNG'] } },

@@ -2,15 +2,24 @@ import { z } from 'zod';
 import { handler, ok, parseBody } from '@/server/api';
 import { computeWarnings } from '@/server/warnings';
 import { prisma } from '@/lib/db';
+import { aktuellerBenutzer } from '@/server/auth';
 
 export const dynamic = 'force-dynamic';
 
 export const GET = handler(async (request: Request) => {
   const params = new URL(request.url).searchParams;
+  const benutzer = await aktuellerBenutzer();
+
+  // Voreinstellung: die eigenen Baustellen. Wer alles sehen will, sagt es
+  // ausdruecklich – dann steht auch dran, dass es alle sind.
+  const alle = params.get('alle') === '1';
+  const siteManagerId = alle ? null : (benutzer?.siteManagerId ?? null);
+
   const warnings = await computeWarnings({
     includeDismissed: params.get('erledigte') === '1',
+    siteManagerId,
   });
-  return ok({ warnings });
+  return ok({ warnings, nurEigene: Boolean(siteManagerId) });
 });
 
 /** Einen offenen Punkt abhaken bzw. wieder aktivieren. */

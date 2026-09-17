@@ -170,6 +170,43 @@ enum SyncStatus {
 
 /// Gewerk bzw. Qualifikation. Wird sowohl von Mitarbeitern (Qualifikation)
 /// als auch von Subunternehmern (Gewerk) benutzt.
+/// Rolle eines Benutzers. Bewusst grob: drei Bauleiter brauchen keine
+/// Rechtematrix, sondern eine nachvollziehbare Abstufung.
+enum UserRole {
+  /// Darf alles, auch Einstellungen aendern und die Systemansicht sehen.
+  ADMIN
+  /// Darf alles ausser Einstellungen aendern; sieht das Aenderungsprotokoll.
+  LEITUNG
+  /// Plant und pflegt Stammdaten; sieht Protokoll und System nicht.
+  BAULEITER
+}
+
+/// Ein Benutzer der Dispo.
+///
+/// Angemeldet wird entweder mit Passwort oder spaeter mit dem
+/// Microsoft-Konto - deshalb ist `passwordHash` optional. Wer noch keines
+/// gesetzt hat, vergibt es beim ersten Anmelden gegen den Einrichtungscode.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  firstName    String
+  lastName     String
+  role         UserRole @default(BAULEITER)
+  passwordHash String?
+  /// Welcher Bauleiter-Datensatz gehoert zu dieser Person? Darueber
+  /// entscheidet sich, welche Baustellen "seine" sind.
+  siteManagerId String?
+  siteManager   SiteManager? @relation(fields: [siteManagerId], references: [id], onDelete: SetNull)
+  active       Boolean  @default(true)
+  lastLoginAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active])
+  @@map("users")
+}
+
 model Trade {
   id        String @id @default(cuid())
   name      String @unique
@@ -204,6 +241,7 @@ model SiteManager {
   projectsPrimary   Project[]    @relation("PrimarySiteManager")
   projectsSecondary Project[]    @relation("SecondarySiteManager")
   assignments       Assignment[]
+  users             User[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

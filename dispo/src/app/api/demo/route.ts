@@ -1,5 +1,6 @@
 import { handler, ok } from '@/server/api';
 import { entferneDemoDaten, zaehleDemoDaten } from '@/server/demo';
+import { verlange } from '@/server/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +10,7 @@ export const GET = handler(async () => {
 
 /** „Demo-Daten entfernen“ – löscht ausschließlich, was als Demo markiert ist. */
 export const DELETE = handler(async () => {
+  await verlange('system');
   const e = await entferneDemoDaten();
   const message =
     e.gesamt === 0

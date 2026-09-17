@@ -130,7 +130,9 @@ export function OpenPointsPage() {
                       key={w.key}
                       className={cn(
                         'flex items-start gap-3 rounded-lg border bg-card p-3 transition',
-                        w.severity === 'KRITISCH' && !w.dismissed && 'border-ampel-rot/40 bg-ampel-rot/5',
+                        w.severity === 'KRITISCH' &&
+                          !w.dismissed &&
+                          'border-ampel-rot/40 bg-ampel-rot/5',
                         w.severity === 'WARNUNG' && !w.dismissed && 'border-ampel-gelb/40',
                         w.dismissed && 'opacity-50',
                       )}

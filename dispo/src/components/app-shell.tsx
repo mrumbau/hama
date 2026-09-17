@@ -1,12 +1,13 @@
 'use client';
 import * as React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   AlertTriangle,
   CalendarRange,
   HardHat,
   LayoutGrid,
+  LogOut,
   Menu,
   MessageSquare,
   Settings,
@@ -14,6 +15,8 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { api } from '@/lib/api-client';
+import { ROLLE_LABEL, useIch } from '@/lib/ich';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { GlobalSearch } from '@/components/global-search';
@@ -34,6 +37,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
   React.useEffect(() => setMobileOpen(false), [pathname]);
+
+  // Die Anmeldeseite steht fuer sich – dort gibt es noch keine Navigation,
+  // und eine Seitenleiste mit Menuepunkten, die man nicht oeffnen kann,
+  // waere nur eine Einladung zum Klicken.
+  if (pathname === '/anmelden') return <>{children}</>;
 
   return (
     <div className="flex h-dvh w-full overflow-hidden">
@@ -86,10 +94,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="border-t p-3 text-2xs leading-relaxed text-muted-foreground">
-          <p className="font-medium text-foreground">Version 1 – interne Disposition</p>
-          <p>Kaufmännische Daten bleiben in „Das Programm“.</p>
-        </div>
+        <Angemeldet />
       </aside>
 
       {mobileOpen ? (
@@ -115,6 +120,53 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <GlobalSearch />
         </header>
         <main className="min-h-0 flex-1 overflow-auto">{children}</main>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Wer arbeitet hier gerade – und wie kommt man wieder raus.
+ *
+ * Auf einer Tafel, an der drei Leute dieselben Baustellen verschieben, ist
+ * die Frage „unter welchem Namen bin ich hier?" keine Kleinigkeit.
+ */
+function Angemeldet() {
+  const router = useRouter();
+  const { data } = useIch();
+  const user = data?.user;
+
+  const abmelden = async () => {
+    await api.post('/api/auth/logout', {});
+    router.push('/anmelden');
+    router.refresh();
+  };
+
+  if (!user) {
+    return (
+      <div className="border-t p-3 text-2xs leading-relaxed text-muted-foreground">
+        <p className="font-medium text-foreground">Interne Disposition</p>
+        <p>Kaufmännische Daten bleiben in „Das Programm“.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t p-3">
+      <div className="flex items-center gap-2">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-2xs font-semibold text-primary">
+          {user.firstName[0]}
+          {user.lastName[0]}
+        </span>
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="truncate text-xs font-medium">
+            {user.firstName} {user.lastName}
+          </p>
+          <p className="truncate text-2xs text-muted-foreground">{ROLLE_LABEL[user.role]}</p>
+        </div>
+        <Button variant="ghost" size="icon-sm" onClick={abmelden} title="Abmelden">
+          <LogOut />
+        </Button>
       </div>
     </div>
   );

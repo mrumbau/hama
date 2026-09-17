@@ -1,10 +1,14 @@
 import { handler, ok } from '@/server/api';
 import { prisma } from '@/lib/db';
+import { verlange } from '@/server/auth';
 
 export const dynamic = 'force-dynamic';
 
 /** Vollstaendiges Aenderungsprotokoll mit einfachen Filtern. */
 export const GET = handler(async (request: Request) => {
+  // Das vollstaendige Protokoll zeigt jede Aenderung jedes Kollegen. Das ist
+  // eine Leitungsfrage, keine Planungsfrage.
+  await verlange('protokoll');
   const params = new URL(request.url).searchParams;
   const entityType = params.get('typ') || undefined;
   const projectId = params.get('projekt') || undefined;

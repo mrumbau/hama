@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { handler, ok, parseBody } from '@/server/api';
 import { prisma } from '@/lib/db';
+import { verlange } from '@/server/auth';
 import { pooltauglicheUrl } from '@/lib/db-url';
 
 export const dynamic = 'force-dynamic';
@@ -37,6 +38,7 @@ export const GET = handler(async () => {
 });
 
 export const PATCH = handler(async (request: Request) => {
+  await verlange('einstellungenAendern');
   const input = await parseBody(request, z.record(z.string().max(2000)));
   for (const [key, value] of Object.entries(input)) {
     await prisma.setting.upsert({ where: { key }, update: { value }, create: { key, value } });

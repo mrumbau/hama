@@ -66,7 +66,9 @@ export function MorningDialog({
                 <ul className="space-y-1.5">
                   {heuteAktiv.map((p) => {
                     const items = (board?.assignments ?? []).filter((a) => a.projectId === p.id);
-                    const gruppen = (['BAULEITER', 'MITARBEITER', 'SUBUNTERNEHMER', 'UNBESETZT'] as const)
+                    const gruppen = (
+                      ['BAULEITER', 'MITARBEITER', 'SUBUNTERNEHMER', 'UNBESETZT'] as const
+                    )
                       .map((type) => ({
                         type,
                         names: items
@@ -86,7 +88,9 @@ export function MorningDialog({
                             {p.customerName} – {p.name}
                           </Link>
                           {p.city ? (
-                            <span className="shrink-0 text-2xs text-muted-foreground">{p.city}</span>
+                            <span className="shrink-0 text-2xs text-muted-foreground">
+                              {p.city}
+                            </span>
                           ) : null}
                         </div>
                         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
@@ -122,7 +126,9 @@ export function MorningDialog({
                         <Badge variant={w.severity === 'KRITISCH' ? 'rot' : 'gelb'}>
                           {w.category}
                         </Badge>
-                        <span className="min-w-0 flex-1 truncate text-xs font-medium">{w.title}</span>
+                        <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                          {w.title}
+                        </span>
                       </div>
                       <p className="text-2xs text-muted-foreground">{w.detail}</p>
                     </li>
@@ -136,12 +142,17 @@ export function MorningDialog({
                 <Phone className="size-3.5" /> Offene Telefonhinweise ({telefonate.length})
               </h3>
               {telefonate.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Nichts Offenes aus der Kommunikation.</p>
+                <p className="text-xs text-muted-foreground">
+                  Nichts Offenes aus der Kommunikation.
+                </p>
               ) : (
                 <ul className="space-y-1">
                   {telefonate.slice(0, 8).map((w) => (
                     <li key={w.key} className="rounded-md border px-3 py-1.5">
-                      <Link href={w.href ?? '/kommunikation'} className="text-xs font-medium hover:underline">
+                      <Link
+                        href={w.href ?? '/kommunikation'}
+                        className="text-xs font-medium hover:underline"
+                      >
                         {w.title}
                       </Link>
                       <p className="text-2xs text-muted-foreground">{w.detail}</p>
