@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { handler, ok, parseBody } from '@/server/api';
 import { prisma } from '@/lib/db';
+import { pooltauglicheUrl } from '@/lib/db-url';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +31,7 @@ export const GET = handler(async () => {
       erpProvider: process.env.DISPO_ERP_PROVIDER ?? 'mock',
       threeCxConfigured: Boolean(process.env.THREECX_WEBHOOK_SECRET),
       aiConfigured: Boolean(process.env.ANTHROPIC_API_KEY),
-      database: describeDatabase(process.env.DATABASE_URL),
+      database: describeDatabase(pooltauglicheUrl(process.env.DATABASE_URL).url),
     },
   });
 });
@@ -43,7 +44,12 @@ export const PATCH = handler(async (request: Request) => {
   return ok({ message: 'Einstellungen gespeichert.' });
 });
 
-/** Verbindungsdaten nie vollstaendig ausgeben – nur Host und Datenbankname. */
+/**
+ * Verbindungsdaten nie vollstaendig ausgeben – nur Host und Datenbankname.
+ * Angezeigt wird die *tatsaechlich* benutzte Adresse, nicht die rohe
+ * Umgebungsvariable: sonst steht dort ein Port, ueber den gar nicht
+ * verbunden wird.
+ */
 function describeDatabase(url: string | undefined) {
   if (!url) return 'nicht konfiguriert';
   try {

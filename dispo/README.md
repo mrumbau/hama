@@ -282,7 +282,7 @@ Claude-Analyse hinzu; schlägt sie fehl, greift still die Heuristik.
 
 | Variable | Pflicht | Bedeutung |
 |---|---|---|
-| `DATABASE_URL` | **ja** | PostgreSQL-Verbindung. Einzige Pflichtvariable. Bei Supabase die **Transaction-Pooler**-Adresse (Port 6543) mit `pgbouncer=true&connection_limit=1`. |
+| `DATABASE_URL` | **ja** | PostgreSQL-Verbindung. Einzige Pflichtvariable. Bei einer Supabase-Pooler-Adresse zieht die App Port und Parameter selbst auf den Transaction-Pooler (6543, `pgbouncer=true`, `connection_limit=1`) – über eine Sitzungsverbindung fällt sie unter Last mit `EMAXCONNSESSION` aus. Andere Hosts bleiben unangetastet. |
 | `DIRECT_DATABASE_URL` | nein | Verbindung für Migrationen. Fehlt sie, wird sie aus `DATABASE_URL` abgeleitet (Port 6543 → 5432). Nur nötig, wenn Ihr Anbieter das anders regelt. |
 | `DISPO_SEED_ON_DEPLOY` | nein | `1` erzwingt Demo-Daten. Ohne die Variable werden sie nur in eine **leere** Datenbank eingespielt. |
 | `DISPO_ERP_PROVIDER` | nein | `mock` (Standard) oder `das-programm` |
