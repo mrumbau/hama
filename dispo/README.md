@@ -249,6 +249,9 @@ betreiben, wo Node läuft. Für Vercel ist alles vorbereitet:
   der Build selbsttätig an, solange die Datenbank leer ist.
 * **Root Directory** im Vercel-Projekt auf `dispo` setzen – die App liegt in
   einem Unterverzeichnis des Repositorys.
+* `vercel.json` legt die Region auf `fra1` (Frankfurt) fest. Anwendung und
+  Datenbank sollten am selben Ort stehen: jede Abfrage über den Atlantik
+  kostet rund 100 ms, und die Plantafel stellt mehrere pro Aufruf.
 
 Ist die Anwendung öffentlich erreichbar, sollte der Basic-Auth-Schutz gesetzt
 sein. Es handelt sich um ein internes Werkzeug.
