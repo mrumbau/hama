@@ -247,6 +247,11 @@ betreiben, wo Node läuft. Für Vercel ist alles vorbereitet:
   Buildumgebung die Datenbank erreicht.
 * Nötig ist im Projekt genau eine Variable: `DATABASE_URL`. Demo-Daten legt
   der Build selbsttätig an, solange die Datenbank leer ist.
+* **Die Variable muss für alle Umgebungen gelten** – Production *und* Preview
+  *und* Development. Vercel setzt beim Anlegen standardmäßig nur Production;
+  Builds von einem Branch sind aber Preview-Builds und sehen die Variable
+  dann nicht. Der Build bricht in dem Fall mit „DATABASE_URL ist nicht
+  gesetzt" ab, obwohl der Wert im Projekt hinterlegt ist.
 * **Root Directory** im Vercel-Projekt auf `dispo` setzen – die App liegt in
   einem Unterverzeichnis des Repositorys.
 * `vercel.json` legt die Region auf `fra1` (Frankfurt) fest. Anwendung und
