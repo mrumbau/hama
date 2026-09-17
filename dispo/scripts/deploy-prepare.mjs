@@ -20,11 +20,26 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-// Migrationen brauchen eine Verbindung ohne Transaction-Pooling. Wer dafür
-// eine eigene Adresse hat, setzt DIRECT_DATABASE_URL; sonst genügt dieselbe.
+// Die Anwendung verbindet sich über den Transaction-Pooler (Port 6543):
+// eine Verbindung pro Aufruf, sofort wieder frei. Migrationen funktionieren
+// darüber aber nicht – sie brauchen eine Sitzungsverbindung (Port 5432).
+// Ist keine eigene Adresse hinterlegt, leiten wir sie ab.
 if (!process.env.DIRECT_DATABASE_URL) {
-  process.env.DIRECT_DATABASE_URL = process.env.DATABASE_URL;
-  console.log('DIRECT_DATABASE_URL nicht gesetzt – es wird DATABASE_URL verwendet.');
+  process.env.DIRECT_DATABASE_URL = ableitenDirektverbindung(process.env.DATABASE_URL);
+}
+
+function ableitenDirektverbindung(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.port !== '6543') return url;
+    parsed.port = '5432';
+    parsed.searchParams.delete('pgbouncer');
+    parsed.searchParams.delete('connection_limit');
+    console.log('Migrationen laufen über die Sitzungsverbindung (Port 5432).');
+    return parsed.toString();
+  } catch {
+    return url;
+  }
 }
 
 run('prisma migrate deploy');

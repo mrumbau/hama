@@ -215,8 +215,8 @@ Claude-Analyse hinzu; schlägt sie fehl, greift still die Heuristik.
 
 | Variable | Pflicht | Bedeutung |
 |---|---|---|
-| `DATABASE_URL` | **ja** | PostgreSQL-Verbindung. Einzige Pflichtvariable. Bei Supabase die **Session-Pooler**-Adresse (Port 5432) – sie trägt Anwendung und Migrationen. |
-| `DIRECT_DATABASE_URL` | nein | Nur nötig, wenn `DATABASE_URL` auf einen Transaction-Pooler (Port 6543) zeigt: Migrationen laufen darüber nicht. Fehlt sie, wird `DATABASE_URL` benutzt. |
+| `DATABASE_URL` | **ja** | PostgreSQL-Verbindung. Einzige Pflichtvariable. Bei Supabase die **Transaction-Pooler**-Adresse (Port 6543) mit `pgbouncer=true&connection_limit=1`. |
+| `DIRECT_DATABASE_URL` | nein | Verbindung für Migrationen. Fehlt sie, wird sie aus `DATABASE_URL` abgeleitet (Port 6543 → 5432). Nur nötig, wenn Ihr Anbieter das anders regelt. |
 | `DISPO_SEED_ON_DEPLOY` | nein | `1` erzwingt Demo-Daten. Ohne die Variable werden sie nur in eine **leere** Datenbank eingespielt. |
 | `DISPO_ERP_PROVIDER` | nein | `mock` (Standard) oder `das-programm` |
 | `DAS_PROGRAMM_BASE_URL` | bei echter API | Basis-URL des ERP |
@@ -247,6 +247,13 @@ betreiben, wo Node läuft. Für Vercel ist alles vorbereitet:
   Buildumgebung die Datenbank erreicht.
 * Nötig ist im Projekt genau eine Variable: `DATABASE_URL`. Demo-Daten legt
   der Build selbsttätig an, solange die Datenbank leer ist.
+* **Serverlos zwingend den Transaction-Pooler benutzen.** Jeder Funktions-
+  aufruf öffnet eine eigene Verbindung. Über eine Sitzungsverbindung
+  (Port 5432) bleiben die offen, und nach 15 gleichzeitigen Aufrufen
+  antwortet die Datenbank nur noch mit
+  `FATAL: (EMAXCONNSESSION) max clients reached in session mode`.
+  Port 6543 plus `pgbouncer=true&connection_limit=1` gibt jede Verbindung
+  sofort wieder frei.
 * **Die Variable muss für alle Umgebungen gelten** – Production *und* Preview
   *und* Development. Vercel setzt beim Anlegen standardmäßig nur Production;
   Builds von einem Branch sind aber Preview-Builds und sehen die Variable
