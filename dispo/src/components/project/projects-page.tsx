@@ -21,7 +21,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Field, Input, Select } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { AmpelDot } from '@/components/ui/ampel';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { AmpelDot, AmpelErklaerung } from '@/components/ui/ampel';
 import { EmptyState } from '@/components/ui/misc';
 import { useToast } from '@/components/ui/toast';
 import { PageHeader } from '@/components/page-header';
@@ -171,11 +172,16 @@ export function ProjectsPage() {
                 >
                   <td className="px-3 py-2">
                     <div className="flex items-start gap-2">
-                      <AmpelDot
-                        light={p.trafficLight}
-                        className="mt-1"
-                        title={p.trafficLightReasons.join(' · ')}
-                      />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="mt-1">
+                            <AmpelDot light={p.trafficLight} />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" align="start">
+                          <AmpelErklaerung light={p.trafficLight} reasons={p.trafficLightReasons} />
+                        </TooltipContent>
+                      </Tooltip>
                       <div className="min-w-0">
                         <p className="truncate font-medium">
                           {p.customerName} – {p.name}

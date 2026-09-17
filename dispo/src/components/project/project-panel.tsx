@@ -7,7 +7,17 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Building2, Loader2, Mail, MapPin, Phone, Plus, Trash2, User } from 'lucide-react';
+import {
+  Building2,
+  CalendarDays,
+  Loader2,
+  Mail,
+  MapPin,
+  Phone,
+  Plus,
+  Trash2,
+  User,
+} from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { useSiteManagers } from '@/lib/queries';
 import { formatDateShort, formatDateTime } from '@/lib/dates';
@@ -254,6 +264,117 @@ export function ProjectPanel({ projectId, onClose }: { projectId: string; onClos
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Was zählt, bevor man irgendetwas bearbeitet.
+ *
+ * Die Übersicht war eine Wand aus Eingabefeldern – wer wissen wollte, wo die
+ * Baustelle liegt und wen man anruft, musste sie lesen wie ein Formular.
+ * Hier steht dasselbe als Text, mit den Knöpfen daneben, die man tatsächlich
+ * drückt: anrufen, schreiben, Route.
+ */
+function Steckbrief({ project }: { project: ProjectDetail }) {
+  const anschrift = [project.street, [project.zip, project.city].filter(Boolean).join(' ')]
+    .filter(Boolean)
+    .join(', ');
+  const zeitraum =
+    project.plannedStart || project.plannedEnd
+      ? `${project.plannedStart ? formatDateShort(project.plannedStart) : '?'} – ${
+          project.plannedEnd ? formatDateShort(project.plannedEnd) : '?'
+        }`
+      : 'noch nicht terminiert';
+
+  return (
+    <section className="grid gap-3 rounded-md border bg-muted/30 p-3 sm:grid-cols-2">
+      <Zeile icon={MapPin} titel="Baustelle">
+        {anschrift ? (
+          <>
+            <span className="block">{anschrift}</span>
+            <Button type="button" variant="outline" size="xs" asChild className="mt-1">
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(anschrift)}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <MapPin /> Route
+              </a>
+            </Button>
+          </>
+        ) : (
+          <span className="text-muted-foreground">Keine Anschrift hinterlegt</span>
+        )}
+      </Zeile>
+
+      <Zeile icon={Phone} titel="Ansprechpartner">
+        {project.contactName || project.contactPhone || project.contactEmail ? (
+          <>
+            <span className="block">{project.contactName ?? 'ohne Namen'}</span>
+            <span className="mt-1 flex flex-wrap gap-1">
+              {project.contactPhone ? (
+                <Button type="button" variant="outline" size="xs" asChild>
+                  <a href={`tel:${project.contactPhone}`}>
+                    <Phone /> {project.contactPhone}
+                  </a>
+                </Button>
+              ) : null}
+              {project.contactEmail ? (
+                <Button type="button" variant="outline" size="xs" asChild>
+                  <a href={`mailto:${project.contactEmail}`}>
+                    <Mail /> E-Mail
+                  </a>
+                </Button>
+              ) : null}
+            </span>
+          </>
+        ) : (
+          <span className="text-muted-foreground">Niemand hinterlegt</span>
+        )}
+      </Zeile>
+
+      <Zeile icon={User} titel="Bauleitung">
+        {project.primarySiteManagerName ? (
+          <span>{project.primarySiteManagerName}</span>
+        ) : (
+          <span className="font-medium text-ampel-rot">Kein Bauleiter zugeordnet</span>
+        )}
+      </Zeile>
+
+      <Zeile icon={CalendarDays} titel="Zeitraum">
+        <span>{zeitraum}</span>
+        <span className="mt-1 flex flex-wrap gap-1">
+          <Badge variant={project.materialStatus === 'OFFEN' ? 'gelb' : 'grau'}>
+            Material: {MATERIAL_STATUS_LABEL[project.materialStatus]}
+          </Badge>
+          <Badge variant={project.customerConfirmed === 'BESTAETIGT' ? 'gruen' : 'gelb'}>
+            Kunde: {CONFIRMATION_LABEL[project.customerConfirmed]}
+          </Badge>
+        </span>
+      </Zeile>
+    </section>
+  );
+}
+
+function Zeile({
+  icon: Icon,
+  titel,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  titel: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 gap-2 text-xs">
+      <Icon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+      <div className="min-w-0">
+        <p className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {titel}
+        </p>
+        <div className="mt-0.5 min-w-0">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 function OverviewTab({ project }: { project: ProjectDetail }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -315,6 +436,10 @@ function OverviewTab({ project }: { project: ProjectDetail }) {
         save.mutate();
       }}
     >
+      <Steckbrief project={project} />
+
+      <Separator />
+
       <section className="space-y-3">
         <h3 className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
           Aus „Das Programm“ (ERP führend)

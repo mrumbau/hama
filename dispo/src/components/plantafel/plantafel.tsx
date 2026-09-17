@@ -21,6 +21,7 @@ import { Loader2, Plus, TriangleAlert } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { AssignmentDTO, ResourceDTO } from '@/lib/types';
 import { type IsoDate } from '@/lib/dates';
+import { verschobenerBeginn } from '@/lib/board-range';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Field, Select, Textarea } from '@/components/ui/input';
@@ -245,7 +246,21 @@ export function Plantafel() {
     // Drop-Ziele: project:<projectId>:<date> | resource:<type>:<id>:<date> | unassigned:<date>
     const parts = teile;
     const kind = parts[0];
-    const date = zielTag;
+
+    /*
+      Ein mehrtägiger Einsatz erscheint in jeder Tageszelle, die er belegt.
+      Der Zieltag ist deshalb nicht automatisch der neue Beginn: Wer den
+      Mittwoch einer Mo–Fr-Baustelle anfasst und auf Donnerstag zieht, will
+      sie um EINEN Tag verschieben – nicht ihren Beginn auf Donnerstag legen
+      und damit den ganzen Block um zwei Tage nach hinten werfen.
+
+      Verschoben wird also um die Differenz zwischen angefasstem und
+      abgelegtem Tag. Die Dauer bleibt erhalten (der Server rechnet das Ende
+      mit), und bei einem eintägigen Einsatz ist das Ergebnis dasselbe wie
+      vorher.
+    */
+    const angefasst = (event.active.data.current?.fromDate as IsoDate | undefined) ?? null;
+    const date = verschobenerBeginn(assignment.startDate, angefasst, zielTag);
 
     if (kind === 'project') {
       const projectId = parts[1];

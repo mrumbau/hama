@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import type { TrafficLightKey } from '@/lib/labels';
+import { TRAFFIC_LIGHT_LABEL, TRAFFIC_LIGHT_MEANING, type TrafficLightKey } from '@/lib/labels';
 
 const AMPEL_BG: Record<TrafficLightKey, string> = {
   GRUEN: 'bg-ampel-gruen',
@@ -32,3 +32,31 @@ export function AmpelBar({ light, className }: { light: TrafficLightKey; classNa
 }
 
 export { AMPEL_BG };
+
+/**
+ * Erklaerung zur Ampel – ueberall dieselbe.
+ *
+ * Bisher stand in den Tooltips der Rohwert ("Ampel: ROT") und darunter eine
+ * Strichliste. Wer die Tafel zum ersten Mal sieht, liest daraus nicht, was
+ * zu tun ist. Hier steht die Farbe, was sie verlangt, und warum sie
+ * ausgerechnet diese Farbe hat.
+ */
+export function AmpelErklaerung({ light, reasons }: { light: TrafficLightKey; reasons: string[] }) {
+  return (
+    <div className="max-w-[18rem] space-y-1">
+      <p className="flex items-center gap-1.5 font-semibold">
+        <AmpelDot light={light} />
+        {TRAFFIC_LIGHT_LABEL[light]} – {TRAFFIC_LIGHT_MEANING[light]}
+      </p>
+      {reasons.length > 0 ? (
+        <ul className="space-y-0.5 text-muted-foreground">
+          {reasons.map((r) => (
+            <li key={r}>• {r}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-muted-foreground">Keine offenen Punkte.</p>
+      )}
+    </div>
+  );
+}

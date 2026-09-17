@@ -57,6 +57,19 @@ export const TRAFFIC_LIGHT_LABEL = {
   GRAU: 'Grau',
 } as const;
 export type TrafficLightKey = keyof typeof TRAFFIC_LIGHT_LABEL;
+
+/**
+ * Was die Farbe verlangt, in einem Satz.
+ *
+ * "Rot" allein sagt niemandem, was zu tun ist. Die Farbe ist ein Signal,
+ * kein Urteil - erst der Satz macht daraus eine Handlungsanweisung.
+ */
+export const TRAFFIC_LIGHT_MEANING: Record<TrafficLightKey, string> = {
+  GRUEN: 'Läuft. Nichts zu tun.',
+  GELB: 'Etwas ist offen, aber nichts brennt.',
+  ROT: 'Eingreifen nötig.',
+  GRAU: 'Noch nicht terminiert.',
+};
 export const TRAFFIC_LIGHT_KEYS = Object.keys(TRAFFIC_LIGHT_LABEL) as TrafficLightKey[];
 
 export const RESOURCE_TYPE_LABEL = {

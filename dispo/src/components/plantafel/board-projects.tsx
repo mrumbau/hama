@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import type { AssignmentDTO, BoardResponse, ProjectSummaryDTO } from '@/lib/types';
 import { PROJECT_STATUS_LABEL } from '@/lib/labels';
 import { type IsoDate } from '@/lib/dates';
-import { AmpelDot } from '@/components/ui/ampel';
+import { AmpelDot, AmpelErklaerung } from '@/components/ui/ampel';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { EmptyState } from '@/components/ui/misc';
@@ -120,12 +120,7 @@ function ProjectRowHeader({ project, onOpen }: { project: ProjectSummaryDTO; onO
             </span>
           </TooltipTrigger>
           <TooltipContent side="right" align="start">
-            <p className="mb-1 font-semibold">Ampel: {project.trafficLight}</p>
-            <ul className="space-y-0.5 text-muted-foreground">
-              {project.trafficLightReasons.map((r) => (
-                <li key={r}>• {r}</li>
-              ))}
-            </ul>
+            <AmpelErklaerung light={project.trafficLight} reasons={project.trafficLightReasons} />
           </TooltipContent>
         </Tooltip>
 

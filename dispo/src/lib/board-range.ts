@@ -1,5 +1,5 @@
 /** Zeitraum-Auflösung der Plantafel. Von Server und Client gemeinsam genutzt. */
-import { addDays, endOfMonth, startOfMonth, startOfWeek, type IsoDate } from './dates';
+import { addDays, diffDays, endOfMonth, startOfMonth, startOfWeek, type IsoDate } from './dates';
 
 export type BoardRange = 'tag' | 'sieben' | 'woche' | 'zweiwochen' | 'monat';
 
@@ -24,4 +24,25 @@ export function resolveRange(range: BoardRange, anchor: IsoDate): { from: IsoDat
       return { from, to: addDays(from, 6) };
     }
   }
+}
+
+/**
+ * Neuer Beginn eines Einsatzes nach Drag & Drop.
+ *
+ * Ein mehrtägiger Einsatz erscheint in jeder Tageszelle, die er belegt.
+ * Der Zieltag ist deshalb nicht der neue Beginn: Wer den Mittwoch einer
+ * Mo–Fr-Baustelle anfasst und auf Donnerstag zieht, will um EINEN Tag
+ * verschieben – nicht den Beginn auf Donnerstag legen und damit den ganzen
+ * Block um zwei Tage nach hinten werfen.
+ *
+ * Ist unbekannt, welcher Tag angefasst wurde, bleibt es beim alten
+ * Verhalten: der Zieltag wird zum Beginn.
+ */
+export function verschobenerBeginn(
+  beginn: IsoDate,
+  angefasst: IsoDate | null,
+  ziel: IsoDate,
+): IsoDate {
+  if (!angefasst) return ziel;
+  return addDays(beginn, diffDays(angefasst, ziel));
 }
