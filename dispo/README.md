@@ -333,7 +333,8 @@ Claude-Analyse hinzu; schlägt sie fehl, greift still die Heuristik.
 | `THREECX_WEBHOOK_SECRET` | empfohlen | HMAC-Secret des 3CX-Webhooks |
 | `ANTHROPIC_API_KEY` | nein | schaltet die AI-Analyse zu |
 | `DISPO_AI_MODEL` | nein | Modell-ID (Standard `claude-opus-5`) |
-| `DISPO_SETUP_CODE` | **ja** | Einmalcode, mit dem ein Benutzer sein erstes Passwort vergibt |
+| `DISPO_START_PASSWORT` | **ja** | Startpasswort für Konten, die noch keines haben. Wird beim Deployment gesetzt |
+| `MICROSOFT_TENANT_ID` / `_CLIENT_ID` / `_CLIENT_SECRET` | nein | schaltet die Anmeldung mit Microsoft-Konto frei |
 | `DISPO_AUTH_SECRET` | empfohlen | Schlüssel für das Sitzungs-Cookie. Fehlt er, wird er aus `DATABASE_URL` abgeleitet |
 | `DISPO_BASIC_AUTH_USER` / `_PASSWORD` | nein | zusätzlicher Riegel davor, unabhängig von der Anmeldung |
 
@@ -342,23 +343,25 @@ Alle Secrets werden ausschließlich serverseitig gelesen. Es gibt keine
 
 ### Anmeldung und Rechte
 
-Die App ist nur nach Anmeldung erreichbar. Angelegt sind drei Konten:
+Die App ist nur nach Anmeldung erreichbar. Angelegt sind vier Konten:
 
-| Person | Rolle | Darf zusätzlich |
-|---|---|---|
-| Marlon Tschon | Verwaltung | Einstellungen ändern, Systemansicht, Änderungsprotokoll |
-| Carsten Reuter | Leitung | Änderungsprotokoll |
-| Philipp Chama-Schmidt | Bauleitung | – |
+| Person | E-Mail | Rolle | Darf zusätzlich |
+|---|---|---|---|
+| Marlon Tschon | `mt@mrumbau.de` | Verwaltung | Einstellungen ändern, System, Benutzer, Änderungsprotokoll |
+| Carsten Reuter | `cr@mrumbau.de` | Leitung | Änderungsprotokoll |
+| Philipp Chama-Schmidt | `ps@mrumbau.de` | Bauleitung | – |
+| Gerhard Pettkat | `gp@mrumbau.de` | Bauleitung | – |
 
 Alles Übrige – Plantafel, Projekte, Mitarbeiter, Subunternehmer, Gewerke
 anlegen, Abgleich anstoßen, Verbindung prüfen – darf jeder. Was nicht
-ausdrücklich eingeschränkt ist, gehört zur täglichen Arbeit; dort etwas zu
-sperren kostet nur Rückfragen.
+ausdrücklich eingeschränkt ist, gehört zur täglichen Arbeit.
 
-**Erstes Anmelden:** Es gibt kein Startpasswort. Jeder vergibt beim ersten
-Mal selbst eines – dafür braucht er einmalig den **Einrichtungscode** aus
-`DISPO_SETUP_CODE`. So steht kein Passwort im Repository und keines muss
-verschickt werden.
+**Passwörter vergibt die Verwaltung**, niemand sich selbst. Beim Deployment
+bekommt jedes Konto ohne Passwort das aus `DISPO_START_PASSWORT`; vorhandene
+Passwörter bleiben unangetastet. Danach kann die Verwaltung unter
+*Einstellungen → Benutzer* jedem ein neues setzen, und jeder sein eigenes
+ändern (mit dem bisherigen). So kommt der Betrieb in jedes Konto, auch wenn
+jemand ausfällt.
 
 **Offene Punkte** zeigt jedem seine eigenen Baustellen. `?alle=1` zeigt alle.
 
@@ -367,7 +370,38 @@ serverseitig geprüft – wer eine Adresse direkt aufruft, bekommt 403.
 
 Das Sitzungs-Cookie ist HttpOnly und läuft nach sieben Tagen ab. Signiert
 wird es mit `DISPO_AUTH_SECRET`; fehlt die Variable, wird der Schlüssel aus
-`DATABASE_URL` abgeleitet (stabil über Neustarts, nicht zu erraten).
+`DATABASE_URL` abgeleitet.
+
+### Anmeldung mit Microsoft-Konto
+
+Wer ein Firmenkonto hat, braucht hier kein zweites Passwort. Einrichtung im
+**Microsoft-Entra-Portal** (einmalig, ca. 10 Minuten):
+
+1. *App-Registrierungen → Neue Registrierung*, Name z. B. „MR Umbau Dispo“.
+   Kontotypen: **nur Konten in diesem Organisationsverzeichnis**.
+2. Als **Umleitungs-URI** (Typ *Web*) eintragen:
+   `https://<ihre-adresse>/api/auth/microsoft/callback`
+3. *Zertifikate & Geheimnisse → Neuer geheimer Clientschlüssel*, Wert kopieren
+   (er wird nur einmal angezeigt).
+4. Drei Werte nach Vercel:
+
+```bash
+MICROSOFT_TENANT_ID="…"      # Verzeichnis-ID (Mandant)
+MICROSOFT_CLIENT_ID="…"      # Anwendungs-ID (Client)
+MICROSOFT_CLIENT_SECRET="…"  # der geheime Clientschlüssel
+```
+
+Danach steht auf der Anmeldeseite *„Mit Microsoft-Konto anmelden“*.
+
+Zwei Grenzen, die absichtlich eng gezogen sind:
+
+* **Microsoft sagt, WER jemand ist – nicht, was er darf.** Angemeldet wird
+  nur, wer hier bereits ein Konto mit dieser E-Mail hat. Ein fremdes Konto
+  kommt nicht herein, auch nicht mit gültiger Microsoft-Anmeldung.
+* **Nur Ihr eigenes Verzeichnis.** Stimmt der Mandant nicht, wird abgelehnt.
+
+Angefragt werden ausschließlich Name und E-Mail (`openid profile email`) –
+kein Zugriff auf Postfach, Kalender oder Dateien.
 
 ## 7. Was Version 2 bringt
 

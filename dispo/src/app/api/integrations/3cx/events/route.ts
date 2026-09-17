@@ -22,9 +22,7 @@ export const POST = handler(async (request: Request) => {
       return fail('Ungültige Signatur.', 401);
     }
   } else if (process.env.NODE_ENV === 'production') {
-    console.warn(
-      '[3cx] THREECX_WEBHOOK_SECRET ist nicht gesetzt – der Webhook ist ungeschützt.',
-    );
+    console.warn('[3cx] THREECX_WEBHOOK_SECRET ist nicht gesetzt – der Webhook ist ungeschützt.');
   }
 
   let raw: unknown;

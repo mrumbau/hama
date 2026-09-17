@@ -104,15 +104,16 @@ export const GET = handler(async (request: Request) => {
       id: p.id,
       title: [p.orderNumber, p.customerName].filter(Boolean).join(' · '),
       subtitle: `${p.name}${p.city ? ` · ${p.city}` : ''}`,
-      meta: [
-        p.primarySiteManager ? `Bauleiter ${fullName(p.primarySiteManager)}` : null,
-        p.assignments[0] ? `letzter Termin ${dbDateToIso(p.assignments[0].startDate)}` : null,
-        p.communications[0]
-          ? `letzte Kommunikation ${p.communications[0].occurredAt.toLocaleDateString('de-DE')}`
-          : null,
-      ]
-        .filter(Boolean)
-        .join(' · ') || null,
+      meta:
+        [
+          p.primarySiteManager ? `Bauleiter ${fullName(p.primarySiteManager)}` : null,
+          p.assignments[0] ? `letzter Termin ${dbDateToIso(p.assignments[0].startDate)}` : null,
+          p.communications[0]
+            ? `letzte Kommunikation ${p.communications[0].occurredAt.toLocaleDateString('de-DE')}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(' · ') || null,
       href: `/projekte?projekt=${p.id}`,
     })),
     ...employees.map<SearchHit>((e) => ({

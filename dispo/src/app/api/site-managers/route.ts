@@ -11,9 +11,7 @@ export const GET = handler(async () => {
     orderBy: [{ active: 'desc' }, { lastName: 'asc' }],
     include: { _count: { select: { projectsPrimary: true } } },
   });
-  return ok(
-    rows.map((m) => ({ ...m, name: fullName(m), projectCount: m._count.projectsPrimary })),
-  );
+  return ok(rows.map((m) => ({ ...m, name: fullName(m), projectCount: m._count.projectsPrimary })));
 });
 
 export const POST = handler(async (request: Request) => {

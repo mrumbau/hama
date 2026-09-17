@@ -78,6 +78,11 @@ function schluessel(): string {
   return `abgeleitet:${process.env.DATABASE_URL ?? 'ohne-datenbank'}`;
 }
 
+/** Derselbe Schluessel, auch fuer den OAuth-`state`. */
+export function stateGeheimnis(): string {
+  return schluessel();
+}
+
 function signiere(inhalt: string): string {
   return createHmac('sha256', schluessel()).update(inhalt).digest('hex');
 }

@@ -44,6 +44,9 @@ function ableitenDirektverbindung(url) {
 
 run('prisma migrate deploy');
 
+// --- Startpasswoerter ---------------------------------------------------
+run('node scripts/startpasswort.mjs');
+
 // --- Demo-Daten ---------------------------------------------------------
 // Frueher wurden sie in eine leere Datenbank automatisch eingespielt. Das war
 // richtig, solange die App vorgefuehrt wurde. Sobald echte Auftraege darin

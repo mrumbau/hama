@@ -14,7 +14,7 @@ import { SOURCE_LABEL, type SourceKey } from '@/lib/labels';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Field, Input } from '@/components/ui/input';
+import { Field, Input, Select } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { PageHeader } from '@/components/page-header';
@@ -70,6 +70,7 @@ interface ErpVerbindung {
 const TABS = [
   { value: 'integrationen', label: 'Integrationen' },
   { value: 'gewerke', label: 'Gewerke' },
+  { value: 'benutzer', label: 'Benutzer' },
   { value: 'protokoll', label: 'Änderungsprotokoll' },
   { value: 'system', label: 'System' },
 ] as const;
@@ -84,6 +85,7 @@ export function SettingsPage() {
   const sichtbar = TABS.filter((t) => {
     if (t.value === 'protokoll') return rechte?.protokoll ?? false;
     if (t.value === 'system') return rechte?.system ?? false;
+    if (t.value === 'benutzer') return rechte?.benutzerverwaltung ?? false;
     return true;
   });
 
@@ -115,6 +117,9 @@ export function SettingsPage() {
           </TabsContent>
           <TabsContent value="gewerke">
             <TradesTab />
+          </TabsContent>
+          <TabsContent value="benutzer">
+            <BenutzerTab />
           </TabsContent>
           <TabsContent value="protokoll">
             <AuditTab />
@@ -656,5 +661,126 @@ function DemoEntfernen() {
         </Button>
       )}
     </div>
+  );
+}
+
+/**
+ * Benutzerverwaltung – nur für die Verwaltung.
+ *
+ * Passwörter vergibt ausschließlich diese Stelle. Damit kommt der Betrieb in
+ * jedes Konto, auch wenn jemand ausfällt oder seines vergisst; ein
+ * Selbstbedienungs-Weg gäbe es nicht, ohne genau das aufzugeben.
+ */
+function BenutzerTab() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [neuesPasswort, setNeuesPasswort] = React.useState<Record<string, string>>({});
+
+  const { data } = useQuery({
+    queryKey: ['benutzer'],
+    queryFn: () =>
+      api.get<{
+        users: {
+          id: string;
+          email: string;
+          firstName: string;
+          lastName: string;
+          role: 'ADMIN' | 'LEITUNG' | 'BAULEITER';
+          active: boolean;
+          hatPasswort: boolean;
+          lastLoginAt: string | null;
+          siteManagerId: string | null;
+        }[];
+      }>('/api/benutzer'),
+  });
+
+  const aendern = useMutation({
+    mutationFn: ({ id, ...patch }: { id: string } & Record<string, unknown>) =>
+      api.patch<{ message: string }>(`/api/benutzer/${id}`, patch),
+    onSuccess: (res, variablen) => {
+      queryClient.invalidateQueries({ queryKey: ['benutzer'] });
+      setNeuesPasswort((v) => ({ ...v, [variablen.id]: '' }));
+      toast({ title: res.message, tone: 'success' });
+    },
+    onError: (e: Error) => toast({ title: e.message, tone: 'error' }),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-1.5">
+          <ShieldAlert className="size-4" /> Benutzer
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Wer hereindarf und was er darf. Passwörter werden hier vergeben – niemand setzt sich
+          selbst eines.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {(data?.users ?? []).map((u) => (
+          <div key={u.id} className="space-y-2 rounded-md border p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">
+                  {u.firstName} {u.lastName}
+                  {!u.active ? (
+                    <Badge variant="rot" className="ml-2">
+                      inaktiv
+                    </Badge>
+                  ) : null}
+                </p>
+                <p className="truncate text-2xs text-muted-foreground">
+                  {u.email}
+                  {u.lastLoginAt
+                    ? ` · zuletzt angemeldet ${formatDateTime(u.lastLoginAt)}`
+                    : ' · noch nie angemeldet'}
+                  {u.siteManagerId ? '' : ' · nicht mit einem Bauleiter verknüpft'}
+                </p>
+              </div>
+              <Select
+                value={u.role}
+                onChange={(e) => aendern.mutate({ id: u.id, role: e.target.value })}
+                className="h-8 w-auto text-xs"
+                aria-label="Rolle"
+              >
+                <option value="ADMIN">Verwaltung</option>
+                <option value="LEITUNG">Leitung</option>
+                <option value="BAULEITER">Bauleitung</option>
+              </Select>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => aendern.mutate({ id: u.id, active: !u.active })}
+              >
+                {u.active ? 'Stilllegen' : 'Aktivieren'}
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap items-end gap-2">
+              <Field
+                label="Neues Passwort"
+                hint="Mindestens 10 Zeichen."
+                className="min-w-[14rem] flex-1"
+              >
+                <Input
+                  type="text"
+                  value={neuesPasswort[u.id] ?? ''}
+                  onChange={(e) => setNeuesPasswort((v) => ({ ...v, [u.id]: e.target.value }))}
+                  placeholder={u.hatPasswort ? '••••••••••' : 'noch keines gesetzt'}
+                  className="h-8 text-xs"
+                />
+              </Field>
+              <Button
+                size="sm"
+                disabled={(neuesPasswort[u.id] ?? '').length < 10}
+                onClick={() => aendern.mutate({ id: u.id, neuesPasswort: neuesPasswort[u.id] })}
+              >
+                Setzen
+              </Button>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }

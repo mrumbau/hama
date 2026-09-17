@@ -21,13 +21,28 @@ export const GET = handler(async () => {
     ]),
   ]);
 
-  const [projects, demoProjects, employees, subcontractors, assignments, auditEntries, communications] =
-    counts;
+  const [
+    projects,
+    demoProjects,
+    employees,
+    subcontractors,
+    assignments,
+    auditEntries,
+    communications,
+  ] = counts;
 
   return ok({
     settings: Object.fromEntries(rows.map((r) => [r.key, r.value])),
     sync,
-    stats: { projects, demoProjects, employees, subcontractors, assignments, auditEntries, communications },
+    stats: {
+      projects,
+      demoProjects,
+      employees,
+      subcontractors,
+      assignments,
+      auditEntries,
+      communications,
+    },
     env: {
       erpProvider: process.env.DISPO_ERP_PROVIDER ?? 'mock',
       threeCxConfigured: Boolean(process.env.THREECX_WEBHOOK_SECRET),

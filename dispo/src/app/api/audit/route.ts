@@ -49,7 +49,9 @@ export const GET = handler(async (request: Request) => {
       projectLabel: e.projectId
         ? (() => {
             const p = byId.get(e.projectId!);
-            return p ? [p.orderNumber, `${p.customerName} – ${p.name}`].filter(Boolean).join(' · ') : null;
+            return p
+              ? [p.orderNumber, `${p.customerName} – ${p.name}`].filter(Boolean).join(' · ')
+              : null;
           })()
         : null,
     })),

@@ -9,7 +9,7 @@
  */
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { HardHat, LogIn } from 'lucide-react';
+import { Building2, HardHat, LogIn } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/input';
@@ -19,11 +19,9 @@ export function AnmeldeFormular() {
   const params = useSearchParams();
   const weiter = params.get('weiter') || '/plantafel';
 
-  const [modus, setModus] = React.useState<'anmelden' | 'einrichten'>('anmelden');
   const [email, setEmail] = React.useState('');
   const [passwort, setPasswort] = React.useState('');
-  const [code, setCode] = React.useState('');
-  const [fehler, setFehler] = React.useState<string | null>(null);
+  const [fehler, setFehler] = React.useState<string | null>(params.get('fehler'));
   const [laeuft, setLaeuft] = React.useState(false);
 
   const absenden = async (e: React.FormEvent) => {
@@ -31,27 +29,11 @@ export function AnmeldeFormular() {
     setFehler(null);
     setLaeuft(true);
     try {
-      if (modus === 'anmelden') {
-        await api.post('/api/auth/login', { email, passwort });
-      } else {
-        await api.post('/api/auth/passwort', {
-          email,
-          einrichtungscode: code,
-          neuesPasswort: passwort,
-        });
-      }
+      await api.post('/api/auth/login', { email, passwort });
       router.push(weiter);
       router.refresh();
     } catch (err) {
-      const text = err instanceof Error ? err.message : 'Anmeldung fehlgeschlagen.';
-      // Der Server sagt ausdrücklich, wenn noch kein Passwort gesetzt ist –
-      // dann führen wir direkt dorthin, statt den Benutzer raten zu lassen.
-      if (/noch kein Passwort/i.test(text)) {
-        setModus('einrichten');
-        setFehler('Für dieses Konto ist noch kein Passwort gesetzt. Bitte jetzt eines vergeben.');
-      } else {
-        setFehler(text);
-      }
+      setFehler(err instanceof Error ? err.message : 'Anmeldung fehlgeschlagen.');
     } finally {
       setLaeuft(false);
     }
@@ -64,10 +46,26 @@ export function AnmeldeFormular() {
           <HardHat className="size-5 text-primary" />
           <div>
             <h1 className="text-sm font-semibold leading-tight">MR Umbau Disposition</h1>
-            <p className="text-2xs text-muted-foreground">
-              {modus === 'anmelden' ? 'Bitte anmelden.' : 'Passwort zum ersten Mal vergeben.'}
-            </p>
+            <p className="text-2xs text-muted-foreground">Bitte anmelden.</p>
           </div>
+        </div>
+
+        {/*
+          Microsoft zuerst: Wer ein Firmenkonto hat, braucht hier gar kein
+          zweites Passwort. Der Knopf steht auch dann da, wenn die Anbindung
+          noch nicht eingerichtet ist – dann sagt die App es beim Klick,
+          statt die Möglichkeit zu verschweigen.
+        */}
+        <Button variant="outline" className="w-full" asChild>
+          <a href={`/api/auth/microsoft?weiter=${encodeURIComponent(weiter)}`}>
+            <Building2 /> Mit Microsoft-Konto anmelden
+          </a>
+        </Button>
+
+        <div className="my-4 flex items-center gap-2">
+          <span className="h-px flex-1 bg-border" />
+          <span className="text-2xs text-muted-foreground">oder mit Passwort</span>
+          <span className="h-px flex-1 bg-border" />
         </div>
 
         <form onSubmit={absenden} className="space-y-3">
@@ -82,19 +80,10 @@ export function AnmeldeFormular() {
             />
           </Field>
 
-          {modus === 'einrichten' ? (
-            <Field label="Einrichtungscode" hint="Einmalig, vom Betrieb erhalten.">
-              <Input value={code} onChange={(e) => setCode(e.target.value)} />
-            </Field>
-          ) : null}
-
-          <Field
-            label={modus === 'anmelden' ? 'Passwort' : 'Neues Passwort'}
-            hint={modus === 'einrichten' ? 'Mindestens 10 Zeichen.' : undefined}
-          >
+          <Field label="Passwort">
             <Input
               type="password"
-              autoComplete={modus === 'anmelden' ? 'current-password' : 'new-password'}
+              autoComplete="current-password"
               value={passwort}
               onChange={(e) => setPasswort(e.target.value)}
             />
@@ -103,23 +92,13 @@ export function AnmeldeFormular() {
           {fehler ? <p className="text-xs text-ampel-rot">{fehler}</p> : null}
 
           <Button type="submit" className="w-full" disabled={laeuft}>
-            <LogIn />{' '}
-            {laeuft ? 'Einen Moment …' : modus === 'anmelden' ? 'Anmelden' : 'Passwort setzen'}
+            <LogIn /> {laeuft ? 'Einen Moment …' : 'Anmelden'}
           </Button>
         </form>
 
-        <button
-          type="button"
-          onClick={() => {
-            setModus((m) => (m === 'anmelden' ? 'einrichten' : 'anmelden'));
-            setFehler(null);
-          }}
-          className="mt-4 w-full text-center text-2xs text-muted-foreground underline-offset-2 hover:underline"
-        >
-          {modus === 'anmelden'
-            ? 'Zum ersten Mal hier? Passwort vergeben.'
-            : 'Zurück zur Anmeldung'}
-        </button>
+        <p className="mt-4 text-center text-2xs text-muted-foreground">
+          Passwort vergessen? Die Verwaltung vergibt ein neues.
+        </p>
       </div>
     </main>
   );

@@ -54,4 +54,3 @@ export const POST = handler(async (request: Request) => {
 
   return ok({ employee, message: `${fullName(employee)} wurde angelegt.` }, { status: 201 });
 });
-

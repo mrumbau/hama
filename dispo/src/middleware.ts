@@ -22,7 +22,10 @@ import { SESSION_COOKIE } from '@/server/auth-edge';
 const OFFEN = [
   '/anmelden',
   '/api/auth/login',
-  '/api/auth/passwort',
+  // Der Microsoft-Weg fuehrt selbst zur Anmeldung – er darf nicht hinter
+  // der Anmeldung liegen.
+  '/api/auth/microsoft',
+  // Sagt nur, ob und wer angemeldet ist; ohne Sitzung kommt schlicht null.
   '/api/auth/ich',
   '/api/integrations/3cx/events',
 ];

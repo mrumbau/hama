@@ -14,7 +14,10 @@ export const POST = handler(async (request: Request) => {
     request,
     z.object({
       name: z.string().min(1, 'Name ist ein Pflichtfeld.').max(80),
-      color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+      color: z
+        .string()
+        .regex(/^#[0-9a-fA-F]{6}$/)
+        .optional(),
     }),
   );
   const trade = await prisma.trade.upsert({
