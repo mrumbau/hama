@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   entscheideRueckschreiben,
   entscheideStatus,
+  gehoertAufDieTafel,
+  istGesperrt,
   istSubunternehmer,
   kuerzel,
   leseAnsprechpartner,
@@ -9,42 +11,42 @@ import {
 } from '@/server/integrations/mapping';
 
 describe('Projektstatus aus dem ERP', () => {
-  it('übernimmt einen Abschluss immer', () => {
-    // Der Fall, den der Disponent erwartet: im ERP geschlossen -> auch hier zu.
+  it('nimmt eine Baustelle von der Tafel, sobald das ERP sie abschliesst', () => {
+    // Der Fall, den der Disponent erwartet: im ERP zu -> auch hier weg.
     expect(entscheideStatus('closed', 'IN_AUSFUEHRUNG').neuerStatus).toBe('ERLEDIGT');
-    expect(entscheideStatus('invoice', 'GEPLANT').neuerStatus).toBe('FERTIG');
+    expect(entscheideStatus('invoice', 'GEPLANT').neuerStatus).toBe('ERLEDIGT');
     expect(entscheideStatus('lost', 'GEPLANT').neuerStatus).toBe('ERLEDIGT');
   });
 
   it('dreht eine laufende Planung NICHT zurück', () => {
     // Ohne diese Regel springt eine laufende Baustelle auf „Terminierung
     // erforderlich", nur weil im ERP jemand gespeichert hat.
-    const e = entscheideStatus('active', 'IN_AUSFUEHRUNG');
+    const e = entscheideStatus('won', 'IN_AUSFUEHRUNG');
     expect(e.neuerStatus).toBeNull();
     expect(e.grund).toMatch(/weiter fortgeschritten/);
 
     expect(entscheideStatus('won', 'BESTAETIGT').neuerStatus).toBeNull();
-    expect(entscheideStatus('active', 'WARTEN_AUF_MATERIAL').neuerStatus).toBeNull();
+    expect(entscheideStatus('order_fulfillment', 'WARTEN_AUF_MATERIAL').neuerStatus).toBeNull();
   });
 
   it('übernimmt den ERP-Status, solange die Dispo noch nichts entschieden hat', () => {
     expect(entscheideStatus('won', 'NEU').neuerStatus).toBe('TERMINIERUNG_ERFORDERLICH');
-    expect(entscheideStatus('quotation', 'TERMINIERUNG_ERFORDERLICH').neuerStatus).toBe('NEU');
+    expect(entscheideStatus('order_fulfillment', 'NEU').neuerStatus).toBe('IN_AUSFUEHRUNG');
   });
 
-  it('lässt laufende Ausführung im ERP bewusst in Ruhe', () => {
-    // order_fulfillment sagt nichts darüber, wie weit die Baustelle ist.
-    expect(entscheideStatus('order_fulfillment', 'GEPLANT').neuerStatus).toBeNull();
+  it('nimmt auch Angebote und Altbestand von der Tafel', () => {
+    // Genau die Zeilen, die beim ersten echten Abgleich gestört haben.
+    expect(entscheideStatus('quotation', 'TERMINIERUNG_ERFORDERLICH').neuerStatus).toBe('ERLEDIGT');
+    expect(entscheideStatus('active', 'TERMINIERUNG_ERFORDERLICH').neuerStatus).toBe('ERLEDIGT');
   });
 
-  it('ändert nichts bei unbekanntem oder fehlendem Status', () => {
+  it('ändert nichts ohne Status und nimmt Unbekanntes von der Tafel', () => {
     expect(entscheideStatus(null, 'GEPLANT').neuerStatus).toBeNull();
-    const e = entscheideStatus('irgendwas', 'GEPLANT');
-    expect(e.neuerStatus).toBeNull();
-    expect(e.grund).toMatch(/Unbekannter ERP-Status/);
+    // Ein unbekannter Status ist kein Grund, eine Baustelle zu zeigen.
+    expect(entscheideStatus('irgendwas', 'GEPLANT').neuerStatus).toBe('ERLEDIGT');
   });
 
-  it('meldet keine Änderung, wenn der Status schon stimmt', () => {
+  it('meldet keine Änderung, wenn die Baustelle schon weg ist', () => {
     expect(entscheideStatus('closed', 'ERLEDIGT').neuerStatus).toBeNull();
   });
 });
@@ -158,5 +160,97 @@ describe('Rückschreiben in Das Programm', () => {
     const e = entscheideRueckschreiben('ERLEDIGT', 'irgendwas_neues');
     expect(e.erpStatus).toBeNull();
     expect(e.grund).toContain('unbekannt');
+  });
+});
+
+describe('Nur Beauftragtes auf die Plantafel', () => {
+  it('zeigt beauftragt und Auftragserfüllung', () => {
+    expect(gehoertAufDieTafel('won')).toBe(true);
+    expect(gehoertAufDieTafel('order_fulfillment')).toBe(true);
+  });
+
+  it('zeigt nichts aus dem Vertrieb und nichts aus der Buchhaltung', () => {
+    for (const s of [
+      'new',
+      'quotation',
+      'sales',
+      'lost',
+      'invoice',
+      'waiting_for_payment',
+      'closed',
+    ]) {
+      expect(gehoertAufDieTafel(s)).toBe(false);
+    }
+  });
+
+  it('zeigt einen unbekannten Status nicht', () => {
+    // „active" ist Altbestand und steckt bei MR Umbau in acht Projekten, die
+    // nie zu einem Auftrag geworden sind. Ein neuer Status im ERP soll die
+    // Tafel nicht von selbst fluten.
+    expect(gehoertAufDieTafel('active')).toBe(false);
+    expect(gehoertAufDieTafel('irgendwas_neues')).toBe(false);
+    expect(gehoertAufDieTafel(null)).toBe(false);
+  });
+
+  it('nimmt eine Baustelle von der Tafel, sobald sie abgerechnet ist', () => {
+    const e = entscheideStatus('invoice', 'IN_AUSFUEHRUNG');
+    expect(e.neuerStatus).toBe('ERLEDIGT');
+    expect(e.grund).toContain('Rechnung');
+  });
+
+  it('dreht eine laufende Planung nicht zurück', () => {
+    expect(entscheideStatus('won', 'IN_AUSFUEHRUNG').neuerStatus).toBeNull();
+  });
+});
+
+describe('Gesperrte Subunternehmer', () => {
+  it('erkennt die Sperre, auch wenn darunter noch „Sub aktiv" steht', () => {
+    // Genau so steht es bei AH Group Andreas Hertwig im ERP.
+    const kommentar =
+      'GESPERRT  LaberRababer Nichts dahinter ausser Aufwand\nSubunternehmer , Abriss, Sub\nTätigkeit: Subunternehmer – Abbruch und Demontage\nSub aktiv';
+    expect(istGesperrt(kommentar)).toBe(true);
+    // Als Subunternehmer erkannt wird er trotzdem – die Sperre entscheidet
+    // erst danach, ob er auf die Tafel darf.
+    expect(istSubunternehmer({ comment: kommentar, name: 'AH Group' })).toBe(true);
+  });
+
+  it('lässt aktive Subunternehmer in Ruhe', () => {
+    expect(
+      istGesperrt('Lieferant seit: 29.05.2024\nTätigkeit: Subunternehmer – Bau\nSub aktiv'),
+    ).toBe(false);
+  });
+});
+
+describe('Gewerke ohne das Wort Subunternehmer', () => {
+  it('schneidet die Kennzeichnung ab und behält das Gewerk', () => {
+    expect(leseGewerke('Tätigkeit: Subunternehmer – Trockenbau und Innenausbau')).toEqual([
+      'Trockenbau',
+      'Innenausbau',
+    ]);
+    expect(leseGewerke('Tätigkeit: Subunternehmer – Abbruch und Demontage')).toEqual([
+      'Abbruch',
+      'Demontage',
+    ]);
+  });
+
+  it('kommt auch ohne Kennzeichnung zurecht', () => {
+    expect(leseGewerke('Tätigkeit: Sanitär, Heizung')).toEqual(['Sanitär', 'Heizung']);
+  });
+
+  it('liefert kein Gewerk, das nur „Subunternehmer" heißt', () => {
+    expect(leseGewerke('Tätigkeit: Subunternehmer')).toEqual([]);
+  });
+});
+
+describe('Gewerke ohne hängenden Bindestrich', () => {
+  it('macht aus „Bau- und Renovierungsarbeiten" zwei saubere Gewerke', () => {
+    expect(leseGewerke('Tätigkeit: Subunternehmer – Bau- und Renovierungsarbeiten')).toEqual([
+      'Bau',
+      'Renovierungsarbeiten',
+    ]);
+  });
+
+  it('räumt auch ohne SUB-Kennzeichnung auf', () => {
+    expect(leseGewerke('Tätigkeit: Putz- und Malerarbeiten')).toEqual(['Putz', 'Malerarbeiten']);
   });
 });

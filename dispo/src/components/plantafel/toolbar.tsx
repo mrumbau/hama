@@ -86,9 +86,9 @@ export function BoardToolbar({
   onMorgenansicht: () => void;
 }) {
   const activeFilters = countActiveFilters(filters);
-  const managers = (board?.resources ?? []).filter((r) => r.type === 'BAULEITER');
-  const employees = (board?.resources ?? []).filter((r) => r.type === 'MITARBEITER');
-  const subs = (board?.resources ?? []).filter((r) => r.type === 'SUBUNTERNEHMER');
+  const managers = (board?.resources ?? []).filter((r) => r.gruppe === 'BAULEITER');
+  const employees = (board?.resources ?? []).filter((r) => r.gruppe === 'MITARBEITER');
+  const subs = (board?.resources ?? []).filter((r) => r.gruppe === 'SUBUNTERNEHMER');
 
   const toggle = (list: string[], value: string) =>
     list.includes(value) ? list.filter((v) => v !== value) : [...list, value];

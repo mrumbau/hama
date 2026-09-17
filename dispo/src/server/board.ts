@@ -18,12 +18,7 @@ import {
 } from '@/lib/dates';
 import { CLOSED_PROJECT_STATUS } from '@/lib/labels';
 import { colorFromString, fullName, initials } from '@/lib/utils';
-import type {
-  AssignmentDTO,
-  BoardResponse,
-  ProjectSummaryDTO,
-  ResourceDTO,
-} from '@/lib/types';
+import type { AssignmentDTO, BoardResponse, ProjectSummaryDTO, ResourceDTO } from '@/lib/types';
 import { computeAmpel } from './ampel';
 
 export interface BoardFilters {
@@ -71,7 +66,10 @@ export async function loadBoard(
           subcontractor: { include: { trades: { include: { trade: true } } } },
         },
       }),
-      prisma.employee.findMany({ orderBy: [{ lastName: 'asc' }] }),
+      prisma.employee.findMany({
+        include: { trades: { include: { trade: true } } },
+        orderBy: [{ lastName: 'asc' }],
+      }),
       prisma.siteManager.findMany({ orderBy: [{ lastName: 'asc' }] }),
       prisma.subcontractor.findMany({
         include: { trades: { include: { trade: true } } },
@@ -252,6 +250,7 @@ export async function loadBoard(
     ...siteManagers.map<ResourceDTO>((m) => ({
       key: `BAULEITER:${m.id}`,
       type: 'BAULEITER',
+      gruppe: 'BAULEITER',
       id: m.id,
       label: fullName(m),
       short: m.shortCode,
@@ -259,19 +258,31 @@ export async function loadBoard(
       color: m.color,
       active: m.active,
     })),
-    ...employees.map<ResourceDTO>((e) => ({
-      key: `MITARBEITER:${e.id}`,
-      type: 'MITARBEITER',
-      id: e.id,
-      label: fullName(e),
-      short: e.shortCode,
-      subtitle: e.profession,
-      color: '#0f766e',
-      active: e.active,
-    })),
+    // Bürokräfte disponiert niemand – sie gehören nicht auf die Tafel.
+    ...employees
+      .filter((e) => !hatFaehigkeit(e.trades, BUERO_FAEHIGKEIT))
+      .map<ResourceDTO>((e) => {
+        // Wer die Fähigkeit „Bauleitung" trägt, steht bei den Bauleitern.
+        // Die Einsatzart bleibt „Mitarbeiter", sonst zeigte der Einsatz auf
+        // einen Bauleiter-Datensatz, den es zu dieser Person nicht gibt.
+        const leitetBau = hatFaehigkeit(e.trades, BAULEITUNG_FAEHIGKEIT);
+        const gewerke = e.trades.map((t) => t.trade.name);
+        return {
+          key: `MITARBEITER:${e.id}`,
+          type: 'MITARBEITER',
+          gruppe: leitetBau ? 'BAULEITER' : 'MITARBEITER',
+          id: e.id,
+          label: fullName(e),
+          short: e.shortCode,
+          subtitle: gewerke.join(', ') || e.profession,
+          color: leitetBau ? '#7c3aed' : '#0f766e',
+          active: e.active,
+        };
+      }),
     ...subcontractors.map<ResourceDTO>((s) => ({
       key: `SUBUNTERNEHMER:${s.id}`,
       type: 'SUBUNTERNEHMER',
+      gruppe: 'SUBUNTERNEHMER',
       id: s.id,
       label: s.companyName,
       short: s.companyName.slice(0, 12),
@@ -337,4 +348,15 @@ function matchesFilters(
     if (!haystack.includes(q)) return false;
   }
   return true;
+}
+
+/**
+ * Fähigkeiten, die nicht beschreiben, *was* jemand kann, sondern *wo* er
+ * hingehört. Sie steuern die Plantafel.
+ */
+const BUERO_FAEHIGKEIT = 'büro';
+const BAULEITUNG_FAEHIGKEIT = 'bauleitung';
+
+function hatFaehigkeit(trades: { trade: { name: string } }[], gesucht: string): boolean {
+  return trades.some((t) => t.trade.name.trim().toLowerCase() === gesucht);
 }

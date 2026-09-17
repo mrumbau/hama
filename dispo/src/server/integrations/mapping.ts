@@ -13,30 +13,49 @@ import type { ErpSupplier } from './erp-provider';
 // ---------------------------------------------------------------------------
 
 /**
- * ERP-Status → Dispo-Status.
+ * Welche ERP-Status gehören auf die Plantafel?
  *
- * Grundsatz: Das ERP bestimmt, WO im kaufmännischen Ablauf ein Projekt steht.
- * Wie weit die Ausführung ist, weiß nur die Dispo. Deshalb übersetzen wir nur
- * die Ränder verbindlich – Anfang („noch nicht terminierbar") und Ende
- * („abgeschlossen") – und lassen die Mitte in Ruhe.
+ * Bewusst eine **Positivliste**: Gezeigt wird nur, was beauftragt ist oder
+ * gerade abgewickelt wird. Alles davor ist Vertrieb, alles danach ist
+ * Buchhaltung – beides interessiert die Disposition nicht.
+ *
+ * Die Liste ist eng, und das ist der Sinn: Beim ersten echten Abgleich kamen
+ * 16 Projekte herein, von denen 15 längst erledigt oder nie zum Auftrag
+ * geworden waren. Eine Plantafel, auf der solche Zeilen stehen, wird nicht
+ * gelesen. Ein unbekannter Status gilt deshalb als „nicht zeigen" – neue
+ * Status im ERP fluten die Tafel so nicht von selbst.
  */
-const ERP_STATUS_MAP: Record<string, ProjectStatusKey | null> = {
-  // Kaufmännischer Vorlauf: noch keine Baustelle.
-  new: 'NEU',
-  quotation: 'NEU',
-  sales: 'NEU',
-  lost: null, // wird gesondert behandelt
-
-  // Beauftragt, aber die Dispo entscheidet über die Terminierung.
+const ERP_STATUS_AUF_DER_TAFEL: Record<string, ProjectStatusKey> = {
+  // Beauftragt, aber noch nicht terminiert.
   won: 'TERMINIERUNG_ERFORDERLICH',
-  active: 'TERMINIERUNG_ERFORDERLICH',
-  order_fulfillment: null, // läuft – Dispo-Status nicht anfassen
-
-  // Abgeschlossen.
-  invoice: 'FERTIG',
-  waiting_for_payment: 'FERTIG',
-  closed: 'ERLEDIGT',
+  // Läuft – wie weit, weiß nur die Dispo.
+  order_fulfillment: 'IN_AUSFUEHRUNG',
 };
+
+/** Menschenlesbare Namen der ERP-Status, für Anzeige und Sync-Bericht. */
+export const ERP_STATUS_LABEL: Record<string, string> = {
+  new: 'Neu',
+  quotation: 'Angebotserstellung',
+  sales: 'Vertrieb',
+  won: 'Beauftragt',
+  lost: 'Verloren',
+  order_fulfillment: 'Auftragserfüllung',
+  invoice: 'Rechnung',
+  waiting_for_payment: 'Warten auf Zahlungseingang',
+  closed: 'Abgeschlossen',
+  active: 'Aktiv (Altbestand)',
+};
+
+export function erpStatusName(erpStatus: string | null): string {
+  if (!erpStatus) return 'ohne Status';
+  return ERP_STATUS_LABEL[erpStatus.trim().toLowerCase()] ?? erpStatus;
+}
+
+/** Gehört ein Projekt mit diesem ERP-Status auf die Plantafel? */
+export function gehoertAufDieTafel(erpStatus: string | null): boolean {
+  if (!erpStatus) return false;
+  return erpStatus.trim().toLowerCase() in ERP_STATUS_AUF_DER_TAFEL;
+}
 
 /** Dispo-Status, die eine bewusste Entscheidung des Disponenten sind. */
 const DISPO_EIGENE_STATUS: ProjectStatusKey[] = [
@@ -57,13 +76,17 @@ export interface StatusEntscheidung {
 }
 
 /**
- * Entscheidet, ob ein ERP-Status den Dispo-Status überschreiben darf.
+ * Entscheidet, welchen Dispo-Status ein ERP-Status nach sich zieht.
  *
- * Eine im ERP abgeschlossene Baustelle wird auch in der Dispo geschlossen –
- * das ist der Fall, den der Disponent erwartet. Umgekehrt darf ein ERP-Status
- * wie „active" eine laufende Planung NICHT zurücksetzen: sonst springt eine
- * Baustelle, die gerade in Ausführung ist, zurück auf „Terminierung
- * erforderlich", nur weil im ERP jemand etwas gespeichert hat.
+ * Zwei Regeln, mehr nicht:
+ *
+ *  1. Verlässt ein Projekt die Positivliste – abgerechnet, verloren,
+ *     abgeschlossen – wird es in der Dispo auf *Erledigt* gesetzt und
+ *     verschwindet damit von der Tafel.
+ *  2. Steht es auf der Liste, darf der ERP-Status eine laufende Planung
+ *     **nicht** zurückdrehen. Sonst springt eine Baustelle, an der gerade
+ *     gearbeitet wird, zurück auf „Terminierung erforderlich", nur weil im
+ *     ERP jemand etwas gespeichert hat.
  */
 export function entscheideStatus(
   erpStatus: string | null,
@@ -74,30 +97,22 @@ export function entscheideStatus(
   }
 
   const normalisiert = erpStatus.trim().toLowerCase();
+  const ziel = ERP_STATUS_AUF_DER_TAFEL[normalisiert];
 
-  if (normalisiert === 'lost') {
+  if (!ziel) {
     return aktuellerDispoStatus === 'ERLEDIGT'
-      ? { neuerStatus: null, grund: 'Bereits abgeschlossen.' }
-      : { neuerStatus: 'ERLEDIGT', grund: 'Auftrag im ERP verloren.' };
+      ? { neuerStatus: null, grund: 'Bereits von der Tafel genommen.' }
+      : {
+          neuerStatus: 'ERLEDIGT',
+          grund: `Im ERP auf „${erpStatusName(erpStatus)}" – gehört nicht auf die Plantafel.`,
+        };
   }
 
-  const ziel = ERP_STATUS_MAP[normalisiert];
-  if (ziel === undefined) {
-    return { neuerStatus: null, grund: `Unbekannter ERP-Status „${erpStatus}".` };
-  }
-  if (ziel === null) {
-    return { neuerStatus: null, grund: 'ERP-Status lässt die Dispo-Planung bewusst unberührt.' };
-  }
   if (ziel === aktuellerDispoStatus) {
     return { neuerStatus: null, grund: 'Status stimmt bereits überein.' };
   }
 
-  // Abschluss setzt sich immer durch.
-  if (ziel === 'ERLEDIGT' || ziel === 'FERTIG') {
-    return { neuerStatus: ziel, grund: `Im ERP auf „${erpStatus}" gesetzt.` };
-  }
-
-  // Sonst: eine laufende Dispo-Planung nicht zurückdrehen.
+  // Eine laufende Planung nicht zurückdrehen.
   if (DISPO_EIGENE_STATUS.includes(aktuellerDispoStatus)) {
     return {
       neuerStatus: null,
@@ -105,7 +120,7 @@ export function entscheideStatus(
     };
   }
 
-  return { neuerStatus: ziel, grund: `Aus dem ERP übernommen („${erpStatus}").` };
+  return { neuerStatus: ziel, grund: `Aus dem ERP übernommen („${erpStatusName(erpStatus)}").` };
 }
 
 // ---------------------------------------------------------------------------
@@ -127,17 +142,51 @@ export function istSubunternehmer(supplier: Pick<ErpSupplier, 'comment' | 'name'
 }
 
 /**
- * Liest das Gewerk aus der Zeile „Tätigkeit: …“ im Kommentarfeld.
- * Mehrere Gewerke werden an Komma und Schrägstrich getrennt.
+ * Ist dieser Lieferant gesperrt?
+ *
+ * Gesperrte tragen das Wort irgendwo im Kommentar – oft zusammen mit einem
+ * stehengebliebenen „Sub aktiv" weiter unten. Die Sperre gewinnt: Wer nicht
+ * mehr beauftragt werden darf, hat auf der Plantafel nichts verloren, egal
+ * was sonst noch im Feld steht.
  */
+const GESPERRT_MUSTER = /(gesperrt|nicht\s+mehr\s+(nutzen|beauftragen)|keine\s+zusammenarbeit)/i;
+
+export function istGesperrt(comment: string | null): boolean {
+  return comment ? GESPERRT_MUSTER.test(comment) : false;
+}
+
+/**
+ * Liest die Gewerke aus der Zeile „Tätigkeit: …“ im Kommentarfeld.
+ *
+ * Die Zeile lautet in der Praxis „Tätigkeit: Subunternehmer – Trockenbau und
+ * Innenausbau“. Das Wort „Subunternehmer“ ist dabei die Kennzeichnung, nicht
+ * das Gewerk – unbesehen übernommen landet es als Fähigkeit in den Stammdaten
+ * und steht dann bei jedem zweiten Betrieb als „Fähigkeit: Subunternehmer“.
+ * Es wird deshalb abgeschnitten.
+ */
+const SUB_PRAEFIX = /^\s*(sub|subunternehmer|subunternehmen|nachunternehmer)\s*[–—:-]\s*/i;
+
 export function leseGewerke(comment: string | null): string[] {
   if (!comment) return [];
   const treffer = /t[äa]tigkeit\s*:\s*([^\n|]+)/i.exec(comment);
   if (!treffer) return [];
-  return treffer[1]
-    .split(/[,/]| und /i)
-    .map((t) => t.trim())
-    .filter((t) => t.length > 1 && t.length <= 40);
+
+  return (
+    treffer[1]
+      .replace(SUB_PRAEFIX, '')
+      .split(/[,/]| und /i)
+      // „Bau- und Renovierungsarbeiten“ zerfällt zu „Bau-“ und
+      // „Renovierungsarbeiten“; der hängende Bindestrich gehört nicht in einen
+      // Stammdatensatz.
+      .map((t) =>
+        t
+          .replace(SUB_PRAEFIX, '')
+          .replace(/[\s–—-]+$/, '')
+          .trim(),
+      )
+      .filter((t) => t.length > 1 && t.length <= 40)
+      .filter((t) => !/^(sub|subunternehmer|subunternehmen|nachunternehmer)$/i.test(t))
+  );
 }
 
 /** Ansprechpartner aus „AP bei: …“ lesen, falls vorhanden. */

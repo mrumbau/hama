@@ -70,7 +70,7 @@ export function Palette({
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
         {GRUPPEN.map((gruppe) => {
           const items = board.resources.filter(
-            (r) => r.type === gruppe.type && r.active && passt(`${r.label} ${r.subtitle ?? ''}`),
+            (r) => r.gruppe === gruppe.type && r.active && passt(`${r.label} ${r.subtitle ?? ''}`),
           );
           if (items.length === 0) return null;
           return (

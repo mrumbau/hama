@@ -75,7 +75,14 @@ export interface ProjectSummaryDTO {
 
 export interface ResourceDTO {
   key: string;
+  /** Datenart – bestimmt, woran ein Einsatz haengt. */
   type: ResourceTypeKey;
+  /**
+   * Wo die Ressource auf der Plantafel steht. Weicht vom Typ ab, wenn ein
+   * Mitarbeiter die Faehigkeit "Bauleitung" traegt: er bleibt ein
+   * Mitarbeiter, erscheint aber bei den Bauleitern.
+   */
+  gruppe: ResourceTypeKey;
   id: string;
   label: string;
   short: string;

@@ -19,6 +19,9 @@ import { writeAudit } from '@/server/audit';
 import { getErpProvider } from './index';
 import {
   entscheideStatus,
+  erpStatusName,
+  gehoertAufDieTafel,
+  istGesperrt,
   istSubunternehmer,
   kuerzel,
   leseAnsprechpartner,
@@ -29,7 +32,7 @@ export interface SyncResult {
   provider: string;
   projekte: { neu: number; aktualisiert: number; unveraendert: number };
   mitarbeiter: { neu: number; aktualisiert: number; ausgeschieden: number };
-  subunternehmer: { neu: number; aktualisiert: number; uebersprungen: number };
+  subunternehmer: { neu: number; aktualisiert: number; uebersprungen: number; gesperrt: number };
   hinweise: string[];
   message: string;
 }
@@ -168,11 +171,28 @@ export async function syncProjects(): Promise<SyncResult> {
     }
 
     // --- 2. Subunternehmer ----------------------------------------------
-    const subs = { neu: 0, aktualisiert: 0, uebersprungen: 0 };
+    const subs = { neu: 0, aktualisiert: 0, uebersprungen: 0, gesperrt: 0 };
 
     for (const lieferant of erpLieferanten) {
       if (!istSubunternehmer(lieferant)) {
         subs.uebersprungen++;
+        continue;
+      }
+
+      // Gesperrte gehören nicht auf die Plantafel. Bereits übernommene
+      // werden stillgelegt, nicht gelöscht – ihre Einsatzhistorie bleibt.
+      if (istGesperrt(lieferant.comment)) {
+        subs.gesperrt++;
+        const betroffen = await prisma.subcontractor.updateMany({
+          where: {
+            OR: [{ erpId: lieferant.erpId }, { companyName: lieferant.name }],
+            active: true,
+          },
+          data: { active: false },
+        });
+        if (betroffen.count > 0) {
+          hinweise.push(`${lieferant.name} ist im ERP gesperrt und wurde auf inaktiv gesetzt.`);
+        }
         continue;
       }
 
@@ -237,14 +257,24 @@ export async function syncProjects(): Promise<SyncResult> {
     // --- 3. Projekte ------------------------------------------------------
     const projekte = { neu: 0, aktualisiert: 0, unveraendert: 0 };
 
+    let nichtAufDerTafel = 0;
+
     for (const erp of erpProjekte) {
       const vorhanden = await prisma.project.findUnique({ where: { erpId: erp.erpId } });
+
+      // Was nicht beauftragt ist, wird gar nicht erst angelegt. Sonst steht
+      // die Plantafel voll mit Angeboten und Altbestand.
+      if (!vorhanden && !gehoertAufDieTafel(erp.status)) {
+        nichtAufDerTafel++;
+        continue;
+      }
       const bauleiterId = erp.projectManagerErpId
         ? (bauleiterNachErpId.get(erp.projectManagerErpId) ?? null)
         : null;
 
       // Vom ERP geführte Felder.
       const erpFelder = {
+        erpStatus: erp.status,
         orderNumber: erp.orderNumber,
         projectNumber: erp.referenceNumber,
         customerName: erp.customerName,
@@ -295,6 +325,15 @@ export async function syncProjects(): Promise<SyncResult> {
       if (status.neuerStatus) {
         daten.status = status.neuerStatus;
         aenderungen.status = { alt: vorhanden.status, neu: status.neuerStatus };
+
+        // Verschwindet eine Baustelle von der Tafel, soll das im Bericht
+        // stehen – sonst sucht jemand sie und findet sie nicht mehr.
+        if (status.neuerStatus === 'ERLEDIGT') {
+          hinweise.push(
+            `${erp.referenceNumber ?? erp.erpId} (${erp.name}) ist im ERP „${erpStatusName(erp.status)}" ` +
+              'und wurde von der Plantafel genommen.',
+          );
+        }
       }
 
       // Termine nur ergänzen, nie überschreiben.
@@ -340,11 +379,15 @@ export async function syncProjects(): Promise<SyncResult> {
     }
 
     const message =
-      `Projekte: ${projekte.neu} neu, ${projekte.aktualisiert} aktualisiert, ${projekte.unveraendert} unverändert. ` +
+      `Projekte: ${projekte.neu} neu, ${projekte.aktualisiert} aktualisiert, ${projekte.unveraendert} unverändert` +
+      (nichtAufDerTafel > 0 ? `, ${nichtAufDerTafel} nicht beauftragt` : '') +
+      '. ' +
       `Personen: ${mitarbeiter.neu} neu` +
       (mitarbeiter.ausgeschieden > 0 ? `, ${mitarbeiter.ausgeschieden} ausgeschieden` : '') +
       '. ' +
-      `Subunternehmer: ${subs.neu} neu, ${subs.uebersprungen} Lieferanten übersprungen.`;
+      `Subunternehmer: ${subs.neu} neu` +
+      (subs.gesperrt > 0 ? `, ${subs.gesperrt} gesperrt` : '') +
+      `, ${subs.uebersprungen} Lieferanten übersprungen.`;
 
     await prisma.syncState.update({
       where: { provider: 'das-programm' },

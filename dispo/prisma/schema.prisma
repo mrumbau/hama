@@ -298,6 +298,10 @@ model Project {
 
   // --- Aus "Das Programm" (ERP fuehrend) ---
   erpId         String? @unique
+  /// Roh-Status aus "Das Programm" (won, order_fulfillment, quotation, ...).
+  /// Gespeichert, damit nachvollziehbar bleibt, warum eine Baustelle auf der
+  /// Plantafel steht - oder eben nicht.
+  erpStatus     String?
   orderNumber   String? // Auftragsnummer, z.B. AG-260047
   projectNumber String?
   customerName  String

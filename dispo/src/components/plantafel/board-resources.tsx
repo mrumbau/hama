@@ -57,7 +57,7 @@ export function BoardResources({
   const resources = board.resources.filter((r) => showInactive || r.active);
   const grouped = GROUP_ORDER.map((type) => ({
     type,
-    items: resources.filter((r) => r.type === type),
+    items: resources.filter((r) => r.gruppe === type),
   })).filter((g) => g.items.length > 0);
 
   // Unbesetzte Einsätze bekommen eine eigene Sammelzeile – sonst wären sie
