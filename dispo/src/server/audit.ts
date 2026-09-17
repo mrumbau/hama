@@ -11,7 +11,15 @@ import { prisma } from '@/lib/db';
 import type { ChangeReasonKey, SourceKey } from '@/lib/labels';
 
 export interface AuditInput {
-  entityType: 'project' | 'assignment' | 'employee' | 'site_manager' | 'subcontractor' | 'communication' | 'change_request' | 'integration';
+  entityType:
+    | 'project'
+    | 'assignment'
+    | 'employee'
+    | 'site_manager'
+    | 'subcontractor'
+    | 'communication'
+    | 'change_request'
+    | 'integration';
   entityId: string;
   projectId?: string | null;
   action: string;

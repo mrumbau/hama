@@ -280,10 +280,11 @@ export async function loadBoard(
     // Bürokräfte disponiert niemand – sie gehören nicht auf die Tafel.
     ...employees
       .filter((e) => !hatFaehigkeit(e.trades, BUERO_FAEHIGKEIT))
+      // Wer die Fähigkeit „Bauleitung" trägt, bekommt einen eigenen
+      // Bauleiter-Datensatz. Dann steht die Person dort – hier würde sie ein
+      // zweites Mal auftauchen, und niemand wüsste, welche Zeile gilt.
+      .filter((e) => !istSchonBauleiter(e, siteManagers))
       .map<ResourceDTO>((e) => {
-        // Wer die Fähigkeit „Bauleitung" trägt, steht bei den Bauleitern.
-        // Die Einsatzart bleibt „Mitarbeiter", sonst zeigte der Einsatz auf
-        // einen Bauleiter-Datensatz, den es zu dieser Person nicht gibt.
         const leitetBau = hatFaehigkeit(e.trades, BAULEITUNG_FAEHIGKEIT);
         const gewerke = e.trades.map((t) => t.trade.name);
         return {
@@ -450,4 +451,22 @@ function gefilterteRessourcen(resources: ResourceDTO[], f: BoardFilters): Resour
   ]);
   if (gewaehlt.size === 0) return resources;
   return resources.filter((r) => gewaehlt.has(r.key));
+}
+
+/**
+ * Gibt es zu diesem Mitarbeiter bereits einen Bauleiter-Datensatz?
+ *
+ * Verglichen wird ueber die ERP-ID, sonst ueber den Namen – dieselbe Person
+ * soll nur eine Zeile auf der Tafel haben.
+ */
+function istSchonBauleiter(
+  e: { erpId: string | null; firstName: string; lastName: string },
+  siteManagers: { erpId: string | null; firstName: string; lastName: string; active: boolean }[],
+): boolean {
+  return siteManagers.some(
+    (m) =>
+      m.active &&
+      ((e.erpId !== null && m.erpId === e.erpId) ||
+        (m.firstName === e.firstName && m.lastName === e.lastName)),
+  );
 }

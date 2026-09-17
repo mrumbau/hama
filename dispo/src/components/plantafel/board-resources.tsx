@@ -56,11 +56,31 @@ export function BoardResources({
 
   // Zugeklappte Gruppen merken wir uns nur fuer diese Sitzung – das ist eine
   // Arbeitshaltung, keine Einstellung, die in die URL gehoert.
-  const [zugeklappt, setZugeklappt] = React.useState<string[]>([]);
+  //
+  // Bauleiter starten zu: sie betreuen mehrere Baustellen gleichzeitig und
+  // werden selten am Tag verschoben. Wer sie braucht, klappt sie auf.
+  const [zugeklappt, setZugeklappt] = React.useState<string[]>(['BAULEITER']);
   const umschalten = (type: string) =>
     setZugeklappt((v) => (v.includes(type) ? v.filter((x) => x !== type) : [...v, type]));
 
-  const resources = board.resources.filter((r) => showInactive || r.active);
+  // Subunternehmer, die an diesen Tagen tatsächlich arbeiten, gehören auf
+  // die Tafel – auch ohne Stern. Sonst verschwände eine eingeplante Firma
+  // aus der Übersicht, und genau die will man sehen.
+  const verplanteSubs = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const a of board.assignments) {
+      if (a.status !== 'ABGESAGT' && a.subcontractorId)
+        set.add(`SUBUNTERNEHMER:${a.subcontractorId}`);
+    }
+    return set;
+  }, [board.assignments]);
+
+  const resources = board.resources
+    .filter((r) => showInactive || r.active)
+    // Von 34 Subunternehmern arbeitet man mit einer Handvoll. Gezeigt werden
+    // die mit Stern; der Rest kommt über „Subunternehmer hinzufügen" dazu.
+    .filter((r) => r.gruppe !== 'SUBUNTERNEHMER' || r.bevorzugt || verplanteSubs.has(r.key));
+
   const grouped = GROUP_ORDER.map((type) => ({
     type,
     items: resources.filter((r) => r.gruppe === type),

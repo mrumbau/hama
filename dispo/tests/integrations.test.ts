@@ -51,13 +51,23 @@ describe('Das Programm – Synchronisation', () => {
     expect(zweiter.body.mitarbeiter.neu).toBe(0);
   });
 
-  it('schließt ein Projekt, das im ERP abgeschlossen ist', async () => {
+  it('holt nur Beauftragtes herein', async () => {
     await post('/api/integrations/das-programm/sync', {});
-    const projekte = await get<{ projects: { erpId: string | null; status: string }[] }>(
+    const projekte = await get<{ projects: { erpId: string | null; erpStatus: string | null }[] }>(
       '/api/projects?abgeschlossen=1',
     );
-    const brandl = projekte.body.projects.find((p) => p.erpId === 'DP-10090');
-    expect(brandl?.status).toBe('ERLEDIGT');
+    const ids = projekte.body.projects.map((p) => p.erpId);
+
+    // Abgeschlossen im ERP → kommt gar nicht erst auf die Tafel.
+    expect(ids).not.toContain('DP-10090');
+    // Angebotserstellung ebenfalls nicht.
+    expect(ids).not.toContain('DP-10088');
+    // In Auftragserfüllung dagegen schon.
+    expect(ids).toContain('DP-10051');
+
+    // Und der ERP-Status steht am Projekt, damit man es nachvollziehen kann.
+    const laufend = projekte.body.projects.find((p) => p.erpId === 'DP-10051');
+    expect(laufend?.erpStatus).toBe('order_fulfillment');
   });
 
   it('dreht eine laufende Dispo-Planung nicht zurück', async () => {

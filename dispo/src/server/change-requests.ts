@@ -67,7 +67,9 @@ export async function acceptChangeRequest(id: string, input: z.infer<typeof acce
       reasonText: input.reasonText ?? cr.reasonText,
       note: 'Aus Änderungsvorschlag übernommen.',
     });
-    summary.push(`Projektzeitraum auf ${newStart}${newEnd && newEnd !== newStart ? ` – ${newEnd}` : ''} gesetzt`);
+    summary.push(
+      `Projektzeitraum auf ${newStart}${newEnd && newEnd !== newStart ? ` – ${newEnd}` : ''} gesetzt`,
+    );
 
     // Einsätze um denselben Versatz mitverschieben.
     if (input.moveAssignments !== false && oldStart) {

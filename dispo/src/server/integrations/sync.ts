@@ -95,10 +95,10 @@ export async function syncProjects(): Promise<SyncResult> {
             where: { firstName: person.firstName, lastName: person.lastName },
           }));
         if (vorhanden) {
-          if (!vorhanden.erpId) {
+          if (!vorhanden.erpId || vorhanden.isDemo) {
             await prisma.siteManager.update({
               where: { id: vorhanden.id },
-              data: { erpId: person.erpId },
+              data: { erpId: person.erpId, isDemo: false },
             });
           }
           if (person.userErpId) bauleiterNachErpId.set(person.userErpId, vorhanden.id);
@@ -145,7 +145,7 @@ export async function syncProjects(): Promise<SyncResult> {
         // wurde, soll nicht beim nächsten Sync wieder auftauchen.
         await prisma.employee.update({
           where: { id: vorhanden.id },
-          data: { erpId: person.erpId, phone: person.phone ?? vorhanden.phone },
+          data: { erpId: person.erpId, phone: person.phone ?? vorhanden.phone, isDemo: false },
         });
         mitarbeiter.aktualisiert++;
       } else {
@@ -215,6 +215,7 @@ export async function syncProjects(): Promise<SyncResult> {
           where: { id: vorhanden.id },
           data: {
             erpId: lieferant.erpId,
+            isDemo: false,
             companyName: lieferant.name,
             phone: lieferant.phone ?? vorhanden.phone,
             email: lieferant.email ?? vorhanden.email,
@@ -229,6 +230,7 @@ export async function syncProjects(): Promise<SyncResult> {
         const angelegt = await prisma.subcontractor.create({
           data: {
             erpId: lieferant.erpId,
+            isDemo: false,
             companyName: lieferant.name,
             contactName: leseAnsprechpartner(lieferant.comment),
             phone: lieferant.phone,
@@ -273,6 +275,10 @@ export async function syncProjects(): Promise<SyncResult> {
 
       // Vom ERP geführte Felder.
       const erpFelder = {
+        // Ein Datensatz, den das ERP besitzt, ist keine Demo – auch dann
+        // nicht, wenn er urspruenglich aus den Beispieldaten stammte und
+        // spaeter zugeordnet wurde. Genau das war Luigi Curatolo passiert.
+        isDemo: false,
         erpStatus: erp.status,
         orderNumber: erp.orderNumber,
         projectNumber: erp.referenceNumber,

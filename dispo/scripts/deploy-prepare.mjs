@@ -45,21 +45,16 @@ function ableitenDirektverbindung(url) {
 run('prisma migrate deploy');
 
 // --- Demo-Daten ---------------------------------------------------------
-// Eingespielt wird nur in eine leere Datenbank (oder auf ausdrücklichen
-// Wunsch). So überschreibt ein erneutes Deployment niemals echte Planung.
-let leer = false;
-try {
-  const { PrismaClient } = await import('@prisma/client');
-  const prisma = new PrismaClient();
-  leer = (await prisma.project.count()) === 0;
-  await prisma.$disconnect();
-} catch (e) {
-  console.warn('Konnte den Datenbestand nicht prüfen:', e instanceof Error ? e.message : e);
-}
-
-if (process.env.DISPO_SEED_ON_DEPLOY === '1' || leer) {
-  console.log(leer ? '\nDatenbank ist leer → Demo-Daten werden angelegt.' : '\nDemo-Daten werden aufgefrischt.');
+// Frueher wurden sie in eine leere Datenbank automatisch eingespielt. Das war
+// richtig, solange die App vorgefuehrt wurde. Sobald echte Auftraege darin
+// stehen, sind Beispieldaten das Gegenteil von hilfreich: Man weiss bei jeder
+// Zeile nicht mehr, ob sie echt ist.
+//
+// Deshalb passiert jetzt nichts mehr von selbst. Wer Demo-Daten will, sagt es
+// ausdruecklich mit DISPO_SEED_ON_DEPLOY=1.
+if (process.env.DISPO_SEED_ON_DEPLOY === '1') {
+  console.log('\nDISPO_SEED_ON_DEPLOY=1 → Demo-Daten werden eingespielt.');
   run('tsx prisma/seed.ts');
 } else {
-  console.log('\nDatenbank enthält bereits Projekte – Demo-Daten werden nicht angefasst.');
+  console.log('\nKeine Demo-Daten. Die App arbeitet ausschliesslich mit echten Daten.');
 }

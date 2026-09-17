@@ -5,7 +5,7 @@
  */
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Database, Download, Plug, Plus, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Database, Download, Plug, Plus, RefreshCw, ShieldAlert, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { useTrades } from '@/lib/queries';
 import { formatDateTime } from '@/lib/dates';
@@ -461,6 +461,7 @@ function SystemTab() {
               </div>
             ))}
           </dl>
+          <DemoEntfernen />
         </CardContent>
       </Card>
 
@@ -559,6 +560,74 @@ function AuthDiagnose({ ergebnisse }: { ergebnisse: NonNullable<ErpVerbindung['d
       <p className="text-muted-foreground">
         Antworten alle gleich, liegt es nicht am Header, sondern am Schlüssel selbst.
       </p>
+    </div>
+  );
+}
+
+/**
+ * Demo-Daten entfernen.
+ *
+ * Luigi, Max Muster und die Beispielbaustellen waren nützlich, solange die
+ * App vorgeführt wurde. Sobald echte Aufträge darin stehen, weiß man bei
+ * jeder Zeile nicht mehr, ob sie echt ist. Gelöscht wird ausschließlich, was
+ * als Demo markiert ist – aus „Das Programm" übernommene Datensätze tragen
+ * diese Markierung nie und können hier nicht versehentlich mitgehen.
+ */
+function DemoEntfernen() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [sicher, setSicher] = React.useState(false);
+
+  const { data } = useQuery({
+    queryKey: ['demo'],
+    queryFn: () => api.get<{ offen: number }>('/api/demo'),
+  });
+
+  const entfernen = useMutation({
+    mutationFn: () => api.delete<{ message: string }>('/api/demo'),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries();
+      setSicher(false);
+      toast({ title: res.message, tone: 'success', duration: 8000 });
+    },
+    onError: (e: Error) => toast({ title: e.message, tone: 'error' }),
+  });
+
+  if (!data) return null;
+
+  if (data.offen === 0) {
+    return (
+      <p className="mt-3 border-t pt-2 text-2xs text-muted-foreground">
+        Keine Demo-Daten vorhanden – die App arbeitet ausschließlich mit echten Daten.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-2 border-t pt-2">
+      <p className="text-2xs text-muted-foreground">
+        {data.offen} Demo-Datensätze sind noch vorhanden. Sie stammen aus der Vorführung und gehören
+        nicht in den laufenden Betrieb.
+      </p>
+      {sicher ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => entfernen.mutate()}
+            disabled={entfernen.isPending}
+          >
+            <Trash2 /> {entfernen.isPending ? 'Wird entfernt …' : 'Endgültig entfernen'}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setSicher(false)}>
+            Abbrechen
+          </Button>
+        </div>
+      ) : (
+        <Button size="sm" variant="outline" onClick={() => setSicher(true)}>
+          <Trash2 /> Demo-Daten entfernen
+        </Button>
+      )}
     </div>
   );
 }

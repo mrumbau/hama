@@ -1,6 +1,7 @@
 import { handler, ok, parseBody } from '@/server/api';
 import { prisma } from '@/lib/db';
 import { writeAudit } from '@/server/audit';
+import { pflegeBauleitung } from '@/server/bauleitung';
 import { fullName } from '@/lib/utils';
 import { employeeSchema } from '@/server/resource-schemas';
 
@@ -45,7 +46,18 @@ export const PATCH = handler(async (request: Request, ctx: Ctx) => {
     newValue: input,
   });
 
-  return ok({ employee, message: 'Gespeichert.' });
+  // Fähigkeit „Bauleitung“ gesetzt oder entfernt? Dann muss die Person auch
+  // am Projekt als Bauleiter wählbar sein – oder eben nicht mehr.
+  const bauleitung = await pflegeBauleitung(id);
+
+  const message =
+    bauleitung === 'angelegt'
+      ? `Gespeichert. ${fullName(employee)} steht jetzt auch bei den Bauleitern zur Auswahl.`
+      : bauleitung === 'stillgelegt'
+        ? `Gespeichert. ${fullName(employee)} wird nicht mehr als Bauleiter geführt; bestehende Zuordnungen bleiben.`
+        : 'Gespeichert.';
+
+  return ok({ employee, message });
 });
 
 export const DELETE = handler(async (_request: Request, ctx: Ctx) => {
