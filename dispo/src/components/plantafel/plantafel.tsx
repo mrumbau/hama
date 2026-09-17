@@ -36,6 +36,7 @@ import { KpiHeader } from './kpi-header';
 import { QuickPlanDialog, type QuickPlanSeed } from './quick-plan-dialog';
 import { AssignmentDialog } from './assignment-dialog';
 import { useBoardQuery, useBoardState } from './use-board';
+import { Palette, type PaletteItem } from './palette';
 import type { ChipActions } from './assignment-chip';
 
 interface PendingMove {
@@ -54,6 +55,7 @@ export function Plantafel() {
   const params = useSearchParams();
 
   const [dragging, setDragging] = React.useState<AssignmentDTO | null>(null);
+  const [draggingPalette, setDraggingPalette] = React.useState<PaletteItem | null>(null);
   const [quickPlan, setQuickPlan] = React.useState<QuickPlanSeed | null>(null);
   const [editing, setEditing] = React.useState<AssignmentDTO | null>(null);
   const [showInactive, setShowInactive] = React.useState(false);
@@ -63,6 +65,11 @@ export function Plantafel() {
     message: string;
   } | null>(null);
   const [notePrompt, setNotePrompt] = React.useState<AssignmentDTO | null>(null);
+  const [conflictCreate, setConflictCreate] = React.useState<{
+    body: Record<string, unknown>;
+    message: string;
+    label: string;
+  } | null>(null);
 
   const openProjectId = params.get('projekt');
 
@@ -135,20 +142,107 @@ export function Plantafel() {
     [refresh, toast],
   );
 
+  /**
+   * Legt einen Einsatz an, der aus der Ablageleiste gezogen wurde.
+   * Bei einer Doppelbelegung antwortet der Server mit 409 – dann fragen wir
+   * nach, statt stillschweigend zu speichern oder abzubrechen.
+   */
+  const createFromPalette = React.useCallback(
+    async (body: Record<string, unknown>, label: string) => {
+      try {
+        const res = await api.post<{ message: string }>('/api/assignments', body);
+        refresh();
+        toast({ title: res.message, tone: 'success' });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Unbekannter Fehler.';
+        if (message.includes('bereits auf Baustelle')) {
+          setConflictCreate({ body, message, label });
+        } else {
+          toast({ title: 'Einplanen nicht möglich', description: message, tone: 'error' });
+        }
+      }
+    },
+    [refresh, toast],
+  );
+
   const onDragStart = (event: DragStartEvent) => {
-    setDragging((event.active.data.current?.assignment as AssignmentDTO) ?? null);
+    const data = event.active.data.current;
+    setDragging((data?.assignment as AssignmentDTO) ?? null);
+    setDraggingPalette((data?.paletteItem as PaletteItem) ?? null);
   };
 
   const onDragEnd = async (event: DragEndEvent) => {
     setDragging(null);
-    const assignment = event.active.data.current?.assignment as AssignmentDTO | undefined;
+    setDraggingPalette(null);
+
     const overId = event.over?.id;
-    if (!assignment || !overId || typeof overId !== 'string') return;
+    if (!overId || typeof overId !== 'string') return;
+    const teile = overId.split(':');
+    const zielTag = teile[teile.length - 1] as IsoDate;
+
+    // --- Neuer Einsatz aus der Ablageleiste ---
+    const palette = event.active.data.current?.paletteItem as PaletteItem | undefined;
+    if (palette) {
+      if (palette.art === 'ressource') {
+        // Eine Ressource gehört auf eine Baustelle – also in eine Projektzeile.
+        if (teile[0] !== 'project') {
+          toast({
+            title: 'Bitte auf eine Baustellenzeile ziehen',
+            description: 'In der Ressourcenansicht ziehen Sie stattdessen Baustellen hinein.',
+            tone: 'warning',
+          });
+          return;
+        }
+        const r = palette.resource;
+        await createFromPalette(
+          {
+            projectId: teile[1],
+            resourceType: r.type,
+            employeeId: r.type === 'MITARBEITER' ? r.id : null,
+            siteManagerId: r.type === 'BAULEITER' ? r.id : null,
+            subcontractorId: r.type === 'SUBUNTERNEHMER' ? r.id : null,
+            startDate: zielTag,
+            endDate: zielTag,
+            kind: r.type === 'BAULEITER' ? 'BESICHTIGUNG' : 'ARBEIT',
+          },
+          r.label,
+        );
+      } else {
+        // Eine Baustelle gehört zu einer Ressource – also in eine Ressourcenzeile.
+        if (teile[0] !== 'resource') {
+          toast({
+            title: 'Bitte auf eine Ressourcenzeile ziehen',
+            description: 'In der Baustellenansicht ziehen Sie stattdessen Personal hinein.',
+            tone: 'warning',
+          });
+          return;
+        }
+        const art = teile[1];
+        const id = teile[2];
+        await createFromPalette(
+          {
+            projectId: palette.project.id,
+            resourceType: art,
+            employeeId: art === 'MITARBEITER' ? id : null,
+            siteManagerId: art === 'BAULEITER' ? id : null,
+            subcontractorId: art === 'SUBUNTERNEHMER' ? id : null,
+            startDate: zielTag,
+            endDate: zielTag,
+            kind: art === 'BAULEITER' ? 'BESICHTIGUNG' : 'ARBEIT',
+          },
+          `${palette.project.customerName} – ${palette.project.name}`,
+        );
+      }
+      return;
+    }
+
+    const assignment = event.active.data.current?.assignment as AssignmentDTO | undefined;
+    if (!assignment) return;
 
     // Drop-Ziele: project:<projectId>:<date> | resource:<type>:<id>:<date> | unassigned:<date>
-    const parts = overId.split(':');
+    const parts = teile;
     const kind = parts[0];
-    const date = parts[parts.length - 1] as IsoDate;
+    const date = zielTag;
 
     if (kind === 'project') {
       const projectId = parts[1];
@@ -284,6 +378,8 @@ export function Plantafel() {
         />
       ) : board ? (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+          <Palette view={state.view} board={board} belegtAm={state.anchor} />
+
           {state.view === 'baustellen' ? (
             <BoardProjects
               board={board}
@@ -315,6 +411,12 @@ export function Plantafel() {
                 style={{ borderLeftColor: dragging.color }}
               >
                 {dragging.resourceLabel}
+              </div>
+            ) : draggingPalette ? (
+              <div className="rounded border-l-[3px] border-l-primary bg-card px-1.5 py-1 text-xs font-medium shadow-lg ring-1 ring-border">
+                {draggingPalette.art === 'ressource'
+                  ? draggingPalette.resource.label
+                  : `${draggingPalette.project.customerName} – ${draggingPalette.project.name}`}
               </div>
             ) : null}
           </DragOverlay>
@@ -358,6 +460,35 @@ export function Plantafel() {
           setConflictMove(null);
         }}
       />
+
+      <Dialog open={!!conflictCreate} onOpenChange={(o) => !o && setConflictCreate(null)}>
+        <DialogContent className="max-w-md">
+          <DialogTitle className="flex items-center gap-2">
+            <TriangleAlert className="size-4 text-ampel-gelb" /> Terminüberschneidung
+          </DialogTitle>
+          <DialogDescription>{conflictCreate?.message}</DialogDescription>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Bei Subunternehmern ist das oft in Ordnung – sie haben mehrere Kolonnen. Bei eigenen
+            Mitarbeitern sollten Sie zweimal hinsehen.
+          </p>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setConflictCreate(null)}>
+              Abbrechen
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                if (!conflictCreate) return;
+                const { body, label } = conflictCreate;
+                setConflictCreate(null);
+                await createFromPalette({ ...body, force: true }, label);
+              }}
+            >
+              Trotzdem einplanen
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <NoteDialog assignment={notePrompt} onClose={() => setNotePrompt(null)} onSaved={refresh} />
 

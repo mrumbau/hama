@@ -19,10 +19,10 @@ import { useToast } from '@/components/ui/toast';
 import { PageHeader } from '@/components/page-header';
 
 const BUCKET_LABEL: Record<WarningBucket, string> = {
-  KRITISCH: 'Kritisch',
+  KRITISCH: 'Kritisch – sofort',
   HEUTE: 'Heute',
   DIESE_WOCHE: 'Diese Woche',
-  SPAETER: 'Später',
+  SPAETER: 'Später – nur zur Kenntnis',
 };
 
 const BUCKET_ORDER: WarningBucket[] = ['KRITISCH', 'HEUTE', 'DIESE_WOCHE', 'SPAETER'];
@@ -90,7 +90,17 @@ export function OpenPointsPage() {
             ))}
           </Select>
           <span className="ml-auto text-2xs text-muted-foreground">
-            {warnings.filter((w) => !w.dismissed).length} offen
+            {(() => {
+              const offen = warnings.filter((w) => !w.dismissed);
+              const faellig = offen.filter(
+                (w) => w.bucket === 'KRITISCH' || w.bucket === 'HEUTE',
+              ).length;
+              const spaeter = offen.length - faellig;
+              if (offen.length === 0) return 'nichts offen';
+              return faellig === 0
+                ? `nichts fällig · ${spaeter} zur Kenntnis`
+                : `${faellig} jetzt fällig · ${spaeter} später`;
+            })()}
           </span>
         </div>
       </PageHeader>
