@@ -2,10 +2,15 @@
 /** Ein Einsatz als kompakte Karte in einer Plantafel-Zelle. */
 import * as React from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { AlertTriangle, Clock, MoreVertical, StickyNote } from 'lucide-react';
+import { AlertTriangle, Clock, ListChecks, MoreVertical, StickyNote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AssignmentDTO, ProjectSummaryDTO } from '@/lib/types';
-import { ASSIGNMENT_STATUS_LABEL, RESOURCE_TYPE_LABEL } from '@/lib/labels';
+import {
+  ASSIGNMENT_KIND_LABEL,
+  ASSIGNMENT_KIND_SHORT,
+  ASSIGNMENT_STATUS_LABEL,
+  RESOURCE_TYPE_LABEL,
+} from '@/lib/labels';
 import { formatDateShort, type IsoDate } from '@/lib/dates';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -91,6 +96,15 @@ export function AssignmentChip({
         >
           {primaryLabel}
         </span>
+        {assignment.tasks.length > 0 ? (
+          <span
+            className="flex shrink-0 items-center gap-0.5 text-2xs text-muted-foreground"
+            title={`${assignment.tasks.length} Tätigkeit(en)`}
+          >
+            <ListChecks className="size-3" />
+            {assignment.tasks.length}
+          </span>
+        ) : null}
         {conflict ? <AlertTriangle className="size-3 shrink-0 text-destructive" /> : null}
         {assignment.note ? (
           <StickyNote className="size-3 shrink-0 text-muted-foreground" />
@@ -99,6 +113,11 @@ export function AssignmentChip({
           <span className="size-1.5 shrink-0 rounded-full bg-ampel-gruen" title="Bestätigt" />
         ) : null}
       </div>
+      {assignment.kind !== 'ARBEIT' ? (
+        <span className="block truncate text-2xs font-medium text-primary">
+          {ASSIGNMENT_KIND_SHORT[assignment.kind]}
+        </span>
+      ) : null}
       {secondaryLabel && !compact ? (
         <span className="block truncate text-2xs text-muted-foreground">{secondaryLabel}</span>
       ) : null}
@@ -214,9 +233,23 @@ function ChipTooltip({
         {assignment.startTime ? ` · ${assignment.startTime}${assignment.endTime ? `–${assignment.endTime}` : ''}` : ''}
       </p>
       <p>
+        <span className="text-muted-foreground">Art: </span>
+        {ASSIGNMENT_KIND_LABEL[assignment.kind]}
+      </p>
+      <p>
         <span className="text-muted-foreground">Status: </span>
         {ASSIGNMENT_STATUS_LABEL[assignment.status]}
       </p>
+      {assignment.tasks.length > 0 ? (
+        <div className="border-t pt-1">
+          <p className="font-medium">Tätigkeiten</p>
+          <ul className="text-muted-foreground">
+            {assignment.tasks.map((t) => (
+              <li key={t}>• {t}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {assignment.note ? (
         <p className="border-t pt-1 text-muted-foreground">{assignment.note}</p>
       ) : null}

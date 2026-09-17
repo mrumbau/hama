@@ -344,28 +344,44 @@ async function main() {
 
   // --- Einsaetze ----------------------------------------------------------
   console.log('→ Einsätze …');
-  const assignments = [
+  const assignments: {
+    projectId: string;
+    resourceType: 'BAULEITER' | 'MITARBEITER' | 'SUBUNTERNEHMER' | 'UNBESETZT';
+    siteManagerId?: string;
+    employeeId?: string;
+    subcontractorId?: string;
+    placeholderLabel?: string;
+    startDate: string;
+    endDate: string;
+    startTime?: string;
+    endTime?: string;
+    status?: 'GEPLANT' | 'BESTAETIGT';
+    kind?: string;
+    tasks?: string[];
+  }[] = [
     // Müller München – läuft die ganze Woche.
-    { projectId: mueller.id, resourceType: 'BAULEITER' as const, siteManagerId: marlon.id, startDate: MO, endDate: FR },
-    { projectId: mueller.id, resourceType: 'MITARBEITER' as const, employeeId: max.id, startDate: MO, endDate: DI, startTime: '07:00', endTime: '16:00' },
-    { projectId: mueller.id, resourceType: 'MITARBEITER' as const, employeeId: luigi.id, startDate: MO, endDate: MO },
-    { projectId: mueller.id, resourceType: 'SUBUNTERNEHMER' as const, subcontractorId: elektroMueller.id, startDate: MI, endDate: DO, status: 'BESTAETIGT' as const },
-    { projectId: mueller.id, resourceType: 'UNBESETZT' as const, placeholderLabel: 'Helfer für Abnahme', startDate: FR, endDate: FR },
+    // Der Bauleiter ist nicht zum Arbeiten da, sondern für Abstimmung und Abnahme.
+    { projectId: mueller.id, resourceType: 'BAULEITER', siteManagerId: marlon.id, startDate: MO, endDate: MO, kind: 'BESPRECHUNG', tasks: ['Schlüsselübergabe', 'Ablauf mit Frau Berger abstimmen'] },
+    { projectId: mueller.id, resourceType: 'BAULEITER', siteManagerId: marlon.id, startDate: FR, endDate: FR, kind: 'ABNAHME', tasks: ['Abnahme mit Kunde', 'Mängel aufnehmen'] },
+    { projectId: mueller.id, resourceType: 'MITARBEITER', employeeId: max.id, startDate: MO, endDate: DI, startTime: '07:00', endTime: '16:00', tasks: ['Alte Ladeneinrichtung demontieren', 'Schutt in Container'] },
+    { projectId: mueller.id, resourceType: 'MITARBEITER', employeeId: luigi.id, startDate: MO, endDate: MO },
+    { projectId: mueller.id, resourceType: 'SUBUNTERNEHMER', subcontractorId: elektroMueller.id, startDate: MI, endDate: DO, status: 'BESTAETIGT' as const },
+    { projectId: mueller.id, resourceType: 'UNBESETZT', placeholderLabel: 'Helfer für Abnahme', startDate: FR, endDate: FR },
 
     // Kufner Otterfing.
-    { projectId: kufner.id, resourceType: 'BAULEITER' as const, siteManagerId: carsten.id, startDate: DI, endDate: MI },
-    { projectId: kufner.id, resourceType: 'MITARBEITER' as const, employeeId: luigi.id, startDate: DI, endDate: MI, startTime: '07:30', endTime: '16:30' },
-    { projectId: kufner.id, resourceType: 'SUBUNTERNEHMER' as const, subcontractorId: sanitaerMaier.id, startDate: MI, endDate: MI },
+    { projectId: kufner.id, resourceType: 'BAULEITER', siteManagerId: carsten.id, startDate: DI, endDate: DI, kind: 'AUFMASS', tasks: ['Aufmaß Duschabtrennung'] },
+    { projectId: kufner.id, resourceType: 'MITARBEITER', employeeId: luigi.id, startDate: DI, endDate: MI, startTime: '07:30', endTime: '16:30', tasks: ['Fliesen Bad OG legen', 'Silikonfugen ziehen'] },
+    { projectId: kufner.id, resourceType: 'SUBUNTERNEHMER', subcontractorId: sanitaerMaier.id, startDate: MI, endDate: MI },
 
     // Schmidt Aying.
-    { projectId: schmidt.id, resourceType: 'BAULEITER' as const, siteManagerId: carsten.id, startDate: MO, endDate: NEXT_MI },
-    { projectId: schmidt.id, resourceType: 'SUBUNTERNEHMER' as const, subcontractorId: trockenbauHuber.id, startDate: MO, endDate: DI, status: 'BESTAETIGT' as const },
-    { projectId: schmidt.id, resourceType: 'MITARBEITER' as const, employeeId: max.id, startDate: MI, endDate: FR },
-    { projectId: schmidt.id, resourceType: 'MITARBEITER' as const, employeeId: gerhard.id, startDate: NEXT_MO, endDate: NEXT_DI },
-    { projectId: schmidt.id, resourceType: 'SUBUNTERNEHMER' as const, subcontractorId: malerSchmidt.id, startDate: NEXT_DI, endDate: NEXT_MI },
+    { projectId: schmidt.id, resourceType: 'BAULEITER', siteManagerId: carsten.id, startDate: MI, endDate: MI, kind: 'MATERIAL_BESTELLEN', tasks: ['Dämmung nachbestellen', 'Liefertermin mit Huber klären'] },
+    { projectId: schmidt.id, resourceType: 'SUBUNTERNEHMER', subcontractorId: trockenbauHuber.id, startDate: MO, endDate: DI, status: 'BESTAETIGT' as const },
+    { projectId: schmidt.id, resourceType: 'MITARBEITER', employeeId: max.id, startDate: MI, endDate: FR, tasks: ['Dachschrägen beplanken', 'Dampfsperre setzen'] },
+    { projectId: schmidt.id, resourceType: 'MITARBEITER', employeeId: gerhard.id, startDate: NEXT_MO, endDate: NEXT_DI },
+    { projectId: schmidt.id, resourceType: 'SUBUNTERNEHMER', subcontractorId: malerSchmidt.id, startDate: NEXT_DI, endDate: NEXT_MI },
 
     // Bewusste Doppelbelegung eines SUB am selben Tag (erlaubt, aber Warnung).
-    { projectId: kufner.id, resourceType: 'SUBUNTERNEHMER' as const, subcontractorId: elektroMueller.id, startDate: MI, endDate: MI },
+    { projectId: kufner.id, resourceType: 'SUBUNTERNEHMER', subcontractorId: elektroMueller.id, startDate: MI, endDate: MI },
   ];
 
   for (const a of assignments) {
@@ -374,6 +390,8 @@ async function main() {
         ...a,
         startDate: dbDate(a.startDate),
         endDate: dbDate(a.endDate),
+        kind: (a.kind ?? 'ARBEIT') as never,
+        tasks: a.tasks ?? [],
         source: 'SEED',
       },
     });

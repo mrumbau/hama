@@ -54,6 +54,8 @@ export const GET = handler(async (_request: Request, ctx: Ctx) => {
     status: a.status,
     source: a.source,
     color: '#0f766e',
+    kind: a.kind,
+    tasks: a.tasks,
   }));
 
   const ampel = computeAmpel({

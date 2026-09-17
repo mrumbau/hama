@@ -67,6 +67,41 @@ export const RESOURCE_TYPE_LABEL = {
 } as const;
 export type ResourceTypeKey = keyof typeof RESOURCE_TYPE_LABEL;
 
+export const ASSIGNMENT_KIND_LABEL = {
+  ARBEIT: 'Arbeit auf der Baustelle',
+  BESICHTIGUNG: 'Besichtigung',
+  AUFMASS: 'Aufmaß',
+  MATERIAL_BESTELLEN: 'Material bestellen',
+  MATERIAL_ANLIEFERUNG: 'Materialanlieferung',
+  ABNAHME: 'Abnahme',
+  BESPRECHUNG: 'Besprechung',
+  NACHARBEIT: 'Nacharbeit',
+  SONSTIGES: 'Sonstiges',
+} as const;
+export type AssignmentKindKey = keyof typeof ASSIGNMENT_KIND_LABEL;
+export const ASSIGNMENT_KIND_KEYS = Object.keys(ASSIGNMENT_KIND_LABEL) as AssignmentKindKey[];
+
+/// Kurzform für die engen Zellen der Plantafel.
+export const ASSIGNMENT_KIND_SHORT: Record<AssignmentKindKey, string> = {
+  ARBEIT: '',
+  BESICHTIGUNG: 'Besicht.',
+  AUFMASS: 'Aufmaß',
+  MATERIAL_BESTELLEN: 'Material',
+  MATERIAL_ANLIEFERUNG: 'Lieferung',
+  ABNAHME: 'Abnahme',
+  BESPRECHUNG: 'Termin',
+  NACHARBEIT: 'Nacharbeit',
+  SONSTIGES: 'Sonstiges',
+};
+
+/// Vorschläge, die beim Planen angeboten werden – nach Ressourcenart.
+export const KIND_SUGGESTIONS: Record<string, AssignmentKindKey[]> = {
+  BAULEITER: ['BESICHTIGUNG', 'AUFMASS', 'MATERIAL_BESTELLEN', 'ABNAHME', 'BESPRECHUNG', 'ARBEIT', 'NACHARBEIT', 'SONSTIGES'],
+  MITARBEITER: ['ARBEIT', 'NACHARBEIT', 'AUFMASS', 'MATERIAL_ANLIEFERUNG', 'ABNAHME', 'SONSTIGES'],
+  SUBUNTERNEHMER: ['ARBEIT', 'NACHARBEIT', 'AUFMASS', 'ABNAHME', 'SONSTIGES'],
+  UNBESETZT: ['ARBEIT', 'BESICHTIGUNG', 'MATERIAL_ANLIEFERUNG', 'ABNAHME', 'SONSTIGES'],
+};
+
 export const ASSIGNMENT_STATUS_LABEL = {
   GEPLANT: 'Geplant',
   BESTAETIGT: 'Bestätigt',

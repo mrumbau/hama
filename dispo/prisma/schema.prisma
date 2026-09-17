@@ -10,9 +10,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   // Laufzeit-Verbindung. Bei Supabase/Serverless die Pooler-URL (Port 6543).
-  url      = env("DATABASE_URL")
+  url       = env("DATABASE_URL")
   // Direktverbindung (Port 5432) – Migrationen laufen nicht über den Pooler.
   // Ohne Pooler einfach dieselbe URL wie oben eintragen.
   directUrl = env("DIRECT_DATABASE_URL")
@@ -71,6 +71,21 @@ enum ResourceType {
   BAULEITER
   SUBUNTERNEHMER
   UNBESETZT
+}
+
+/// Wofür ist der Einsatz? Bauleiter fahren zur Besichtigung oder Abnahme,
+/// Mitarbeiter arbeiten auf der Baustelle. Beides muss auf einen Blick
+/// unterscheidbar sein.
+enum AssignmentKind {
+  ARBEIT
+  BESICHTIGUNG
+  AUFMASS
+  MATERIAL_BESTELLEN
+  MATERIAL_ANLIEFERUNG
+  ABNAHME
+  BESPRECHUNG
+  NACHARBEIT
+  SONSTIGES
 }
 
 enum AssignmentStatus {
@@ -360,6 +375,15 @@ model Assignment {
 
   /// Platzhalter fuer einen noch unbesetzten Einsatz ("hier fehlt jemand").
   placeholderLabel String?
+
+  /// Art des Einsatzes – bei Bauleitern meist Besichtigung/Abnahme/Material,
+  /// bei Mitarbeitern die eigentliche Arbeit.
+  kind AssignmentKind @default(ARBEIT)
+
+  /// Konkrete Taetigkeiten, die an diesem Tag zu erledigen sind.
+  /// Bewusst eine Liste statt Freitext: so laesst sie sich spaeter abhaken
+  /// und in der Plantafel einzeln anzeigen.
+  tasks String[] @default([])
 
   startDate DateTime @db.Date
   endDate   DateTime @db.Date

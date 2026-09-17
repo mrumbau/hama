@@ -9,15 +9,19 @@ import { Trash2, TriangleAlert } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { AssignmentDTO, ProjectSummaryDTO } from '@/lib/types';
 import {
+  ASSIGNMENT_KIND_KEYS,
+  ASSIGNMENT_KIND_LABEL,
   ASSIGNMENT_STATUS_KEYS,
   ASSIGNMENT_STATUS_LABEL,
   CHANGE_REASON_KEYS,
   CHANGE_REASON_LABEL,
+  type AssignmentKindKey,
 } from '@/lib/labels';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
+import { TaskListInput } from '@/components/ui/task-list-input';
 
 export function AssignmentDialog({
   assignment,
@@ -38,6 +42,8 @@ export function AssignmentDialog({
   const [endTime, setEndTime] = React.useState('');
   const [status, setStatus] = React.useState('GEPLANT');
   const [note, setNote] = React.useState('');
+  const [kind, setKind] = React.useState<AssignmentKindKey>('ARBEIT');
+  const [tasks, setTasks] = React.useState<string[]>([]);
   const [reason, setReason] = React.useState('KUNDE');
   const [reasonText, setReasonText] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
@@ -52,6 +58,8 @@ export function AssignmentDialog({
     setEndTime(assignment.endTime ?? '');
     setStatus(assignment.status);
     setNote(assignment.note ?? '');
+    setKind(assignment.kind);
+    setTasks(assignment.tasks);
     setReason('KUNDE');
     setReasonText('');
     setError(null);
@@ -78,6 +86,8 @@ export function AssignmentDialog({
         endTime: endTime || null,
         status,
         note: note || null,
+        kind,
+        tasks,
         reason: dateChanged ? reason : null,
         reasonText: dateChanged ? reasonText || null : null,
         force,
@@ -188,6 +198,20 @@ export function AssignmentDialog({
               </Field>
             </div>
           ) : null}
+
+          <Field label="Wofür?">
+            <Select value={kind} onChange={(e) => setKind(e.target.value as AssignmentKindKey)}>
+              {ASSIGNMENT_KIND_KEYS.map((k) => (
+                <option key={k} value={k}>
+                  {ASSIGNMENT_KIND_LABEL[k]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label="Tätigkeiten">
+            <TaskListInput value={tasks} onChange={setTasks} />
+          </Field>
 
           <Field label="Notiz">
             <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} />

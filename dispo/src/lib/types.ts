@@ -1,5 +1,6 @@
 import type { IsoDate } from './dates';
 import type {
+  AssignmentKindKey,
   AssignmentStatusKey,
   ChangeReasonKey,
   ConfirmationKey,
@@ -34,6 +35,10 @@ export interface AssignmentDTO {
   status: AssignmentStatusKey;
   source: SourceKey;
   color: string;
+  /// Wofür der Einsatz da ist.
+  kind: AssignmentKindKey;
+  /// Konkrete Tätigkeiten für diesen Tag.
+  tasks: string[];
 }
 
 export interface ProjectSummaryDTO {

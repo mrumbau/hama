@@ -133,6 +133,8 @@ export async function loadBoard(
       status: a.status as AssignmentDTO['status'],
       source: a.source as AssignmentDTO['source'],
       color,
+      kind: a.kind as AssignmentDTO['kind'],
+      tasks: a.tasks,
     };
   });
 

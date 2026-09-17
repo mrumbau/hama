@@ -9,13 +9,20 @@ import { Plus, TriangleAlert } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { useEmployees, useSiteManagers, useSubcontractors } from '@/lib/queries';
 import { addDays, type IsoDate } from '@/lib/dates';
-import { ASSIGNMENT_STATUS_KEYS, ASSIGNMENT_STATUS_LABEL } from '@/lib/labels';
+import {
+  ASSIGNMENT_KIND_LABEL,
+  ASSIGNMENT_STATUS_KEYS,
+  ASSIGNMENT_STATUS_LABEL,
+  KIND_SUGGESTIONS,
+  type AssignmentKindKey,
+} from '@/lib/labels';
 import type { ProjectSummaryDTO } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { QuickSubDialog } from '@/components/quick-sub-dialog';
+import { TaskListInput } from '@/components/ui/task-list-input';
 
 export interface QuickPlanSeed {
   projectId?: string;
@@ -53,6 +60,8 @@ export function QuickPlanDialog({
   const [startTime, setStartTime] = React.useState('');
   const [endTime, setEndTime] = React.useState('');
   const [note, setNote] = React.useState('');
+  const [kind, setKind] = React.useState<AssignmentKindKey>('ARBEIT');
+  const [tasks, setTasks] = React.useState<string[]>([]);
   const [status, setStatus] = React.useState('GEPLANT');
   const [error, setError] = React.useState<string | null>(null);
   const [conflict, setConflict] = React.useState<string | null>(null);
@@ -70,6 +79,9 @@ export function QuickPlanDialog({
     setStartTime('');
     setEndTime('');
     setNote('');
+    // Bauleiter fahren meist zur Besichtigung, Mitarbeiter arbeiten.
+    setKind(seed.resourceType === 'BAULEITER' ? 'BESICHTIGUNG' : 'ARBEIT');
+    setTasks([]);
     setStatus('GEPLANT');
     setError(null);
     setConflict(null);
@@ -107,6 +119,8 @@ export function QuickPlanDialog({
         startTime: startTime || null,
         endTime: endTime || null,
         note: note || null,
+        kind,
+        tasks,
         status,
         force,
       }),
@@ -166,8 +180,10 @@ export function QuickPlanDialog({
                 <Select
                   value={resourceType}
                   onChange={(e) => {
-                    setResourceType(e.target.value as typeof resourceType);
+                    const next = e.target.value as typeof resourceType;
+                    setResourceType(next);
                     setResourceId('');
+                    setKind(next === 'BAULEITER' ? 'BESICHTIGUNG' : 'ARBEIT');
                   }}
                 >
                   <option value="MITARBEITER">Mitarbeiter</option>
@@ -254,6 +270,35 @@ export function QuickPlanDialog({
                 </Select>
               </Field>
             </div>
+
+            <Field
+              label="Wofür?"
+              hint={
+                resourceType === 'BAULEITER'
+                  ? 'Bauleiter fahren selten zum Arbeiten – hier steht der Anlass.'
+                  : undefined
+              }
+            >
+              <Select value={kind} onChange={(e) => setKind(e.target.value as AssignmentKindKey)}>
+                {(KIND_SUGGESTIONS[resourceType] ?? KIND_SUGGESTIONS.MITARBEITER).map((k) => (
+                  <option key={k} value={k}>
+                    {ASSIGNMENT_KIND_LABEL[k]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <Field label="Tätigkeiten" hint="Was ist an diesem Tag konkret zu tun? Enter legt die nächste Zeile an.">
+              <TaskListInput
+                value={tasks}
+                onChange={setTasks}
+                placeholder={
+                  resourceType === 'BAULEITER'
+                    ? 'z. B. Aufmaß Fenster nehmen'
+                    : 'z. B. Trockenbauwände stellen'
+                }
+              />
+            </Field>
 
             <Field label="Notiz">
               <Textarea

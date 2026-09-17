@@ -13,7 +13,13 @@ import {
   WEEKDAY_LONG,
   weekdayIndex,
 } from '@/lib/dates';
-import { ASSIGNMENT_STATUS_KEYS, CHANGE_REASON_KEYS, RESOURCE_TYPE_LABEL } from '@/lib/labels';
+import {
+  ASSIGNMENT_KIND_KEYS,
+  ASSIGNMENT_KIND_LABEL,
+  ASSIGNMENT_STATUS_KEYS,
+  CHANGE_REASON_KEYS,
+  RESOURCE_TYPE_LABEL,
+} from '@/lib/labels';
 import { fullName } from '@/lib/utils';
 import { ApiError } from './api';
 import { writeAudit } from './audit';
@@ -38,6 +44,8 @@ export const createAssignmentSchema = z
     startTime: timeString,
     endTime: timeString,
     note: z.string().max(2000).nullish(),
+    kind: z.enum(ASSIGNMENT_KIND_KEYS as [string, ...string[]]).optional(),
+    tasks: z.array(z.string().min(1).max(200)).max(50).optional(),
     status: z.enum(ASSIGNMENT_STATUS_KEYS as [string, ...string[]]).optional(),
     source: z.enum(['MANUELL', 'DAS_PROGRAMM', 'TELEFON_3CX', 'OUTLOOK', 'AUTOMATISCH']).optional(),
     /** Bewusstes Ueberschreiben einer Konfliktwarnung. */
@@ -60,6 +68,8 @@ export const updateAssignmentSchema = z.object({
   startTime: timeString,
   endTime: timeString,
   note: z.string().max(2000).nullish(),
+  kind: z.enum(ASSIGNMENT_KIND_KEYS as [string, ...string[]]).optional(),
+  tasks: z.array(z.string().min(1).max(200)).max(50).optional(),
   status: z.enum(ASSIGNMENT_STATUS_KEYS as [string, ...string[]]).optional(),
   projectId: z.string().min(1).optional(),
   resourceType: z.enum(['MITARBEITER', 'BAULEITER', 'SUBUNTERNEHMER', 'UNBESETZT']).optional(),
@@ -218,6 +228,8 @@ export async function createAssignment(input: CreateAssignmentInput) {
       startTime: input.startTime ?? null,
       endTime: input.endTime ?? null,
       note: input.note ?? null,
+      kind: (input.kind ?? 'ARBEIT') as never,
+      tasks: input.tasks ?? [],
       status: (input.status ?? 'GEPLANT') as never,
       source: (input.source ?? 'MANUELL') as never,
     },
@@ -228,8 +240,12 @@ export async function createAssignment(input: CreateAssignmentInput) {
     entityId: created.id,
     projectId: input.projectId,
     action: 'created',
-    label: `${RESOURCE_TYPE_LABEL[input.resourceType]} eingeplant: ${label}`,
-    newValue: { resource: label, startDate, endDate },
+    label:
+      `${RESOURCE_TYPE_LABEL[input.resourceType]} eingeplant: ${label}` +
+      (input.kind && input.kind !== 'ARBEIT'
+        ? ` (${ASSIGNMENT_KIND_LABEL[input.kind as keyof typeof ASSIGNMENT_KIND_LABEL]})`
+        : ''),
+    newValue: { resource: label, startDate, endDate, art: input.kind ?? 'ARBEIT', taetigkeiten: input.tasks ?? [] },
     source: (input.source ?? 'MANUELL') as never,
     note: conflicts.length > 0 ? 'Trotz Terminüberschneidung eingeplant.' : null,
   });
@@ -290,6 +306,8 @@ export async function updateAssignment(id: string, input: z.infer<typeof updateA
       startTime: input.startTime !== undefined ? input.startTime : existing.startTime,
       endTime: input.endTime !== undefined ? input.endTime : existing.endTime,
       note: input.note !== undefined ? input.note : existing.note,
+      kind: (input.kind ?? existing.kind) as never,
+      tasks: input.tasks ?? existing.tasks,
       status: (input.status ?? existing.status) as never,
     },
   });
