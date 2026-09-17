@@ -12,7 +12,6 @@ import {
   DasProgrammProvider,
   findeAuthVariante,
 } from '@/server/integrations/das-programm-provider';
-import { vergissTokens } from '@/server/integrations/das-programm-auth';
 
 interface Aufruf {
   query: string;
@@ -40,8 +39,8 @@ function provider(writeBack = false) {
   return new DasProgrammProvider(
     'https://app.das-programm.io/api/graphql',
     'test-schluessel',
-    'Authorization',
-    'Bearer ',
+    undefined,
+    undefined,
     writeBack,
   );
 }
@@ -103,7 +102,7 @@ describe('Projekte lesen', () => {
     expect(projekt.street).toBe('Rosenstraße 12');
     expect(projekt.city).toBe('Otterfing');
 
-    expect(aufrufe[0].variables.request).toEqual({ limit: 100, offset: 0 });
+    expect(aufrufe[0].variables.search).toEqual({ limit: 100, currentPage: 0 });
   });
 
   it('blättert weiter, solange volle Seiten kommen', async () => {
@@ -123,7 +122,7 @@ describe('Projekte lesen', () => {
     expect(projekte).toHaveLength(103);
     const suchen = aufrufe.filter((a) => a.query.includes('projectSearch'));
     expect(suchen).toHaveLength(2);
-    expect(suchen[1].variables.request).toEqual({ limit: 100, offset: 100 });
+    expect(suchen[1].variables.search).toEqual({ limit: 100, currentPage: 1 });
   });
 
   it('bündelt Detailabfragen statt einzeln zu fragen', async () => {
@@ -232,7 +231,7 @@ describe('Status zurückschreiben', () => {
     await provider(true).setProjectStatus('P1', 'closed');
 
     expect(aufrufe[0].query).toContain('updateProject');
-    expect(aufrufe[0].variables.input).toEqual({ id: 'P1', status: 'closed' });
+    expect(aufrufe[0].variables.payload).toEqual({ id: 'P1', status: 'closed' });
   });
 
   it('schreibt nichts, solange es nicht eingeschaltet ist', async () => {
@@ -359,88 +358,74 @@ describe('Header-Variante finden', () => {
 });
 
 describe('Schlüssel aufräumen', () => {
-  it('entfernt Zeilenumbrüche und ein versehentliches Bearer im Wert', async () => {
-    const { aufrufe, fetchMock } = erpNachbau(() => ({ projectStatusSearch: [] }));
-    const p = new DasProgrammProvider(
-      'https://example.invalid/graphql',
-      '  Bearer abc123\n',
-      'Authorization',
-      'Bearer ',
-    );
+  it('entfernt Zeilenumbrüche rund um den Schlüssel', async () => {
+    const { aufrufe, fetchMock } = erpNachbau(() => ({ projectSearch: [] }));
+    const p = new DasProgrammProvider('https://example.invalid/graphql', '  abc123\n');
     await p.healthCheck();
 
     const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
-    expect(headers.Authorization).toBe('Bearer abc123');
+    // Standard ist der Header, den „Das Programm" tatsächlich erwartet.
+    expect(headers['x-techni-api-token']).toBe('abc123');
     expect(aufrufe).toHaveLength(1);
   });
 });
 
-describe('Anmeldung über Client-Zugangsdaten', () => {
-  it('holt ein Token und schickt es als Bearer mit', async () => {
-    vergissTokens();
-    const aufrufe: { url: string; headers: Record<string, string> }[] = [];
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (url: string, init: RequestInit) => {
-        aufrufe.push({ url, headers: init.headers as Record<string, string> });
-        if (url.includes('/oauth/token')) {
-          return {
-            ok: true,
-            status: 200,
-            statusText: 'OK',
-            text: async () => '{"access_token":"frisches-token","expires_in":3600}',
-          } as unknown as Response;
-        }
-        return {
-          ok: true,
-          status: 200,
-          statusText: 'OK',
-          json: async () => ({ data: { projectStatusSearch: [{ id: '1' }] } }),
-        } as unknown as Response;
-      }),
-    );
+describe('Aufrufform – die Falle aus der Online-Dokumentation', () => {
+  /**
+   * Die Doku nennt die Argumente `request` und `input`. Tatsächlich heißen
+   * sie `search` und `payload`. Mit den falschen Namen antwortet der Server
+   * auf *jede* Abfrage mit einem Fehler – und zwar erst im Betrieb, weil
+   * GraphQL das nicht beim Bauen prüft. Deshalb steht es hier fest.
+   */
+  it('nennt das Suchargument search und niemals request', async () => {
+    const { aufrufe } = erpNachbau((a) => {
+      if (a.query.includes('projectSearch')) return { projectSearch: [{ id: 'P1' }] };
+      if (a.query.includes('employeeSearch')) return { employeeSearch: [] };
+      if (a.query.includes('supplierSearch')) return { supplierSearch: [] };
+      return { d0: { id: 'P1' } };
+    });
 
-    const p = new DasProgrammProvider(
-      'https://app.das-programm.io/api/graphql',
-      '',
-      'Authorization',
-      'Bearer ',
-      false,
-      {
-        tokenUrl: 'https://app.das-programm.io/api/oauth/token',
-        clientId: 'dispo',
-        clientSecret: 'geheim',
-        scope: null,
-      },
-    );
-    const health = await p.healthCheck();
+    const p = provider();
+    await p.getProjects();
+    await p.getEmployees();
+    await p.getSuppliers();
 
-    expect(health.ok).toBe(true);
-    const graphql = aufrufe.find((a) => a.url.endsWith('/graphql'));
-    expect(graphql?.headers.Authorization).toBe('Bearer frisches-token');
+    const alles = aufrufe.map((a) => a.query).join('\n');
+    expect(alles).toMatch(/Search\(search: \$search\)/);
+    expect(alles).not.toMatch(/request:/);
+    expect(alles).not.toMatch(/\(input:/);
   });
 
-  it('kommt ohne API-Schlüssel aus, wenn Client-Zugangsdaten da sind', () => {
-    expect(
-      () =>
-        new DasProgrammProvider(
-          'https://example.invalid/graphql',
-          '',
-          'Authorization',
-          'Bearer ',
-          false,
-          {
-            tokenUrl: 'https://example.invalid/api/oauth/token',
-            clientId: 'a',
-            clientSecret: 'b',
-            scope: null,
-          },
-        ),
-    ).not.toThrow();
+  it('nennt das Mutations-Argument payload und niemals input', async () => {
+    const { aufrufe } = erpNachbau(() => ({ updateProject: { id: 'P1' } }));
+    await provider(true).setProjectStatus('P1', 'closed');
 
-    // Ohne beides darf die App gar nicht erst starten.
-    expect(() => new DasProgrammProvider('https://example.invalid/graphql', '')).toThrow(
-      /Weder DAS_PROGRAMM_API_KEY noch/,
-    );
+    expect(aufrufe[0].query).toMatch(/updateProject\(payload: \$payload\)/);
+    expect(aufrufe[0].query).not.toMatch(/input:/);
+  });
+
+  it('blättert über currentPage, nicht über einen Offset', async () => {
+    const { aufrufe } = erpNachbau((a) => {
+      if (!a.query.includes('projectSearch')) return {};
+      const seite = (a.variables.search as { currentPage: number }).currentPage;
+      return {
+        projectSearch: seite === 0 ? Array.from({ length: 100 }, (_, i) => ({ id: `P${i}` })) : [],
+      };
+    });
+
+    await provider().getProjects();
+
+    const suchen = aufrufe.filter((a) => a.query.includes('projectSearch'));
+    expect(suchen[1].variables.search).toEqual({ limit: 100, currentPage: 1 });
+    expect(JSON.stringify(suchen[1].variables)).not.toContain('offset');
+  });
+
+  it('schickt den Schlüssel im Header x-techni-api-token, nicht über Authorization', async () => {
+    const { fetchMock } = erpNachbau(() => ({ projectSearch: [] }));
+    await provider().healthCheck();
+
+    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+    expect(headers['x-techni-api-token']).toBe('test-schluessel');
+    expect(headers.Authorization).toBeUndefined();
   });
 });

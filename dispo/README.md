@@ -134,29 +134,39 @@ interface ErpProvider {
 
 ```bash
 DISPO_ERP_PROVIDER="das-programm"
-DAS_PROGRAMM_API_KEY="…"
-# Die folgenden haben brauchbare Vorgaben und werden nur bei Abweichung gesetzt:
+DAS_PROGRAMM_API_KEY="…"        # API-Token aus „Das Programm"
+
+# Vorgaben, nur bei Abweichung setzen:
 DAS_PROGRAMM_GRAPHQL_URL="https://app.das-programm.io/api/graphql"
-DAS_PROGRAMM_AUTH_HEADER="Authorization"
-DAS_PROGRAMM_AUTH_PREFIX="Bearer "
-DAS_PROGRAMM_WRITEBACK="1"   # erlaubt das Zurückschreiben des Projektstatus
+DAS_PROGRAMM_AUTH_HEADER="x-techni-api-token"
+DAS_PROGRAMM_AUTH_PREFIX=""     # bewusst leer – kein „Bearer"
+DAS_PROGRAMM_WRITEBACK="1"      # erlaubt das Zurückschreiben des Projektstatus
 ```
+
+> **Der Header heißt `x-techni-api-token`**, nicht `Authorization`. Über
+> `Authorization: Bearer …` antwortet der Server mit `invalid_token` – das
+> sieht nach einem falschen Schlüssel aus, ist aber der falsche Header.
 
 **Prüfen:** Einstellungen → Integrationen → *„Verbindung prüfen“*. Zeigt
 Endpunkt, Header und die Antwort des Servers im Klartext. Scheitert die
 Anmeldung, probiert der Test von sich aus die gängigen Header-Formen durch
-und sucht anschließend den OAuth2-Token-Endpunkt. Ein `invalid_client` gilt
-dabei als Treffer: es beweist, dass der Endpunkt existiert und nur die
-Zugangsdaten fehlen.
+und schreibt hin, welche funktioniert.
 
 **Auslösen:** Einstellungen → Integrationen → *„Projekte aus Das Programm
 aktualisieren“*, oder `POST /api/integrations/das-programm/sync`. Für einen
 automatischen Abgleich genügt ein Cron-Job auf diesen Endpunkt.
 
-Gelesen wird über die dokumentierten Abfragen `projectSearch` / `project`,
-`employeeSearch` / `employee` und `supplierSearch` / `supplier`. Listen und
-Details werden gebündelt abgefragt (25 Datensätze je Anfrage), damit aus 200
-Mitarbeitern nicht 200 Anfragen werden.
+Gelesen wird über `projectSearch` / `project`, `employeeSearch` / `employee`
+und `supplierSearch` / `supplier`. Listen und Details werden gebündelt
+abgefragt (25 Datensätze je Anfrage), damit aus 200 Mitarbeitern nicht 200
+Anfragen werden.
+
+> **Achtung bei der Online-Dokumentation:** Die Feldnamen dort stimmen, die
+> Argumentnamen nicht. Tatsächlich heißt das Suchargument `search` (nicht
+> `request`) und das Mutations-Argument `payload` (nicht `input`); geblättert
+> wird über `currentPage`, nicht über einen Offset. Mit den Namen aus der Doku
+> antwortet der Server auf jede Abfrage mit einem Fehler. Maßgeblich ist das
+> Introspection-Schema.
 
 ### Was übernommen wird
 
@@ -291,7 +301,7 @@ Claude-Analyse hinzu; schlägt sie fehl, greift still die Heuristik.
 | `DISPO_ERP_PROVIDER` | nein | `mock` (Standard) oder `das-programm` |
 | `DAS_PROGRAMM_API_KEY` | bei echter API | API-Schlüssel |
 | `DAS_PROGRAMM_GRAPHQL_URL` | nein | Endpunkt. Standard `https://app.das-programm.io/api/graphql` |
-| `DAS_PROGRAMM_AUTH_HEADER` / `_AUTH_PREFIX` | nein | Standard `Authorization` und `Bearer ` |
+| `DAS_PROGRAMM_AUTH_HEADER` / `_AUTH_PREFIX` | nein | Standard `x-techni-api-token` und leer |
 | `DAS_PROGRAMM_WRITEBACK` | nein | `1` erlaubt der Dispo, den Projektstatus im ERP zu setzen |
 | `THREECX_WEBHOOK_SECRET` | empfohlen | HMAC-Secret des 3CX-Webhooks |
 | `ANTHROPIC_API_KEY` | nein | schaltet die AI-Analyse zu |

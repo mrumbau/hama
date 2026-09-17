@@ -6,17 +6,26 @@
  * ausschliesslich dokumentierte Felder angefragt – GraphQL bricht die ganze
  * Abfrage ab, sobald ein Feld nicht existiert, also wird hier nichts geraten.
  *
+ * Die Aufrufform stammt aus einer laufenden Anbindung desselben Systems
+ * (CardScan im Bestellwesen) und aus dessen Introspection-Abbild – nicht aus
+ * der Online-Dokumentation. Die stimmt bei den Feldnamen, aber nicht bei den
+ * Argumenten: Suchen heißen `search`, nicht `request`, und Mutationen nehmen
+ * `payload`, nicht `input`. Mit den Namen aus der Doku antwortet der Server
+ * auf jede Abfrage mit einem Fehler.
+ *
  * Konfiguration über Umgebungsvariablen:
  *   DAS_PROGRAMM_GRAPHQL_URL   Standard: https://app.das-programm.io/api/graphql
- *   DAS_PROGRAMM_API_KEY       der Schlüssel
- *   DAS_PROGRAMM_AUTH_HEADER   Name des Headers (Standard: Authorization)
- *   DAS_PROGRAMM_AUTH_PREFIX   Präfix vor dem Schlüssel (Standard: "Bearer ")
+ *   DAS_PROGRAMM_API_KEY       der API-Token aus „Das Programm"
+ *   DAS_PROGRAMM_AUTH_HEADER   Standard: x-techni-api-token
+ *   DAS_PROGRAMM_AUTH_PREFIX   Standard: leer
  *   DAS_PROGRAMM_WRITEBACK=1   erlaubt das Zurückschreiben des Projektstatus
  */
 import type { ErpEmployee, ErpProject, ErpProvider, ErpSupplier } from './erp-provider';
-import { holeZugriffstoken, type OAuthKonfiguration } from './das-programm-auth';
 
 export const DAS_PROGRAMM_STANDARD_URL = 'https://app.das-programm.io/api/graphql';
+
+/** So erwartet „Das Programm" den Token – ohne Präfix, nicht über Authorization. */
+export const DAS_PROGRAMM_STANDARD_HEADER = 'x-techni-api-token';
 
 /** Wieviele Datensätze pro Seite. */
 const SEITE = 100;
@@ -39,16 +48,12 @@ export class DasProgrammProvider implements ErpProvider {
   constructor(
     private readonly endpoint: string,
     apiKey: string,
-    private readonly authHeader = 'Authorization',
-    private readonly authPrefix = 'Bearer ',
+    private readonly authHeader = DAS_PROGRAMM_STANDARD_HEADER,
+    private readonly authPrefix = '',
     writeBack = false,
-    /** Sind Client-Zugangsdaten hinterlegt, holt sich die App ihr Token selbst. */
-    private readonly oauth: OAuthKonfiguration | null = null,
   ) {
     if (!endpoint) throw new Error('DAS_PROGRAMM_GRAPHQL_URL ist nicht gesetzt.');
-    if (!apiKey && !oauth) {
-      throw new Error('Weder DAS_PROGRAMM_API_KEY noch Client-Zugangsdaten sind gesetzt.');
-    }
+    if (!apiKey) throw new Error('DAS_PROGRAMM_API_KEY ist nicht gesetzt.');
     this.canWriteBack = writeBack;
 
     // Beim Kopieren aus einer Oberflaeche kommt gern ein Zeilenumbruch mit,
@@ -57,17 +62,7 @@ export class DasProgrammProvider implements ErpProvider {
     this.apiKey = apiKey.trim().replace(/^Bearer\s+/i, '');
   }
 
-  /**
-   * Der Anmelde-Header fuer eine Abfrage.
-   *
-   * Mit Client-Zugangsdaten ist es ein frisch geholtes (und danach
-   * zwischengespeichertes) Zugriffstoken, sonst der hinterlegte Schluessel.
-   */
-  private async anmeldung(): Promise<Record<string, string>> {
-    if (this.oauth) {
-      const token = await holeZugriffstoken(this.oauth);
-      return { Authorization: `Bearer ${token}` };
-    }
+  private anmeldung(): Record<string, string> {
     return { [this.authHeader]: `${this.authPrefix}${this.apiKey}` };
   }
 
@@ -77,7 +72,7 @@ export class DasProgrammProvider implements ErpProvider {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        ...(await this.anmeldung()),
+        ...this.anmeldung(),
       },
       body: JSON.stringify({ query, variables }),
       // Secrets bleiben serverseitig – dieser Code läuft nie im Browser.
@@ -104,12 +99,15 @@ export class DasProgrammProvider implements ErpProvider {
     return body.data;
   }
 
-  /** Liest eine `…Search`-Abfrage seitenweise vollständig aus. */
+  /**
+   * Liest eine `…Search`-Abfrage seitenweise vollständig aus.
+   * Geblättert wird über `currentPage`, nicht über einen Datensatz-Offset.
+   */
   private async alleSeiten<T>(query: string, feld: string): Promise<T[]> {
     const alle: T[] = [];
     for (let seite = 0; seite < MAX_SEITEN; seite++) {
       const data = await this.anfrage<Record<string, T[]>>(query, {
-        request: { limit: SEITE, offset: seite * SEITE },
+        search: { limit: SEITE, currentPage: seite },
       });
       const liste = data[feld] ?? [];
       alle.push(...liste);
@@ -148,16 +146,17 @@ export class DasProgrammProvider implements ErpProvider {
 
   async healthCheck() {
     try {
-      // Die Statusliste ist die billigste Abfrage und braucht keine Rechte
-      // auf Kundendaten.
-      const data = await this.anfrage<{ projectStatusSearch: { id: string }[] }>(
-        QUERY_PROJECT_STATUS,
-        { request: { limit: 1, offset: 0 } },
-      );
-      const anzahl = data.projectStatusSearch?.length ?? 0;
+      // Ein einzelnes Projekt genügt als Lebenszeichen.
+      const data = await this.anfrage<{ projectSearch: { id: string }[] }>(QUERY_HEALTH, {
+        search: { limit: 1, currentPage: 0 },
+      });
+      const anzahl = data.projectSearch?.length ?? 0;
       return {
         ok: true,
-        message: `Verbindung steht (${anzahl > 0 ? 'Projektstatus gelesen' : 'keine Projektstatus hinterlegt'}).`,
+        message:
+          anzahl > 0
+            ? 'Verbindung steht, Projekte sind lesbar.'
+            : 'Verbindung steht (keine Projekte gefunden).',
       };
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : 'Unbekannter Fehler.' };
@@ -253,7 +252,7 @@ export class DasProgrammProvider implements ErpProvider {
       throw new Error('Zurückschreiben ist nicht eingeschaltet (DAS_PROGRAMM_WRITEBACK).');
     }
     await this.anfrage<{ updateProject: { id: string } }>(MUTATION_UPDATE_PROJECT, {
-      input: { id: erpId, status: erpStatus },
+      payload: { id: erpId, status: erpStatus },
     });
   }
 }
@@ -262,15 +261,15 @@ export class DasProgrammProvider implements ErpProvider {
 // Abfragen – jedes Feld steht so in der Hersteller-Dokumentation.
 // ---------------------------------------------------------------------------
 
-const QUERY_PROJECT_STATUS = `
-  query Projektstatus($request: QueryRequest) {
-    projectStatusSearch(request: $request) { id name position }
+const QUERY_HEALTH = `
+  query Lebenszeichen($search: QueryRequest!) {
+    projectSearch(search: $search) { id }
   }
 `;
 
 const QUERY_PROJECT_SEARCH = `
-  query Projekte($request: QueryRequest) {
-    projectSearch(request: $request) {
+  query Projekte($search: QueryRequest!) {
+    projectSearch(search: $search) {
       id referenceNumber name status
       projectStatusId projectManagerId
       firstName lastName companyName
@@ -298,8 +297,8 @@ const QUERY_PROJECT = `
 `;
 
 const QUERY_EMPLOYEE_SEARCH = `
-  query Mitarbeiter($request: QueryRequest) {
-    employeeSearch(request: $request) {
+  query Mitarbeiter($search: QueryRequest!) {
+    employeeSearch(search: $search) {
       id referenceNumber firstName lastName email
       street zip city deletedOn
     }
@@ -310,8 +309,8 @@ const QUERY_EMPLOYEE_SEARCH = `
 const MITARBEITER_FELDER = `id firstName lastName email phone mobile userId contractEnd`;
 
 const QUERY_SUPPLIER_SEARCH = `
-  query Lieferanten($request: QueryRequest) {
-    supplierSearch(request: $request) {
+  query Lieferanten($search: QueryRequest!) {
+    supplierSearch(search: $search) {
       id referenceNumber name street zip city comment
     }
   }
@@ -323,8 +322,8 @@ const LIEFERANT_FELDER = `
 `;
 
 const MUTATION_UPDATE_PROJECT = `
-  mutation StatusZurueckschreiben($input: ProjectInputObjectType) {
-    updateProject(input: $input) { id referenceNumber name status }
+  mutation StatusZurueckschreiben($payload: ProjectInputObjectType) {
+    updateProject(payload: $payload) { id referenceNumber name status }
   }
 `;
 
@@ -475,6 +474,7 @@ export function mapProjekt(
  * nie im laufenden Betrieb.
  */
 export const AUTH_VARIANTEN: { header: string; prefix: string; name: string }[] = [
+  { header: DAS_PROGRAMM_STANDARD_HEADER, prefix: '', name: 'x-techni-api-token: <Schlüssel>' },
   { header: 'Authorization', prefix: 'Bearer ', name: 'Authorization: Bearer <Schlüssel>' },
   { header: 'Authorization', prefix: '', name: 'Authorization: <Schlüssel>' },
   { header: 'Authorization', prefix: 'Token ', name: 'Authorization: Token <Schlüssel>' },
