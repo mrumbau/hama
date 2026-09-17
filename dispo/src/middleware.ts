@@ -27,6 +27,9 @@ const OFFEN = [
   '/api/auth/microsoft',
   // Sagt nur, ob und wer angemeldet ist; ohne Sitzung kommt schlicht null.
   '/api/auth/ich',
+  // Sagt nur, welcher Stand laeuft – kein Geheimnis, aber die schnellste
+  // Antwort auf "ist das ueberhaupt die neue Version?".
+  '/api/version',
   '/api/integrations/3cx/events',
 ];
 
