@@ -44,6 +44,8 @@ export interface AssignmentDTO {
 export interface ProjectSummaryDTO {
   id: string;
   erpId: string | null;
+  /** Roh-Status aus "Das Programm" – erklaert, warum eine Baustelle fehlt. */
+  erpStatus: string | null;
   orderNumber: string | null;
   projectNumber: string | null;
   customerName: string;

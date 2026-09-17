@@ -96,7 +96,16 @@ export const ASSIGNMENT_KIND_SHORT: Record<AssignmentKindKey, string> = {
 
 /// Vorschläge, die beim Planen angeboten werden – nach Ressourcenart.
 export const KIND_SUGGESTIONS: Record<string, AssignmentKindKey[]> = {
-  BAULEITER: ['BESICHTIGUNG', 'AUFMASS', 'MATERIAL_BESTELLEN', 'ABNAHME', 'BESPRECHUNG', 'ARBEIT', 'NACHARBEIT', 'SONSTIGES'],
+  BAULEITER: [
+    'BESICHTIGUNG',
+    'AUFMASS',
+    'MATERIAL_BESTELLEN',
+    'ABNAHME',
+    'BESPRECHUNG',
+    'ARBEIT',
+    'NACHARBEIT',
+    'SONSTIGES',
+  ],
   MITARBEITER: ['ARBEIT', 'NACHARBEIT', 'AUFMASS', 'MATERIAL_ANLIEFERUNG', 'ABNAHME', 'SONSTIGES'],
   SUBUNTERNEHMER: ['ARBEIT', 'NACHARBEIT', 'AUFMASS', 'ABNAHME', 'SONSTIGES'],
   UNBESETZT: ['ARBEIT', 'BESICHTIGUNG', 'MATERIAL_ANLIEFERUNG', 'ABNAHME', 'SONSTIGES'],
@@ -168,3 +177,38 @@ export const CHANGE_REQUEST_STATUS_LABEL = {
   UEBERNOMMEN: 'Übernommen',
   ABGELEHNT: 'Abgelehnt',
 } as const;
+
+/**
+ * Wie die Status aus "Das Programm" auf Deutsch heissen.
+ *
+ * Gebraucht, um zu erklaeren, warum eine Baustelle nicht auf der Plantafel
+ * steht: "Im ERP auf Angebotserstellung" ist eine Antwort, "quotation" nicht.
+ */
+export const ERP_STATUS_LABEL: Record<string, string> = {
+  new: 'Neu',
+  quotation: 'Angebotserstellung',
+  sales: 'Vertrieb',
+  won: 'Beauftragt',
+  lost: 'Verloren',
+  order_fulfillment: 'Auftragserfüllung',
+  invoice: 'Rechnung',
+  waiting_for_payment: 'Warten auf Zahlungseingang',
+  closed: 'Abgeschlossen',
+  active: 'Aktiv (Altbestand)',
+};
+
+export function erpStatusName(erpStatus: string | null): string {
+  if (!erpStatus) return 'ohne Status';
+  return ERP_STATUS_LABEL[erpStatus.trim().toLowerCase()] ?? erpStatus;
+}
+
+/**
+ * ERP-Status, die auf die Plantafel gehoeren: beauftragt und in
+ * Auftragserfuellung. Alles davor ist Vertrieb, alles danach Buchhaltung.
+ * Bewusst eine Positivliste - ein unbekannter Status zeigt nichts an.
+ */
+export const ERP_STATUS_AUF_DER_TAFEL = ['won', 'order_fulfillment'];
+
+export function gehoertAufDieTafel(erpStatus: string | null): boolean {
+  return erpStatus ? ERP_STATUS_AUF_DER_TAFEL.includes(erpStatus.trim().toLowerCase()) : false;
+}

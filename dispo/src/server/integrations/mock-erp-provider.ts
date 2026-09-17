@@ -307,7 +307,9 @@ export class MockErpProvider implements ErpProvider {
 
   /** Legt an und liefert ihn beim nächsten Abgleich mit zurück. */
   async createSupplier(daten: ErpSupplierNeu) {
-    const nummer = `L-MOCK-${MOCK_NEUE_LIEFERANTEN.length + 1}`;
+    // Die laufende Nummer darf sich nach einem Neustart nicht wiederholen –
+    // sonst kollidiert sie mit einer ID, die in der Datenbank schon steht.
+    const nummer = `L-MOCK-${Date.now().toString(36)}${MOCK_NEUE_LIEFERANTEN.length}`;
     MOCK_NEUE_LIEFERANTEN.push({
       erpId: `mock-${nummer}`,
       referenceNumber: nummer,

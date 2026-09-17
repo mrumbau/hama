@@ -7,16 +7,7 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-  Building2,
-  Loader2,
-  Mail,
-  MapPin,
-  Phone,
-  Plus,
-  Trash2,
-  User,
-} from 'lucide-react';
+import { Building2, Loader2, Mail, MapPin, Phone, Plus, Trash2, User } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { useSiteManagers } from '@/lib/queries';
 import { formatDateShort, formatDateTime } from '@/lib/dates';
@@ -32,6 +23,8 @@ import {
   SOURCE_LABEL,
   TRAFFIC_LIGHT_KEYS,
   TRAFFIC_LIGHT_LABEL,
+  erpStatusName,
+  gehoertAufDieTafel,
   type TrafficLightKey,
 } from '@/lib/labels';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
@@ -47,6 +40,7 @@ import type { AssignmentDTO } from '@/lib/types';
 interface ProjectDetail {
   id: string;
   erpId: string | null;
+  erpStatus: string | null;
   orderNumber: string | null;
   projectNumber: string | null;
   customerName: string;
@@ -102,13 +96,7 @@ const TABS = [
   { value: 'notizen', label: 'Notizen' },
 ] as const;
 
-export function ProjectPanel({
-  projectId,
-  onClose,
-}: {
-  projectId: string;
-  onClose: () => void;
-}) {
+export function ProjectPanel({ projectId, onClose }: { projectId: string; onClose: () => void }) {
   const router = useRouter();
   const params = useSearchParams();
   const tabFromUrl = params.get('tab') ?? 'uebersicht';
@@ -146,11 +134,28 @@ export function ProjectPanel({
                   <SheetDescription className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     {project.orderNumber ? <span>{project.orderNumber}</span> : null}
                     {project.projectNumber ? <span>· {project.projectNumber}</span> : null}
-                    {project.erpId ? <span>· ERP {project.erpId}</span> : null}
+                    {project.erpId ? <span>· aus Das Programm</span> : null}
                     {project.isDemo ? <Badge variant="grau">Demo</Badge> : null}
                   </SheetDescription>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <Badge variant="outline">{PROJECT_STATUS_LABEL[project.status]}</Badge>
+                    {/*
+                      Der Status aus dem ERP daneben. Ohne ihn fragt man sich,
+                      warum eine Baustelle nicht auf der Plantafel steht –
+                      „Im ERP: Angebotserstellung" ist die Antwort.
+                    */}
+                    {project.erpStatus ? (
+                      <Badge
+                        variant={gehoertAufDieTafel(project.erpStatus) ? 'gruen' : 'grau'}
+                        title={
+                          gehoertAufDieTafel(project.erpStatus)
+                            ? 'Steht in Das Programm auf einem Status, der auf die Plantafel gehört.'
+                            : 'Steht in Das Programm auf einem Status, der nicht auf die Plantafel gehört.'
+                        }
+                      >
+                        Das Programm: {erpStatusName(project.erpStatus)}
+                      </Badge>
+                    ) : null}
                     {project.primarySiteManagerName ? (
                       <Badge variant="primary">
                         <User className="size-3" /> {project.primarySiteManagerName}
@@ -316,7 +321,10 @@ function OverviewTab({ project }: { project: ProjectDetail }) {
         </h3>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Kunde">
-            <Input value={form.customerName} onChange={(e) => set('customerName', e.target.value)} />
+            <Input
+              value={form.customerName}
+              onChange={(e) => set('customerName', e.target.value)}
+            />
           </Field>
           <Field label="Projektname">
             <Input value={form.name} onChange={(e) => set('name', e.target.value)} />
@@ -491,7 +499,11 @@ function OverviewTab({ project }: { project: ProjectDetail }) {
               ))}
             </Select>
           </Field>
-          <Field label="Ampel übersteuern" hint="Leer = automatisch berechnet" className="col-span-2">
+          <Field
+            label="Ampel übersteuern"
+            hint="Leer = automatisch berechnet"
+            className="col-span-2"
+          >
             <Select
               value={form.trafficLightOverride ?? ''}
               onChange={(e) =>
@@ -564,13 +576,22 @@ function AssignmentsTab({
               {a.note ? ` · ${a.note}` : ''}
             </span>
           </span>
-          <Badge variant={a.status === 'BESTAETIGT' ? 'gruen' : a.status === 'ABGESAGT' ? 'rot' : 'outline'}>
-            {a.status === 'BESTAETIGT' ? 'Bestätigt' : a.status === 'ABGESAGT' ? 'Abgesagt' : 'Geplant'}
+          <Badge
+            variant={
+              a.status === 'BESTAETIGT' ? 'gruen' : a.status === 'ABGESAGT' ? 'rot' : 'outline'
+            }
+          >
+            {a.status === 'BESTAETIGT'
+              ? 'Bestätigt'
+              : a.status === 'ABGESAGT'
+                ? 'Abgesagt'
+                : 'Geplant'}
           </Badge>
         </li>
       ))}
       <li className="pt-1 text-2xs text-muted-foreground">
-        Planzeitraum: {formatDateShort(project.plannedStart)} – {formatDateShort(project.plannedEnd)}
+        Planzeitraum: {formatDateShort(project.plannedStart)} –{' '}
+        {formatDateShort(project.plannedEnd)}
       </li>
     </ul>
   );
@@ -708,8 +729,7 @@ function NotesTab({ project }: { project: ProjectDetail }) {
   const [body, setBody] = React.useState('');
 
   const add = useMutation({
-    mutationFn: () =>
-      api.post<{ message: string }>(`/api/projects/${project.id}/notes`, { body }),
+    mutationFn: () => api.post<{ message: string }>(`/api/projects/${project.id}/notes`, { body }),
     onSuccess: (res) => {
       setBody('');
       queryClient.invalidateQueries({ queryKey: ['project', project.id] });

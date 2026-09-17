@@ -5,7 +5,7 @@
  * die Fehler, die man erst Wochen später bemerkt („warum ist die Baustelle
  * plötzlich erledigt?"), deshalb ist jede Regel einzeln prüfbar.
  */
-import type { ProjectStatusKey } from '@/lib/labels';
+import { erpStatusName, gehoertAufDieTafel, type ProjectStatusKey } from '@/lib/labels';
 import type { ErpSupplier } from './erp-provider';
 
 // ---------------------------------------------------------------------------
@@ -32,30 +32,7 @@ const ERP_STATUS_AUF_DER_TAFEL: Record<string, ProjectStatusKey> = {
   order_fulfillment: 'IN_AUSFUEHRUNG',
 };
 
-/** Menschenlesbare Namen der ERP-Status, für Anzeige und Sync-Bericht. */
-export const ERP_STATUS_LABEL: Record<string, string> = {
-  new: 'Neu',
-  quotation: 'Angebotserstellung',
-  sales: 'Vertrieb',
-  won: 'Beauftragt',
-  lost: 'Verloren',
-  order_fulfillment: 'Auftragserfüllung',
-  invoice: 'Rechnung',
-  waiting_for_payment: 'Warten auf Zahlungseingang',
-  closed: 'Abgeschlossen',
-  active: 'Aktiv (Altbestand)',
-};
-
-export function erpStatusName(erpStatus: string | null): string {
-  if (!erpStatus) return 'ohne Status';
-  return ERP_STATUS_LABEL[erpStatus.trim().toLowerCase()] ?? erpStatus;
-}
-
-/** Gehört ein Projekt mit diesem ERP-Status auf die Plantafel? */
-export function gehoertAufDieTafel(erpStatus: string | null): boolean {
-  if (!erpStatus) return false;
-  return erpStatus.trim().toLowerCase() in ERP_STATUS_AUF_DER_TAFEL;
-}
+export { gehoertAufDieTafel };
 
 /** Dispo-Status, die eine bewusste Entscheidung des Disponenten sind. */
 const DISPO_EIGENE_STATUS: ProjectStatusKey[] = [

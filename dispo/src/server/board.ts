@@ -204,6 +204,7 @@ export async function loadBoard(
     return {
       id: p.id,
       erpId: p.erpId,
+      erpStatus: p.erpStatus,
       orderNumber: p.orderNumber,
       projectNumber: p.projectNumber,
       customerName: p.customerName,
