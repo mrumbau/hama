@@ -46,7 +46,9 @@ export function PeoplePage() {
       >
         <Tabs
           value={tab}
-          onValueChange={(v) => router.replace(v === 'bauleiter' ? '/mitarbeiter?tab=bauleiter' : '/mitarbeiter')}
+          onValueChange={(v) =>
+            router.replace(v === 'bauleiter' ? '/mitarbeiter?tab=bauleiter' : '/mitarbeiter')
+          }
           className="mt-2"
         >
           <TabsList>
@@ -331,7 +333,10 @@ function EmployeeDialog({
               />
             </Field>
             <Field label="Telefon">
-              <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              <Input
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
             </Field>
             <Field label="Wochenstunden">
               <Input
@@ -362,7 +367,9 @@ function EmployeeDialog({
                     }
                     className={cn(
                       'rounded border px-1.5 py-0.5 text-2xs transition',
-                      on ? 'border-transparent text-white' : 'text-muted-foreground hover:bg-accent',
+                      on
+                        ? 'border-transparent text-white'
+                        : 'text-muted-foreground hover:bg-accent',
                     )}
                     style={on ? { backgroundColor: t.color } : undefined}
                   >
@@ -492,7 +499,12 @@ function ManagerDialog({
 
   const save = useMutation({
     mutationFn: () => {
-      const body = { ...form, phone: form.phone || null, email: form.email || null, note: form.note || null };
+      const body = {
+        ...form,
+        phone: form.phone || null,
+        email: form.email || null,
+        note: form.note || null,
+      };
       return manager
         ? api.patch<{ message: string }>(`/api/site-managers/${manager.id}`, body)
         : api.post<{ message: string }>('/api/site-managers', body);
@@ -544,10 +556,16 @@ function ManagerDialog({
           </div>
           <div className="grid grid-cols-3 gap-3">
             <Field label="Telefon">
-              <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              <Input
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
             </Field>
             <Field label="E-Mail">
-              <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <Input
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
             </Field>
             <Field label="Farbe">
               <Input

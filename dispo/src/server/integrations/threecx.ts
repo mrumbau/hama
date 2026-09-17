@@ -83,7 +83,9 @@ export async function ingestThreeCxEvent(event: ThreeCxEvent): Promise<IntakeRes
 
     // --- 2. Zuordnung --------------------------------------------------
     const contactNumber =
-      event.direction === 'AUSGEHEND' ? event.calledNumber : (event.callerNumber ?? event.calledNumber);
+      event.direction === 'AUSGEHEND'
+        ? event.calledNumber
+        : (event.callerNumber ?? event.calledNumber);
     const match = await matchProject({
       phone: contactNumber,
       customerName: event.customerName,
@@ -205,7 +207,10 @@ export async function matchProject(input: {
   // Kundenname.
   if (candidates.length === 0 && input.customerName?.trim()) {
     candidates = await prisma.project.findMany({
-      where: { customerName: { contains: input.customerName.trim(), mode: 'insensitive' }, ...OFFEN },
+      where: {
+        customerName: { contains: input.customerName.trim(), mode: 'insensitive' },
+        ...OFFEN,
+      },
     });
     via = 'den Kundennamen';
   }
@@ -213,7 +218,10 @@ export async function matchProject(input: {
   // Ansprechpartner-Name.
   if (candidates.length === 0 && input.customerName?.trim()) {
     candidates = await prisma.project.findMany({
-      where: { contactName: { contains: input.customerName.trim(), mode: 'insensitive' }, ...OFFEN },
+      where: {
+        contactName: { contains: input.customerName.trim(), mode: 'insensitive' },
+        ...OFFEN,
+      },
     });
     via = 'den Ansprechpartner';
   }

@@ -6,7 +6,13 @@
  * SUB-Kennzeichnung im Kommentarfeld eines Lieferanten unterzubringen.
  * Damit prüft der Mock dieselben Übersetzungsregeln wie die echte API.
  */
-import type { ErpEmployee, ErpProject, ErpProvider, ErpSupplier } from './erp-provider';
+import type {
+  ErpEmployee,
+  ErpProject,
+  ErpProvider,
+  ErpSupplier,
+  ErpSupplierNeu,
+} from './erp-provider';
 
 function iso(offsetDays: number) {
   const d = new Date();
@@ -257,6 +263,9 @@ const LIEFERANTEN: ErpSupplier[] = [
  */
 const MOCK_GESCHRIEBEN = new Map<string, string>();
 
+/** Im Testmodus angelegte Lieferanten – damit der Rückweg sichtbar wird. */
+const MOCK_NEUE_LIEFERANTEN: ErpSupplier[] = [];
+
 export class MockErpProvider implements ErpProvider {
   readonly name = 'Das Programm (Mock)';
   readonly canWriteBack = true;
@@ -293,6 +302,28 @@ export class MockErpProvider implements ErpProvider {
   }
 
   async getSuppliers(): Promise<ErpSupplier[]> {
-    return LIEFERANTEN;
+    return [...LIEFERANTEN, ...MOCK_NEUE_LIEFERANTEN];
+  }
+
+  /** Legt an und liefert ihn beim nächsten Abgleich mit zurück. */
+  async createSupplier(daten: ErpSupplierNeu) {
+    const nummer = `L-MOCK-${MOCK_NEUE_LIEFERANTEN.length + 1}`;
+    MOCK_NEUE_LIEFERANTEN.push({
+      erpId: `mock-${nummer}`,
+      referenceNumber: nummer,
+      name: daten.name,
+      contactName: null,
+      phone: daten.phone,
+      email: daten.email,
+      street: [daten.street, daten.houseNumber].filter(Boolean).join(' ') || null,
+      zip: daten.zip,
+      city: daten.city,
+      comment: daten.comment,
+    });
+    return { erpId: `mock-${nummer}`, referenceNumber: nummer };
+  }
+
+  async verfuegbareMutationen() {
+    return ['createProject', 'createSupplier', 'updateProject'];
   }
 }

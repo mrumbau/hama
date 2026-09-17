@@ -20,6 +20,8 @@ export interface BoardFilterState {
   ort: string;
   nurProbleme: boolean;
   abgeschlossen: boolean;
+  /** Nur was ab dieser Woche noch laeuft. */
+  aktuell: boolean;
 }
 
 export const EMPTY_FILTERS: BoardFilterState = {
@@ -29,6 +31,7 @@ export const EMPTY_FILTERS: BoardFilterState = {
   sub: [],
   ampel: [],
   ort: '',
+  aktuell: false,
   nurProbleme: false,
   abgeschlossen: false,
 };
@@ -42,6 +45,7 @@ export function countActiveFilters(f: BoardFilterState) {
     f.ampel.length +
     (f.ort ? 1 : 0) +
     (f.nurProbleme ? 1 : 0) +
+    (f.aktuell ? 1 : 0) +
     (f.abgeschlossen ? 1 : 0)
   );
 }
@@ -78,6 +82,7 @@ export function useBoardState() {
       ampel: splitParam(params.get('ampel')),
       ort: params.get('ort') ?? '',
       nurProbleme: params.get('nurProbleme') === '1',
+      aktuell: params.get('aktuell') === '1',
       abgeschlossen: params.get('abgeschlossen') === '1',
     }),
     [params],
@@ -131,6 +136,7 @@ export function useBoardState() {
     if (filters.ort) p.set('ort', filters.ort);
     if (filters.nurProbleme) p.set('nurProbleme', '1');
     if (filters.abgeschlossen) p.set('abgeschlossen', '1');
+    if (filters.aktuell) p.set('aktuell', '1');
     return p.toString();
   }, [anchor, range, filters]);
 
@@ -156,6 +162,7 @@ export function useBoardState() {
         ampel: patch.ampel ?? filters.ampel,
         ort: patch.ort ?? filters.ort,
         nurProbleme: patch.nurProbleme ?? filters.nurProbleme,
+        aktuell: patch.aktuell ?? filters.aktuell,
         abgeschlossen: patch.abgeschlossen ?? filters.abgeschlossen,
       }),
     resetFilters: () =>
@@ -167,6 +174,7 @@ export function useBoardState() {
         ampel: null,
         ort: null,
         nurProbleme: null,
+        aktuell: null,
         abgeschlossen: null,
       }),
   };

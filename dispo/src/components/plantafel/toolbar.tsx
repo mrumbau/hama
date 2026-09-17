@@ -1,6 +1,7 @@
 'use client';
 import * as React from 'react';
 import {
+  CalendarCheck,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -151,6 +152,20 @@ export function BoardToolbar({
         onClick={() => onFilters({ nurProbleme: !filters.nurProbleme })}
       >
         <TriangleAlert /> Nur Probleme
+      </Button>
+
+      {/*
+        „Aktuell“ blendet aus, was vor dieser Woche zu Ende war. Der
+        Zeitraum sagt, WELCHE Tage man sieht; dieser Schalter sagt, dass
+        Abgelaufenes dabei nicht mehr mitgeschleppt wird.
+      */}
+      <Button
+        variant={filters.aktuell ? 'secondary' : 'outline'}
+        size="sm"
+        onClick={() => onFilters({ aktuell: !filters.aktuell })}
+        title="Nur Baustellen, die ab dieser Woche noch laufen"
+      >
+        <CalendarCheck /> Aktuell
       </Button>
 
       <Button variant="outline" size="sm" onClick={onMorgenansicht} title="Morgenansicht für heute">

@@ -407,14 +407,17 @@ describe('Zeiträume der Plantafel', () => {
   });
 });
 
-describe('Schnellanlage', () => {
+describe('Subunternehmer anlegen', () => {
   it('legt einen SUB allein mit dem Firmennamen an und macht ihn sofort planbar', async () => {
-    const created = await post<{ subcontractor: { id: string }; message: string }>(
-      '/api/subcontractors',
-      { companyName: `Blitz SUB ${TAG}` },
-    );
+    const created = await post<{
+      subcontractor: { id: string; erpId: string | null };
+      erp?: { erfolg: boolean };
+      message: string;
+    }>('/api/subcontractors', { companyName: `Blitz SUB ${TAG}` });
     expect(created.status).toBe(201);
-    expect(created.body.message).toMatch(/sofort planbar/);
+    // Der Stammdatensatz gehört ins ERP – angelegt wird er dort gleich mit.
+    expect(created.body.erp?.erfolg).toBe(true);
+    expect(created.body.subcontractor.erpId).toBeTruthy();
 
     const planned = await post<{ assignment: { id: string } }>('/api/assignments', {
       projectId: ids.projectA,
@@ -446,5 +449,37 @@ describe('Ressourcen mit Historie werden deaktiviert statt gelöscht', () => {
 
     // Für die restlichen Tests wieder aktivieren.
     await patch(`/api/employees/${ids.employee}`, { active: true });
+  });
+});
+
+describe('Subunternehmer mit Gewerken', () => {
+  it('überträgt Gewerke und Notiz in den ERP-Kommentar', async () => {
+    const created = await post<{
+      subcontractor: { id: string; erpId: string | null };
+      erp?: { erfolg: boolean; nachricht: string };
+    }>('/api/subcontractors', {
+      companyName: `Gewerk SUB ${TAG}`,
+      street: 'Rosenstraße 12a',
+      zip: '81675',
+      city: 'München',
+      phone: '+49 89 1234',
+      note: 'Freigabe liegt vor',
+      tradeName: `Estrich ${TAG}`,
+    });
+
+    expect(created.status).toBe(201);
+    expect(created.body.erp?.erfolg).toBe(true);
+
+    // Der Abgleich muss den eigenen Betrieb wiederfinden, statt ihn ein
+    // zweites Mal anzulegen – geprüft am Betrieb selbst, nicht an einem
+    // Gesamtzähler, den andere Testdaten mitbewegen.
+    const sync = await post('/api/integrations/das-programm/sync', {});
+    expect(sync.status).toBe(200);
+
+    const nachher = await get<{ companyName: string }[]>('/api/subcontractors');
+    const treffer = nachher.body.filter((s) => s.companyName === `Gewerk SUB ${TAG}`);
+    expect(treffer).toHaveLength(1);
+
+    await del(`/api/subcontractors/${created.body.subcontractor.id}`);
   });
 });

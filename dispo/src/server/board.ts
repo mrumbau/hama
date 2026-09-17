@@ -34,6 +34,13 @@ export interface BoardFilters {
   query?: string;
   /** Auch abgeschlossene Projekte zeigen. */
   includeClosed?: boolean;
+  /**
+   * Nur Baustellen, die ab dieser Woche noch laufen.
+   *
+   * Der Blick nach vorn: Was vergangene Woche endete, ist erledigt und
+   * gehoert nicht in die Uebersicht, auch wenn der Zeitraum es noch umfasst.
+   */
+  nurAktuell?: boolean;
 }
 
 const UNBESETZT_COLOR = '#dc2626';
@@ -249,7 +256,9 @@ export async function loadBoard(
   };
 
   // --- Filter anwenden ---
-  const projects = allProjects.filter((p) => matchesFilters(p, byProject.get(p.id) ?? [], filters));
+  const projects = allProjects.filter((p) =>
+    matchesFilters(p, byProject.get(p.id) ?? [], filters, startOfWeek(today)),
+  );
   const visibleIds = new Set(projects.map((p) => p.id));
   const visibleAssignments = assignments.filter((a) => visibleIds.has(a.projectId));
 
@@ -316,8 +325,19 @@ function matchesFilters(
   p: ProjectSummaryDTO,
   assignments: AssignmentDTO[],
   f: BoardFilters,
+  wochenBeginn?: IsoDate,
 ): boolean {
   if (!f.includeClosed && CLOSED_PROJECT_STATUS.includes(p.status)) return false;
+  if (f.nurAktuell && wochenBeginn) {
+    // Ein Einsatz in dieser Woche oder spaeter zaehlt genauso wie ein
+    // Bauzeitraum, der bis hierher reicht – geplant ist geplant.
+    const ende = p.plannedEnd ?? p.plannedStart;
+    const laeuftNoch = ende !== null && ende >= wochenBeginn;
+    const einsatzVoraus = assignments.some(
+      (a) => a.status !== 'ABGESAGT' && a.endDate >= wochenBeginn,
+    );
+    if (!laeuftNoch && !einsatzVoraus) return false;
+  }
   if (f.siteManagerIds?.length) {
     const ids = [p.primarySiteManagerId, p.secondarySiteManagerId].filter(Boolean);
     if (!ids.some((id) => f.siteManagerIds!.includes(id!))) return false;

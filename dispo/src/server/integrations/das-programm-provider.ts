@@ -20,7 +20,13 @@
  *   DAS_PROGRAMM_AUTH_PREFIX   Standard: leer
  *   DAS_PROGRAMM_WRITEBACK=1   erlaubt das Zurückschreiben des Projektstatus
  */
-import type { ErpEmployee, ErpProject, ErpProvider, ErpSupplier } from './erp-provider';
+import type {
+  ErpEmployee,
+  ErpProject,
+  ErpProvider,
+  ErpSupplier,
+  ErpSupplierNeu,
+} from './erp-provider';
 
 export const DAS_PROGRAMM_STANDARD_URL = 'https://app.das-programm.io/api/graphql';
 
@@ -261,6 +267,54 @@ export class DasProgrammProvider implements ErpProvider {
     });
   }
 
+  /**
+   * Fragt das Schema, welche Mutationen es gibt.
+   *
+   * Die Dokumentation zaehlt 18 auf, darunter keine fuer Lieferanten. Ob das
+   * stimmt oder nur unvollstaendig ist, weiss nur der Server – und bei den
+   * Argumentnamen lag dieselbe Dokumentation bereits daneben.
+   */
+  async verfuegbareMutationen(): Promise<string[] | null> {
+    try {
+      const data = await this.anfrage<{
+        __schema: { mutationType: { fields: { name: string }[] } | null };
+      }>(QUERY_MUTATIONEN);
+      return data.__schema?.mutationType?.fields?.map((f) => f.name).sort() ?? null;
+    } catch {
+      // Introspection ist in vielen Installationen abgeschaltet – das ist
+      // kein Fehler, nur keine Auskunft.
+      return null;
+    }
+  }
+
+  async createSupplier(
+    daten: ErpSupplierNeu,
+  ): Promise<{ erpId: string; referenceNumber: string | null }> {
+    const data = await this.anfrage<{
+      createSupplier: { id: string; referenceNumber?: string | null };
+    }>(MUTATION_CREATE_SUPPLIER, {
+      payload: {
+        name: daten.name,
+        street: daten.street,
+        houseNumber: daten.houseNumber,
+        zip: daten.zip,
+        city: daten.city,
+        countryCode: 'DE',
+        phone: daten.phone,
+        email: daten.email,
+        comment: daten.comment,
+      },
+    });
+
+    if (!data.createSupplier?.id) {
+      throw new Error('Das Programm hat keinen Lieferanten zurückgegeben.');
+    }
+    return {
+      erpId: data.createSupplier.id,
+      referenceNumber: data.createSupplier.referenceNumber ?? null,
+    };
+  }
+
   async setProjectStatus(erpId: string, erpStatus: string): Promise<void> {
     if (!this.canWriteBack) {
       throw new Error('Zurückschreiben ist nicht eingeschaltet (DAS_PROGRAMM_WRITEBACK).');
@@ -341,6 +395,18 @@ const QUERY_SUPPLIER_SEARCH = `
 const LIEFERANT_FELDER = `
   id name houseNumber phone email comment
   contactPersonList { id firstName lastName }
+`;
+
+const QUERY_MUTATIONEN = `
+  query VerfuegbareMutationen {
+    __schema { mutationType { fields { name } } }
+  }
+`;
+
+const MUTATION_CREATE_SUPPLIER = `
+  mutation LieferantAnlegen($payload: SupplierInputObjectType!) {
+    createSupplier(payload: $payload) { id referenceNumber name }
+  }
 `;
 
 const MUTATION_UPDATE_PROJECT = `

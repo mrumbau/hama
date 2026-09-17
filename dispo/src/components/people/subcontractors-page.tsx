@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { EmptyState } from '@/components/ui/misc';
 import { useToast } from '@/components/ui/toast';
 import { PageHeader } from '@/components/page-header';
-import { QuickSubDialog } from '@/components/quick-sub-dialog';
+import { SubAnlegenDialog } from '@/components/sub-dialog';
 
 export function SubcontractorsPage() {
   const { data, isLoading } = useSubcontractors();
@@ -45,7 +45,7 @@ export function SubcontractorsPage() {
         description="Externe Partner. Kein Login, keine Lizenzkosten – einfache Planungsressourcen."
         actions={
           <Button size="sm" onClick={() => setQuick(true)}>
-            <Plus /> SUB schnell anlegen
+            <Plus /> Sub anlegen
           </Button>
         }
       >
@@ -160,7 +160,7 @@ export function SubcontractorsPage() {
         )}
       </div>
 
-      <QuickSubDialog open={quick} onOpenChange={setQuick} />
+      <SubAnlegenDialog open={quick} onOpenChange={setQuick} />
       <SubDialog sub={edit} onClose={() => setEdit(null)} />
     </div>
   );
@@ -231,7 +231,10 @@ function SubDialog({ sub, onClose }: { sub: SubcontractorRow | null; onClose: ()
         >
           <div className="grid grid-cols-2 gap-3">
             <Field label="Firmenname *">
-              <Input value={form.companyName} onChange={(e) => set('companyName', e.target.value)} />
+              <Input
+                value={form.companyName}
+                onChange={(e) => set('companyName', e.target.value)}
+              />
             </Field>
             <Field label="Ansprechpartner">
               <Input
@@ -293,7 +296,9 @@ function SubDialog({ sub, onClose }: { sub: SubcontractorRow | null; onClose: ()
                     }
                     className={cn(
                       'rounded border px-1.5 py-0.5 text-2xs transition',
-                      on ? 'border-transparent text-white' : 'text-muted-foreground hover:bg-accent',
+                      on
+                        ? 'border-transparent text-white'
+                        : 'text-muted-foreground hover:bg-accent',
                     )}
                     style={on ? { backgroundColor: t.color } : undefined}
                   >
@@ -305,7 +310,11 @@ function SubDialog({ sub, onClose }: { sub: SubcontractorRow | null; onClose: ()
           </Field>
 
           <Field label="Notiz">
-            <Textarea rows={2} value={form.note ?? ''} onChange={(e) => set('note', e.target.value)} />
+            <Textarea
+              rows={2}
+              value={form.note ?? ''}
+              onChange={(e) => set('note', e.target.value)}
+            />
           </Field>
 
           <div className="flex gap-4 text-xs">

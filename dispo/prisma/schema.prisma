@@ -250,8 +250,11 @@ model EmployeeTrade {
 
 model Subcontractor {
   id String @id @default(cuid())
-  /// Stabile Lieferanten-ID in "Das Programm".
+  /// Stabile Lieferanten-ID in "Das Programm". Fehlt sie, ist der
+  /// Subunternehmer dort (noch) nicht angelegt.
   erpId       String? @unique
+  /// Warum die Uebertragung ins ERP nicht geklappt hat. Null = alles gut.
+  erpFehler   String?
   companyName String
   contactName String?
   phone       String?

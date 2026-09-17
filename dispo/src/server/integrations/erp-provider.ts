@@ -74,6 +74,19 @@ export interface ErpSupplier {
   comment: string | null;
 }
 
+/** Ein neuer Lieferant, wie ihn die Dispo anlegen möchte. */
+export interface ErpSupplierNeu {
+  name: string;
+  street: string | null;
+  houseNumber: string | null;
+  zip: string | null;
+  city: string | null;
+  phone: string | null;
+  email: string | null;
+  /** Freitext – hier landet „Subunternehmer – <Gewerke>“. */
+  comment: string;
+}
+
 export interface ErpProvider {
   readonly name: string;
   /** Laeuft die Verbindung ueberhaupt? Fuer die Anzeige in den Einstellungen. */
@@ -90,6 +103,15 @@ export interface ErpProvider {
    * kaputtmachen. `null` bedeutet: dieser Provider kann nicht zurueckschreiben.
    */
   setProjectStatus?(erpId: string, erpStatus: string): Promise<void>;
+  /**
+   * Legt einen Lieferanten im ERP an. Ob die Schnittstelle das ueberhaupt
+   * kann, verraet erst der Versuch – die Dokumentation schweigt dazu.
+   */
+  createSupplier?(
+    daten: ErpSupplierNeu,
+  ): Promise<{ erpId: string; referenceNumber: string | null }>;
+  /** Welche Mutationen bietet die Schnittstelle? `null` = nicht ermittelbar. */
+  verfuegbareMutationen?(): Promise<string[] | null>;
   /** Ist das Zurueckschreiben eingeschaltet und konfiguriert? */
   readonly canWriteBack: boolean;
   /**

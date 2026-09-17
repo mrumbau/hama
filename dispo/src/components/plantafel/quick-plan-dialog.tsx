@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
-import { QuickSubDialog } from '@/components/quick-sub-dialog';
+import { SubAnlegenDialog } from '@/components/sub-dialog';
 import { TaskListInput } from '@/components/ui/task-list-input';
 
 export interface QuickPlanSeed {
@@ -224,7 +224,7 @@ export function QuickPlanDialog({
                         type="button"
                         variant="outline"
                         size="icon"
-                        title="SUB schnell anlegen"
+                        title="Subunternehmer anlegen"
                         onClick={() => setSubDialog(true)}
                       >
                         <Plus />
@@ -370,7 +370,7 @@ export function QuickPlanDialog({
         </DialogContent>
       </Dialog>
 
-      <QuickSubDialog
+      <SubAnlegenDialog
         open={subDialog}
         onOpenChange={setSubDialog}
         onCreated={(id) => {

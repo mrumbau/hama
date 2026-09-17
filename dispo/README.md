@@ -191,6 +191,28 @@ Anfragen werden.
   Die Wortgrenze ist Absicht: sonst würde „Substrat“ einen Gartenlieferanten
   zum Subunternehmer machen (dieser Fall ist getestet).
 
+### Subunternehmer anlegen
+
+*Subunternehmer → „Sub anlegen"*. Der Betrieb wird in der Dispo angelegt **und
+zugleich in „Das Programm" unter den Lieferanten**, mit dem Kommentar
+
+```
+Subunternehmer – Trockenbau, Innenausbau
+Tätigkeit: Subunternehmer – Trockenbau, Innenausbau
+<Ihre Notiz>
+Sub aktiv
+```
+
+Die zweite Zeile ist die, aus der der Abgleich die Gewerke wieder ausliest –
+schreiben und lesen benutzen dieselbe Form, sonst fände die App ihren eigenen
+Betrieb beim nächsten Lauf nicht wieder. Das ist getestet.
+
+Ob die Schnittstelle das Anlegen überhaupt erlaubt, verrät erst der Versuch:
+die Dokumentation zählt keine Lieferanten-Mutation auf, lag bei den
+Argumentnamen aber schon daneben. Scheitert der Übertrag, wird der
+Subunternehmer trotzdem angelegt und ist sofort planbar – der Grund steht
+dann an ihm dran (`erpFehler`) und in der Historie.
+
 Zugeordnet wird über die **ERP-ID**, nicht über den Namen. Eine Korrektur der
 Schreibweise oder eine Heirat legt deshalb keinen zweiten Datensatz an.
 Gehaltsdaten werden bewusst nicht abgefragt – die Dispo hat dort nichts zu

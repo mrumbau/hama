@@ -34,9 +34,9 @@ export interface PaletteProjectItem {
 export type PaletteItem = PaletteResourceItem | PaletteProjectItem;
 
 const GRUPPEN = [
-  { type: 'MITARBEITER', titel: 'Mitarbeiter' },
-  { type: 'BAULEITER', titel: 'Bauleiter' },
-  { type: 'SUBUNTERNEHMER', titel: 'Subunternehmer' },
+  { type: 'MITARBEITER', titel: 'Mitarbeiter', standardOffen: true },
+  { type: 'BAULEITER', titel: 'Bauleiter', standardOffen: true },
+  { type: 'SUBUNTERNEHMER', titel: 'Subunternehmer', standardOffen: false },
 ] as const;
 
 export function Palette({
@@ -67,23 +67,26 @@ export function Palette({
 
   const inhalt =
     view === 'baustellen' ? (
-      <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+      <div className="flex flex-wrap items-start gap-2">
         {GRUPPEN.map((gruppe) => {
           const items = board.resources.filter(
             (r) => r.gruppe === gruppe.type && r.active && passt(`${r.label} ${r.subtitle ?? ''}`),
           );
-          if (items.length === 0) return null;
           return (
-            <div key={gruppe.type} className="min-w-0">
-              <p className="mb-1 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {gruppe.titel}
-              </p>
-              <div className="flex flex-wrap gap-1">
-                {items.map((r) => (
-                  <ResourceChip key={r.key} resource={r} belegt={belegt.has(r.key)} />
-                ))}
-              </div>
-            </div>
+            <Gruppenkachel
+              key={gruppe.type}
+              titel={gruppe.titel}
+              anzahl={items.length}
+              // Mitarbeiter stehen immer offen – das sind die paar Leute, die
+              // man täglich verteilt. Subunternehmer sind Dutzende und würden
+              // die Leiste zuschütten, deshalb zugeklappt mit Suche.
+              standardOffen={gruppe.standardOffen}
+              gesucht={Boolean(suche)}
+            >
+              {items.map((r) => (
+                <ResourceChip key={r.key} resource={r} belegt={belegt.has(r.key)} />
+              ))}
+            </Gruppenkachel>
           );
         })}
       </div>
@@ -194,5 +197,58 @@ function ProjectChip({ project }: { project: ProjectSummaryDTO }) {
         </Badge>
       ) : null}
     </button>
+  );
+}
+
+/**
+ * Eine aufklappbare Gruppe in der Ablageleiste.
+ *
+ * Bei drei Mitarbeitern ist eine Kachel überflüssig, bei dreißig
+ * Subunternehmern ist sie der Unterschied zwischen Übersicht und Tapete.
+ * Deshalb entscheidet die Gruppe selbst, ob sie offen startet – und sobald
+ * jemand sucht, gehen alle auf, sonst sucht man in einer zugeklappten Liste.
+ */
+function Gruppenkachel({
+  titel,
+  anzahl,
+  standardOffen,
+  gesucht,
+  children,
+}: {
+  titel: string;
+  anzahl: number;
+  standardOffen: boolean;
+  gesucht: boolean;
+  children: React.ReactNode;
+}) {
+  const [offen, setOffen] = React.useState(standardOffen);
+  const zeigen = offen || gesucht;
+
+  if (anzahl === 0 && gesucht) return null;
+
+  return (
+    <div className={cn('min-w-0 rounded-md border bg-card', zeigen && 'flex-1 basis-64')}>
+      <button
+        type="button"
+        onClick={() => setOffen((v) => !v)}
+        className="flex w-full items-center gap-1.5 px-2 py-1 text-2xs font-semibold uppercase tracking-wide text-muted-foreground transition hover:text-foreground"
+        aria-expanded={zeigen}
+      >
+        {zeigen ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+        {titel}
+        <Badge variant="grau" className="ml-auto">
+          {anzahl}
+        </Badge>
+      </button>
+      {zeigen ? (
+        <div className="flex max-h-28 flex-wrap gap-1 overflow-auto border-t p-1.5">
+          {anzahl === 0 ? (
+            <span className="text-2xs text-muted-foreground">Niemand verfügbar.</span>
+          ) : (
+            children
+          )}
+        </div>
+      ) : null}
+    </div>
   );
 }

@@ -145,9 +145,7 @@ export function detectWithRules(rawText: string): DetectedChange[] {
   const text = rawText.toLowerCase();
   const out: DetectedChange[] = [];
 
-  const mentionedDays = WEEKDAY_PATTERNS.filter((w) =>
-    w.words.some((word) => text.includes(word)),
-  );
+  const mentionedDays = WEEKDAY_PATTERNS.filter((w) => w.words.some((word) => text.includes(word)));
   const hasCancel = CANCEL_PATTERNS.some((p) => new RegExp(p).test(text));
   const hasWish = WISH_PATTERNS.some((p) => new RegExp(p).test(text));
 
@@ -169,7 +167,8 @@ export function detectWithRules(rawText: string): DetectedChange[] {
     out.push({
       type: 'TERMIN_AENDERUNG',
       title: 'Mögliche Terminabsage erkannt',
-      description: 'Im Gespräch wurde eine Absage oder Verschiebung angedeutet, aber kein neuer Termin genannt.',
+      description:
+        'Im Gespräch wurde eine Absage oder Verschiebung angedeutet, aber kein neuer Termin genannt.',
       reason: 'KUNDE',
       reasonText: 'Absage/Verschiebung aus Telefonat.',
       confidence: 0.5,
@@ -177,7 +176,10 @@ export function detectWithRules(rawText: string): DetectedChange[] {
   }
 
   // --- Material ---
-  if (/material|liefer|lieferung|lieferant|ware/.test(text) && /fehlt|verspätet|verspaetet|nicht da|kommt später|kommt spaeter|problem/.test(text)) {
+  if (
+    /material|liefer|lieferung|lieferant|ware/.test(text) &&
+    /fehlt|verspätet|verspaetet|nicht da|kommt später|kommt spaeter|problem/.test(text)
+  ) {
     out.push({
       type: 'MATERIAL_AENDERUNG',
       title: 'Materialproblem erkannt',

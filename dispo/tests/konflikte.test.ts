@@ -36,3 +36,38 @@ describe('Zeitfenster am selben Tag', () => {
     expect(zeitenUeberschneidenSich(' 08:00:00 ', '12:00:00', '13:00', '17:00')).toBe(false);
   });
 });
+
+describe('Filter „Aktuell"', () => {
+  /**
+   * Der Blick nach vorn. Heute ist Donnerstag, der 17.09. – die Woche
+   * begann am Montag, dem 14.09. Was davor endete, ist erledigt und gehört
+   * nicht mehr in die Übersicht, auch wenn der angezeigte Zeitraum es noch
+   * umfasst.
+   */
+  const wochenBeginn = '2026-09-14';
+
+  const laeuftNochAn = (ende: string | null, einsatzEnde: string | null) => {
+    const endeOk = ende !== null && ende >= wochenBeginn;
+    const einsatzOk = einsatzEnde !== null && einsatzEnde >= wochenBeginn;
+    return endeOk || einsatzOk;
+  };
+
+  it('behält, was diese Woche noch läuft', () => {
+    expect(laeuftNochAn('2026-09-18', null)).toBe(true);
+    expect(laeuftNochAn('2026-09-14', null)).toBe(true);
+  });
+
+  it('wirft weg, was vergangene Woche endete', () => {
+    expect(laeuftNochAn('2026-09-11', null)).toBe(false);
+  });
+
+  it('behält eine Baustelle, an der noch jemand eingeplant ist', () => {
+    // Der Bauzeitraum ist abgelaufen, aber es steht noch ein Einsatz an –
+    // dann ist die Baustelle nicht erledigt, sondern überzogen.
+    expect(laeuftNochAn('2026-09-10', '2026-09-22')).toBe(true);
+  });
+
+  it('wirft weg, was gar keine Termine hat', () => {
+    expect(laeuftNochAn(null, null)).toBe(false);
+  });
+});

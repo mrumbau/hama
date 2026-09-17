@@ -6,7 +6,10 @@ import { todayIso } from '@/lib/dates';
 export const dynamic = 'force-dynamic';
 
 function list(params: URLSearchParams, key: string): string[] | undefined {
-  const raw = params.getAll(key).flatMap((v) => v.split(',')).filter(Boolean);
+  const raw = params
+    .getAll(key)
+    .flatMap((v) => v.split(','))
+    .filter(Boolean);
   return raw.length ? raw : undefined;
 }
 
@@ -26,6 +29,7 @@ export const GET = handler(async (request: Request) => {
     onlyProblems: params.get('nurProbleme') === '1',
     query: params.get('q') || undefined,
     includeClosed: params.get('abgeschlossen') === '1',
+    nurAktuell: params.get('aktuell') === '1',
   };
 
   const board = await loadBoard(from, to, filters);

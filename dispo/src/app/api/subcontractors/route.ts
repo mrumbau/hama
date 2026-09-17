@@ -2,6 +2,7 @@ import { handler, ok, parseBody } from '@/server/api';
 import { prisma } from '@/lib/db';
 import { writeAudit } from '@/server/audit';
 import { subcontractorSchema } from '@/server/resource-schemas';
+import { uebertrageSubAnErp } from '@/server/integrations/sub-anlegen';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,8 +58,32 @@ export const POST = handler(async (request: Request) => {
     label: `Subunternehmer angelegt: ${sub.companyName}`,
   });
 
+  // Gleich als Lieferant nach „Das Programm" – dort ist der Stammdatensatz
+  // zuhause. Scheitert es, bleibt der Subunternehmer hier trotzdem stehen
+  // und traegt den Grund; verloren geht nichts.
+  const gewerke = tradeIds.length
+    ? (await prisma.trade.findMany({ where: { id: { in: tradeIds } } })).map((t) => t.name)
+    : [];
+
+  const erp = await uebertrageSubAnErp(sub.id, {
+    companyName: sub.companyName,
+    street: sub.street,
+    zip: sub.zip,
+    city: sub.city,
+    phone: sub.phone,
+    email: sub.email,
+    note: sub.note,
+    gewerke,
+  });
+
+  const message = erp.versucht
+    ? erp.erfolg
+      ? `${sub.companyName} wurde angelegt und nach Das Programm übertragen.`
+      : `${sub.companyName} wurde angelegt. Das Programm meldet: ${erp.nachricht}`
+    : `${sub.companyName} wurde angelegt und ist sofort planbar.`;
+
   return ok(
-    { subcontractor: sub, message: `${sub.companyName} wurde angelegt und ist sofort planbar.` },
+    { subcontractor: { ...sub, erpId: erp.erpId ?? sub.erpId }, erp, message },
     { status: 201 },
   );
 });
