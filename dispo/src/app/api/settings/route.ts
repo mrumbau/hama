@@ -6,7 +6,7 @@ import { pooltauglicheUrl } from '@/lib/db-url';
 
 export const dynamic = 'force-dynamic';
 
-export const GET = handler(async () => {
+export const GET = handler(async (request: Request) => {
   const [rows, sync, counts] = await Promise.all([
     prisma.setting.findMany(),
     prisma.syncState.findMany(),
@@ -48,6 +48,18 @@ export const GET = handler(async () => {
       threeCxConfigured: Boolean(process.env.THREECX_WEBHOOK_SECRET),
       aiConfigured: Boolean(process.env.ANTHROPIC_API_KEY),
       database: describeDatabase(pooltauglicheUrl(process.env.DATABASE_URL).url),
+      /** Anmeldung mit Microsoft-Konto: eingerichtet oder nicht. */
+      microsoftKonfiguriert: Boolean(
+        process.env.MICROSOFT_TENANT_ID &&
+        process.env.MICROSOFT_CLIENT_ID &&
+        process.env.MICROSOFT_CLIENT_SECRET,
+      ),
+      /**
+       * Genau diese Adresse muss in der Microsoft-App-Registrierung als
+       * Umleitungs-URI stehen. Sie haengt an der Adresse, unter der die App
+       * gerade laeuft - deshalb wird sie hier ausgerechnet statt geraten.
+       */
+      microsoftUmleitung: `${new URL(request.url).origin}/api/auth/microsoft/callback`,
     },
   });
 });

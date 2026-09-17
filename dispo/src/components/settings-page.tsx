@@ -43,6 +43,8 @@ interface SettingsResponse {
     threeCxConfigured: boolean;
     aiConfigured: boolean;
     database: string;
+    microsoftKonfiguriert: boolean;
+    microsoftUmleitung: string;
   };
 }
 
@@ -500,6 +502,25 @@ function SystemTab() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-xs text-muted-foreground">
+          {/*
+            Die Umleitungs-URI zum Abschreiben. Sie haengt an der Adresse,
+            unter der die App laeuft – wer sie falsch eintraegt, bekommt von
+            Microsoft eine Fehlermeldung, die nicht sagt, welche erwartet wird.
+          */}
+          <div className="mb-3 space-y-1 rounded-md border bg-muted/40 p-2 text-2xs">
+            <p className="flex items-center gap-1.5 font-medium">
+              Microsoft-Anmeldung
+              <Badge variant={data?.env.microsoftKonfiguriert ? 'gruen' : 'grau'}>
+                {data?.env.microsoftKonfiguriert ? 'eingerichtet' : 'nicht eingerichtet'}
+              </Badge>
+            </p>
+            <p className="text-muted-foreground">
+              Umleitungs-URI für die App-Registrierung:
+              <br />
+              <code className="break-all">{data?.env.microsoftUmleitung ?? '–'}</code>
+            </p>
+          </div>
+
           <p>
             Version 1 hat bewusst keine Benutzerverwaltung: ein Disponent, ein Zugang, maximale
             Geschwindigkeit.
