@@ -11,6 +11,7 @@ import {
   AUTH_VARIANTEN,
   DasProgrammProvider,
   findeAuthVariante,
+  zeitraum,
 } from '@/server/integrations/das-programm-provider';
 
 interface Aufruf {
@@ -511,5 +512,78 @@ describe('Wenn die Detailabfrage scheitert', () => {
     expect(projekte[0].referenceNumber).toBe('P-26-1');
     // Und der Ausfall wird gemeldet, nicht verschwiegen.
     expect(p.hinweise.join(' ')).toContain('objectAddress');
+  });
+});
+
+describe('Zeitraum einer Baustelle', () => {
+  /**
+   * In „Das Programm" stehen die Termine an Aufträgen, Projektaufgaben und
+   * Terminen – am Projekt selbst fast nie. Beim ersten echten Abgleich hatte
+   * deshalb keine einzige der 16 Baustellen ein Datum.
+   */
+  it('nimmt den frühesten Beginn und das späteste Ende über alles', () => {
+    const spanne = zeitraum({
+      id: 'P1',
+      startDate: null,
+      endDate: null,
+      salesOrderList: [
+        { id: 'A1', startTime: '2026-09-15T07:00:00', endTime: '2026-09-30T16:00:00' },
+      ],
+      projectTaskList: [
+        { id: 'T1', startTime: '2026-08-31T22:00:00', endTime: '2026-10-29T23:00:00' },
+      ],
+      appointmentList: [
+        { id: 'X1', startTime: '2026-09-20T08:00:00', endTime: '2026-09-20T10:00:00' },
+      ],
+    });
+
+    expect(spanne.start).toBe('2026-08-31');
+    expect(spanne.ende).toBe('2026-10-29');
+  });
+
+  it('nimmt das Fälligkeitsdatum, wenn kein Ende gepflegt ist', () => {
+    const spanne = zeitraum({
+      id: 'P1',
+      salesOrderList: [
+        {
+          id: 'A1',
+          startTime: '2026-09-01T00:00:00',
+          endTime: null,
+          dueDate: '2026-09-12T00:00:00',
+        },
+      ],
+    });
+
+    expect(spanne.ende).toBe('2026-09-12');
+  });
+
+  it('lässt einen Termin ohne Ende einen Tag dauern', () => {
+    const spanne = zeitraum({
+      id: 'P1',
+      appointmentList: [{ id: 'X1', startTime: '2026-09-18T09:00:00', endTime: null }],
+    });
+
+    expect(spanne.start).toBe('2026-09-18');
+    expect(spanne.ende).toBe('2026-09-18');
+  });
+
+  it('meldet nichts, wo nichts terminiert ist – statt heute zu raten', () => {
+    expect(zeitraum({ id: 'P1' })).toEqual({ start: null, ende: null });
+    expect(zeitraum(null)).toEqual({ start: null, ende: null });
+  });
+
+  it('bevorzugt kein Datum vor dem anderen, sondern nur die Ränder', () => {
+    // Das Projekt selbst trägt einen späteren Beginn als seine Aufgabe.
+    const spanne = zeitraum({
+      id: 'P1',
+      startDate: '2026-10-01T00:00:00',
+      endDate: '2026-10-05T00:00:00',
+      projectTaskList: [
+        { id: 'T1', startTime: '2026-09-25T00:00:00', endTime: '2026-10-20T00:00:00' },
+      ],
+    });
+
+    expect(spanne.start).toBe('2026-09-25');
+    expect(spanne.ende).toBe('2026-10-20');
   });
 });

@@ -170,9 +170,14 @@ Anfragen werden.
 
 ### Was übernommen wird
 
-* **Projekte** – Kunde, Projekt- und Auftragsnummer, Projektleiter, Termine.
+* **Projekte** – Kunde, Projekt- und Auftragsnummer, Projektleiter.
   Als Anschrift zählt die **Objektadresse** des Projekts, nicht die
   Rechnungsadresse des Kunden – die Dispo interessiert, wo gearbeitet wird.
+* **Termine** – am Projekt selbst sind sie in der Praxis fast nie gepflegt.
+  Der Abgleich sammelt sie deshalb aus den **Aufträgen**, **Projektaufgaben**
+  und **Terminen** des Projekts und nimmt die äußeren Ränder: frühester
+  Beginn, spätestes Ende. Eine Baustelle dauert von der ersten bis zur
+  letzten Tätigkeit, und genau diese Spanne ist ihre Zeile auf der Plantafel.
 * **Personen** – aus `employeeSearch`. Wer an mindestens einem Projekt als
   Projektleiter hängt, wird Bauleiter; alle anderen werden Mitarbeiter.
   Wer im ERP archiviert ist oder dessen Vertrag abgelaufen ist, wird in der

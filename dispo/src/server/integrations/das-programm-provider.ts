@@ -293,6 +293,12 @@ const QUERY_PROJECT_SEARCH = `
   }
 `;
 
+/**
+ * Termine stehen in „Das Programm" nur selten am Projekt selbst. Gepflegt
+ * werden sie an den Aufträgen, den Projektaufgaben und den Terminen – deshalb
+ * holen wir alle drei und nehmen die äußeren Ränder. Ohne das bleibt die
+ * Plantafel leer, obwohl im ERP alles terminiert ist.
+ */
 const PROJEKT_FELDER = `
   id referenceNumber name description status
   startDate endDate
@@ -301,7 +307,9 @@ const PROJEKT_FELDER = `
   customer { id firstName lastName companyName }
   projectManager { id firstName lastName }
   objectAddress { id street city }
-  salesOrderList { id referenceNumber name }
+  salesOrderList { id referenceNumber name startTime endTime dueDate }
+  projectTaskList { id name status startTime endTime dueDate }
+  appointmentList { id name startTime endTime }
 `;
 
 const QUERY_PROJECT = `
@@ -380,7 +388,29 @@ interface RohProjektDetail {
   } | null;
   projectManager?: { id: string; firstName?: string | null; lastName?: string | null } | null;
   objectAddress?: { id: string; street?: string | null; city?: string | null } | null;
-  salesOrderList?: { id: string; referenceNumber?: string | null; name?: string | null }[] | null;
+  salesOrderList?:
+    | {
+        id: string;
+        referenceNumber?: string | null;
+        name?: string | null;
+        startTime?: string | null;
+        endTime?: string | null;
+        dueDate?: string | null;
+      }[]
+    | null;
+  projectTaskList?:
+    | {
+        id: string;
+        name?: string | null;
+        status?: string | null;
+        startTime?: string | null;
+        endTime?: string | null;
+        dueDate?: string | null;
+      }[]
+    | null;
+  appointmentList?:
+    | { id: string; name?: string | null; startTime?: string | null; endTime?: string | null }[]
+    | null;
 }
 
 interface RohMitarbeiterSuche {
@@ -430,6 +460,43 @@ function nurDatum(wert: string | null | undefined): string | null {
 }
 
 /**
+ * Frühester Beginn und spätestes Ende über alles, was am Projekt terminiert
+ * ist: das Projekt selbst, seine Aufträge, Projektaufgaben und Termine.
+ *
+ * Eine Baustelle dauert von der ersten bis zur letzten Tätigkeit – für die
+ * Plantafel ist genau diese Spanne die Zeile.
+ */
+export function zeitraum(detail: RohProjektDetail | null): {
+  start: string | null;
+  ende: string | null;
+} {
+  if (!detail) return { start: null, ende: null };
+
+  const starts: string[] = [];
+  const enden: string[] = [];
+
+  const merke = (start?: string | null, ende?: string | null) => {
+    const a = nurDatum(start);
+    const b = nurDatum(ende);
+    if (a) starts.push(a);
+    if (b) enden.push(b);
+    // Ein Termin ohne Ende dauert diesen einen Tag.
+    if (a && !b) enden.push(a);
+  };
+
+  merke(detail.startDate, detail.endDate);
+  for (const a of detail.salesOrderList ?? []) merke(a.startTime, a.endTime ?? a.dueDate);
+  for (const t of detail.projectTaskList ?? []) merke(t.startTime, t.endTime ?? t.dueDate);
+  for (const t of detail.appointmentList ?? []) merke(t.startTime, t.endTime);
+
+  // ISO-Datumsstrings lassen sich als Text vergleichen.
+  return {
+    start: starts.length ? starts.sort()[0] : null,
+    ende: enden.length ? enden.sort()[enden.length - 1] : null,
+  };
+}
+
+/**
  * Setzt ein Projekt aus Such- und Detailtreffer zusammen.
  *
  * Die Adresse ist der heikle Teil: `projectSearch` liefert die Anschrift des
@@ -451,6 +518,7 @@ export function mapProjekt(
   const objekt = detail?.objectAddress;
   const leiter = detail?.projectManager;
   const auftrag = detail?.salesOrderList?.[0];
+  const spanne = zeitraum(detail);
 
   return {
     erpId: id,
@@ -469,8 +537,8 @@ export function mapProjekt(
     projectManagerName: leiter
       ? [leiter.firstName, leiter.lastName].filter(Boolean).join(' ').trim() || null
       : null,
-    plannedStart: nurDatum(detail?.startDate),
-    plannedEnd: nurDatum(detail?.endDate),
+    plannedStart: spanne.start,
+    plannedEnd: spanne.ende,
     status: detail?.status ?? suche?.status ?? null,
     updatedAt: detail?.updatedOn ?? suche?.updatedOn ?? null,
   };
