@@ -1,13 +1,34 @@
 import { handler, ok, parseBody } from '@/server/api';
 import { prisma } from '@/lib/db';
 import { writeAudit } from '@/server/audit';
+import { BAULEITUNG_FAEHIGKEIT, pflegeBauleitung } from '@/server/bauleitung';
 import { fullName, initials } from '@/lib/utils';
 import { employeeSchema, uniqueShortCode } from '@/server/resource-schemas';
 
 export const dynamic = 'force-dynamic';
 
-export const GET = handler(async () => {
+/**
+ * Wer „Bauleitung" traegt, gehoert in die Bauleiterliste - und nur dorthin.
+ * Sonst stuende dieselbe Person in beiden Listen, und genau das war die
+ * Beschwerde: zwei Schienen fuer einen Menschen.
+ *
+ * Mit `?auchBauleiter=1` kommen sie trotzdem mit. Das braucht die
+ * Mitarbeiterliste, damit man das Haekchen auch wieder entfernen kann -
+ * sonst waere der Weg dorthin eine Einbahnstrasse.
+ */
+export const GET = handler(async (request: Request) => {
+  const auchBauleiter = new URL(request.url).searchParams.get('auchBauleiter') === '1';
+
   const rows = await prisma.employee.findMany({
+    where: auchBauleiter
+      ? undefined
+      : {
+          NOT: {
+            trades: {
+              some: { trade: { name: { equals: BAULEITUNG_FAEHIGKEIT, mode: 'insensitive' } } },
+            },
+          },
+        },
     include: { trades: { include: { trade: true } } },
     orderBy: [{ active: 'desc' }, { lastName: 'asc' }],
   });
@@ -52,5 +73,18 @@ export const POST = handler(async (request: Request) => {
     newValue: { name: fullName(employee), shortCode },
   });
 
-  return ok({ employee, message: `${fullName(employee)} wurde angelegt.` }, { status: 201 });
+  // Wird jemand gleich mit der Faehigkeit „Bauleitung" angelegt, muss er
+  // auch sofort am Projekt waehlbar sein - nicht erst nach einer Aenderung.
+  const bauleitung = await pflegeBauleitung(employee.id);
+
+  return ok(
+    {
+      employee,
+      message:
+        bauleitung === 'angelegt'
+          ? `${fullName(employee)} wurde angelegt und steht auch bei den Bauleitern zur Auswahl.`
+          : `${fullName(employee)} wurde angelegt.`,
+    },
+    { status: 201 },
+  );
 });

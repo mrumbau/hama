@@ -60,8 +60,12 @@ export interface TradeRow {
   sortOrder: number;
 }
 
-export const useEmployees = () =>
-  useQuery({ queryKey: ['employees'], queryFn: () => api.get<EmployeeRow[]>('/api/employees') });
+export const useEmployees = (auchBauleiter = false) =>
+  useQuery({
+    queryKey: ['employees', auchBauleiter],
+    queryFn: () =>
+      api.get<EmployeeRow[]>(`/api/employees${auchBauleiter ? '?auchBauleiter=1' : ''}`),
+  });
 
 export const useSiteManagers = () =>
   useQuery({

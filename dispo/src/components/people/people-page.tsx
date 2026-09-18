@@ -30,7 +30,13 @@ export function PeoplePage() {
   const [editEmployee, setEditEmployee] = React.useState<EmployeeRow | null>(null);
   const [editManager, setEditManager] = React.useState<SiteManagerRow | null>(null);
 
-  const employees = useEmployees();
+  /*
+   * Wer „Bauleitung" traegt, steht in der Bauleiterliste - nicht hier.
+   * Sichtbar machen kann man sie trotzdem, sonst liesse sich das Haekchen
+   * nie wieder entfernen.
+   */
+  const [auchBauleiter, setAuchBauleiter] = React.useState(false);
+  const employees = useEmployees(auchBauleiter);
   const managers = useSiteManagers();
 
   return (
@@ -61,6 +67,18 @@ export function PeoplePage() {
       </PageHeader>
 
       <div className="min-h-0 flex-1 overflow-auto p-4">
+        {tab === 'mitarbeiter' ? (
+          <label className="mb-3 flex w-fit cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              className="size-3.5 accent-primary"
+              checked={auchBauleiter}
+              onChange={(e) => setAuchBauleiter(e.target.checked)}
+            />
+            Bauleiter mit anzeigen
+          </label>
+        ) : null}
+
         {tab === 'mitarbeiter' ? (
           employees.isLoading ? (
             <p className="text-sm text-muted-foreground">Wird geladen …</p>

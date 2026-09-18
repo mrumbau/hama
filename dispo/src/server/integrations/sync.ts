@@ -16,6 +16,7 @@ import { isoToDbDate, dbDateToIso } from '@/lib/dates';
 import { fullName } from '@/lib/utils';
 import { erpStatusName, type ProjectStatusKey } from '@/lib/labels';
 import { writeAudit } from '@/server/audit';
+import { gleicheBauleitungAb } from '@/server/bauleitung';
 import { getErpProvider } from './index';
 import {
   entscheideStatus,
@@ -393,6 +394,13 @@ export async function syncProjects(): Promise<SyncResult> {
       `Subunternehmer: ${subs.neu} neu` +
       (subs.gesperrt > 0 ? `, ${subs.gesperrt} gesperrt` : '') +
       `, ${subs.uebersprungen} Lieferanten übersprungen.`;
+
+    // Der Sync kann Faehigkeiten mitbringen. Wer dabei „Bauleitung" bekommt,
+    // muss danach auch am Projekt waehlbar sein - hier statt an jeder
+    // einzelnen Stelle, an der eine Faehigkeit gesetzt wird.
+    for (const name of await gleicheBauleitungAb()) {
+      hinweise.push(`${name} trägt „Bauleitung“ und steht jetzt bei den Bauleitern zur Auswahl.`);
+    }
 
     await prisma.syncState.update({
       where: { provider: 'das-programm' },
