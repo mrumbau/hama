@@ -117,7 +117,8 @@ export function AssignmentChip({
         'hover:shadow-md hover:ring-border',
         isDragging && 'opacity-40',
         abgesagt && 'opacity-50 line-through',
-        vorschlag && 'border-dashed border-muted-foreground/60 bg-muted/50 opacity-80 ring-dashed',
+        vorschlag && 'border-dashed border-muted-foreground/60 bg-muted/50 opacity-90',
+        vorschlag && actions.onAnnehmen && 'pb-8',
         vorlaeufig && 'border-dashed bg-card/60',
         bestaetigt && 'ring-ampel-gruen/50',
         unbesetzt && 'border-dashed bg-destructive/5',
@@ -156,9 +157,14 @@ export function AssignmentChip({
           }}
           title="Vorschlag annehmen"
           aria-label="Vorschlag annehmen"
-          className="absolute bottom-0.5 right-0.5 hidden rounded p-0.5 text-ampel-gruen hover:bg-ampel-gruen/15 group-hover:block"
+          /*
+           * Nicht erst beim Darueberfahren: Wer dreissig Vorschlaege
+           * durchgeht, soll den Haken sehen, ohne ihn zu suchen. Und gross
+           * genug, um ihn ohne Zielen zu treffen.
+           */
+          className="absolute bottom-1 right-1 flex size-6 items-center justify-center rounded-md border border-ampel-gruen/40 bg-ampel-gruen/10 text-ampel-gruen shadow-sm transition hover:bg-ampel-gruen hover:text-white"
         >
-          <Check className="size-3" />
+          <Check className="size-4" />
         </button>
       ) : null}
 
