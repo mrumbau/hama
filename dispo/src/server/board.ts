@@ -71,7 +71,7 @@ export async function loadBoard(
           employee: true,
           siteManager: true,
           subcontractor: { include: { trades: { include: { trade: true } } } },
-          createdBy: true,
+          createdBy: { include: { siteManager: true } },
         },
       }),
       prisma.employee.findMany({
@@ -141,9 +141,17 @@ export async function loadBoard(
       color,
       kind: a.kind as AssignmentDTO['kind'],
       tasks: a.tasks,
-      angelegtVon: a.createdBy
-        ? `${a.createdBy.firstName.charAt(0)}${a.createdBy.lastName.charAt(0)}`.toUpperCase()
-        : null,
+      /*
+       * Das Kuerzel des Bauleiters, nicht aus dem Namen abgeleitete
+       * Initialen: Wer „PC" von Hand auf „PS" geaendert hat, will das
+       * ueberall sehen - sonst stehen zwei Kuerzel fuer denselben Menschen
+       * in derselben App.
+       */
+      angelegtVon:
+        a.createdBy?.siteManager?.shortCode ??
+        (a.createdBy
+          ? `${a.createdBy.firstName.charAt(0)}${a.createdBy.lastName.charAt(0)}`.toUpperCase()
+          : null),
       angelegtVonName: a.createdBy
         ? `${a.createdBy.firstName} ${a.createdBy.lastName}`
         : null,
