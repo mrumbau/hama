@@ -3,6 +3,7 @@ import { handler, ok, parseBody } from '@/server/api';
 import { prisma } from '@/lib/db';
 import { verlange } from '@/server/auth';
 import { pooltauglicheUrl } from '@/lib/db-url';
+import { geheimnisForm } from '@/server/microsoft';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,6 +61,14 @@ export const GET = handler(async (request: Request) => {
        * gerade laeuft - deshalb wird sie hier ausgerechnet statt geraten.
        */
       microsoftUmleitung: `${new URL(request.url).origin}/api/auth/microsoft/callback`,
+      /**
+       * Wie das hinterlegte Client-Geheimnis aussieht - nicht, wie es lautet.
+       * Wer in Entra die Geheimnis-ID statt des Werts kopiert, bekommt sonst
+       * nur ein nacktes AADSTS7000215 zu sehen.
+       */
+      microsoftGeheimnis: process.env.MICROSOFT_CLIENT_SECRET
+        ? geheimnisForm(process.env.MICROSOFT_CLIENT_SECRET)
+        : null,
     },
   });
 });

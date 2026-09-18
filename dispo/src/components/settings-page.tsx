@@ -45,6 +45,7 @@ interface SettingsResponse {
     database: string;
     microsoftKonfiguriert: boolean;
     microsoftUmleitung: string;
+    microsoftGeheimnis: 'wert' | 'id-statt-wert' | 'zu-kurz' | null;
   };
 }
 
@@ -519,6 +520,24 @@ function SystemTab() {
               <br />
               <code className="break-all">{data?.env.microsoftUmleitung ?? '–'}</code>
             </p>
+            {/*
+              Der haeufigste Einrichtungsfehler: In Entra stehen „Wert" und
+              „Geheimnis-ID" nebeneinander, aber nur der Wert ist kurz nach dem
+              Anlegen sichtbar. Wer spaeter nachschaut, kopiert die ID – und
+              Microsoft antwortet dann nur mit AADSTS7000215.
+            */}
+            {data?.env.microsoftGeheimnis === 'id-statt-wert' && (
+              <p className="text-destructive">
+                In <code>MICROSOFT_CLIENT_SECRET</code> steht eine GUID. Das ist die Geheimnis-ID,
+                gebraucht wird die Spalte „Wert" aus „Zertifikate &amp; Geheimnisse".
+              </p>
+            )}
+            {data?.env.microsoftGeheimnis === 'zu-kurz' && (
+              <p className="text-destructive">
+                Das hinterlegte <code>MICROSOFT_CLIENT_SECRET</code> ist auffällig kurz –
+                vermutlich beim Kopieren abgeschnitten.
+              </p>
+            )}
           </div>
 
           <p>

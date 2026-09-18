@@ -42,7 +42,7 @@ export async function GET(request: Request) {
     identitaet = await holeIdentitaet(konfig, code, rueckkehrAdresse(url.origin));
   } catch (e) {
     return zurueckMitFehler(
-      e instanceof Error ? e.message.slice(0, 200) : 'Anmeldung fehlgeschlagen.',
+      e instanceof Error ? e.message.slice(0, 300) : 'Anmeldung fehlgeschlagen.',
     );
   }
 
