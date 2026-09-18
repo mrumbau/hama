@@ -104,3 +104,4 @@ describe('Status setzen', () => {
     expect(() => verlangeStatusrecht(carsten, 'BESTAETIGT')).not.toThrow();
   });
 });
+

@@ -16,6 +16,7 @@ import { formatDateShort } from '@/lib/dates';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState } from '@/components/ui/misc';
 import { useToast } from '@/components/ui/toast';
@@ -39,6 +40,8 @@ export function PlanvorschlaegePage() {
   const queryClient = useQueryClient();
   const [gewaehlt, setGewaehlt] = React.useState<Set<string>>(new Set());
   const [grund, setGrund] = React.useState('');
+  // Ablehnen ist nicht rueckgaengig zu machen - deshalb ein Zwischenschritt.
+  const [ablehnenNachfrage, setAblehnenNachfrage] = React.useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['planvorschlaege'],
@@ -56,6 +59,7 @@ export function PlanvorschlaegePage() {
     onSuccess: (res) => {
       setGewaehlt(new Set());
       setGrund('');
+      setAblehnenNachfrage(false);
       queryClient.invalidateQueries({ queryKey: ['planvorschlaege'] });
       queryClient.invalidateQueries({ queryKey: ['board'] });
       toast({ title: res.message, tone: 'success' });
@@ -191,24 +195,65 @@ export function PlanvorschlaegePage() {
             <Input
               value={grund}
               onChange={(e) => setGrund(e.target.value)}
-              placeholder="Grund – nur beim Ablehnen nötig"
-              className="h-8 min-w-[14rem] flex-1 text-xs"
+              placeholder="Grund (freiwillig)"
+              className="h-8 min-w-[12rem] flex-1 text-xs"
             />
             <Button
               size="sm"
               variant="outline"
-              disabled={entscheiden.isPending || !grund.trim()}
-              onClick={() => entscheiden.mutate(false)}
-              title={grund.trim() ? undefined : 'Ohne Grund kommt derselbe Vorschlag wieder'}
+              disabled={entscheiden.isPending}
+              onClick={() => setAblehnenNachfrage(true)}
             >
               <ThumbsDown /> Ablehnen
             </Button>
-            <Button size="sm" disabled={entscheiden.isPending} onClick={() => entscheiden.mutate(true)}>
+            <Button
+              size="sm"
+              disabled={entscheiden.isPending}
+              onClick={() => entscheiden.mutate(true)}
+            >
               <Check /> Annehmen
             </Button>
           </div>
         </div>
       ) : null}
+
+      {/*
+        Ablehnen laesst sich nicht rueckgaengig machen, und es trifft die
+        Arbeit von jemand anderem. Ein Zwischenschritt kostet eine Sekunde
+        und verhindert den einen Fehlgriff, der Vertrauen kostet.
+      */}
+      <Dialog open={ablehnenNachfrage} onOpenChange={setAblehnenNachfrage}>
+        <DialogContent className="max-w-sm">
+          <DialogTitle>
+            {gewaehlt.size} Vorschlag{gewaehlt.size === 1 ? '' : 'e'} ablehnen?
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            Die Einsätze verschwinden von der Plantafel. Rückgängig geht das nicht – wer sie
+            wiederhaben will, muss sie neu einplanen.
+            {grund.trim() ? (
+              <>
+                {' '}
+                Begründung: <span className="text-foreground">„{grund.trim()}"</span>
+              </>
+            ) : (
+              ' Eine Begründung ist nicht nötig.'
+            )}
+          </p>
+          <div className="mt-3 flex justify-end gap-2">
+            <Button size="sm" variant="outline" onClick={() => setAblehnenNachfrage(false)}>
+              Abbrechen
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={entscheiden.isPending}
+              onClick={() => entscheiden.mutate(false)}
+            >
+              <ThumbsDown /> Ja, ablehnen
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -112,7 +112,7 @@ export function AssignmentChip({
         }
       }}
       className={cn(
-        'group relative w-full cursor-grab touch-none select-none rounded border-l-[3px] bg-card px-1.5 py-1 text-left shadow-sm ring-1 ring-border/60 transition',
+        'group relative w-full cursor-grab touch-none select-none rounded border-l-4 bg-card px-2 py-1.5 text-left shadow-sm ring-1 ring-border/60 transition',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         'hover:shadow-md hover:ring-border',
         isDragging && 'opacity-40',
@@ -174,8 +174,8 @@ export function AssignmentChip({
       <div className="flex items-center gap-1">
         <span
           className={cn(
-            'min-w-0 flex-1 truncate font-medium leading-tight',
-            compact ? 'text-2xs' : 'text-xs',
+            'min-w-0 flex-1 truncate font-semibold leading-tight',
+            compact ? 'text-xs' : 'text-[0.8125rem]',
           )}
         >
           {primaryLabel}
@@ -198,15 +198,15 @@ export function AssignmentChip({
         */}
         {bestaetigt ? (
           <span
-            className="flex size-3.5 shrink-0 items-center justify-center rounded-sm bg-ampel-gruen text-[9px] font-bold leading-none text-white"
-            title="Bestätigter Termin"
+            className="flex size-5 shrink-0 items-center justify-center rounded bg-ampel-gruen text-xs font-bold leading-none text-white shadow-sm"
+            title="Bestätigter Termin – mit dem Kunden abgestimmt"
           >
             T
           </span>
         ) : null}
         {vorschlag ? (
           <span
-            className="shrink-0 rounded-sm border border-dashed border-muted-foreground/60 px-1 text-[9px] font-medium leading-tight text-muted-foreground"
+            className="shrink-0 rounded border border-dashed border-muted-foreground/70 bg-background/80 px-1.5 py-0.5 text-[0.6875rem] font-semibold leading-none text-muted-foreground"
             title={
               assignment.angelegtVonName
                 ? `Vorschlag von ${assignment.angelegtVonName} – die Leitung gibt ihn frei`
@@ -218,7 +218,7 @@ export function AssignmentChip({
         ) : null}
         {vorlaeufig && !vorschlag ? (
           <span
-            className="shrink-0 text-2xs font-medium text-muted-foreground"
+            className="shrink-0 text-[0.6875rem] font-semibold text-muted-foreground"
             title="Nur geplant – noch nicht bestätigt"
           >
             vorl.
