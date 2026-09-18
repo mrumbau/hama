@@ -7,3 +7,4 @@ coverage
 pnpm-lock.yaml
 supabase/migrations
 docs/figures
+dispo
