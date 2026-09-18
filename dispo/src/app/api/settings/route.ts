@@ -33,7 +33,7 @@ export const GET = handler(async (request: Request) => {
   ] = counts;
 
   return ok({
-    settings: Object.fromEntries(rows.map((r) => [r.key, r.value])),
+    settings: Object.fromEntries(rows.filter(istKeinGeheimnis).map((r) => [r.key, r.value])),
     sync,
     stats: {
       projects,
@@ -72,6 +72,15 @@ export const GET = handler(async (request: Request) => {
     },
   });
 });
+
+/**
+ * Diese Antwort sieht jeder Angemeldete. Ausweise haben darin nichts zu
+ * suchen - auch nicht der des Zeitplans, der sonst jedem offenstuende, der
+ * sich einmal anmelden kann.
+ */
+function istKeinGeheimnis(zeile: { key: string }): boolean {
+  return !/(token|secret|geheimnis|passwort|password)$/i.test(zeile.key);
+}
 
 export const PATCH = handler(async (request: Request) => {
   await verlange('einstellungenAendern');

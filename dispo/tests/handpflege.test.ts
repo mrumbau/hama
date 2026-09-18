@@ -79,3 +79,25 @@ describe('Platzhalter', () => {
     expect(ohnePlatzhalter(erp)).toEqual({ name: 'Badsanierung', city: 'Aying' });
   });
 });
+
+/**
+ * Der Ausweis des Zeitplans darf nicht über die Einstellungen herausfallen.
+ * Die Antwort dort sieht jeder Angemeldete.
+ */
+describe('Geheimnisse in den Einstellungen', () => {
+  // Dieselbe Regel wie in src/app/api/settings/route.ts.
+  const istKeinGeheimnis = (key: string) =>
+    !/(token|secret|geheimnis|passwort|password)$/i.test(key);
+
+  it('hält Ausweise zurück', () => {
+    for (const key of ['cronToken', 'apiSecret', 'startPasswort', 'dbPassword']) {
+      expect(istKeinGeheimnis(key)).toBe(false);
+    }
+  });
+
+  it('lässt gewöhnliche Einstellungen durch', () => {
+    for (const key of ['erpMutationen', 'ampelSchwelle', 'tokenAnzeige']) {
+      expect(istKeinGeheimnis(key)).toBe(true);
+    }
+  });
+});

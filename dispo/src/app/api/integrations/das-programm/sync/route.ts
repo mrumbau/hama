@@ -53,9 +53,8 @@ export const GET = handler(async () => {
  * angemeldet herein, wie bisher.
  */
 export const POST = handler(async (request: Request) => {
-  const token = process.env.DISPO_CRON_TOKEN?.trim();
   const mitgebracht = request.headers.get('x-dispo-cron')?.trim();
-  const vomZeitplan = Boolean(token && mitgebracht && zeitgleich(token, mitgebracht));
+  const vomZeitplan = mitgebracht ? await stammtVomZeitplan(mitgebracht) : false;
 
   if (!vomZeitplan) await verlange('sync');
 
@@ -68,6 +67,22 @@ export const POST = handler(async (request: Request) => {
 
   return ok({ ...result, ausloeser: vomZeitplan ? 'zeitplan' : 'benutzer' });
 });
+
+/**
+ * Weckt uns der Zeitplan?
+ *
+ * Das Geheimnis erzeugt die Datenbank selbst (siehe die Migration
+ * 20260918110000). Damit steht es weder im Repository noch muss es jemand
+ * von Hand irgendwo eintragen. Eine Umgebungsvariable geht zusaetzlich,
+ * falls jemand es lieber dort fuehrt.
+ */
+async function stammtVomZeitplan(mitgebracht: string): Promise<boolean> {
+  const ausDerUmgebung = process.env.DISPO_CRON_TOKEN?.trim();
+  if (ausDerUmgebung && zeitgleich(ausDerUmgebung, mitgebracht)) return true;
+
+  const zeile = await prisma.setting.findUnique({ where: { key: 'cronToken' } });
+  return Boolean(zeile?.value && zeitgleich(zeile.value.trim(), mitgebracht));
+}
 
 /**
  * Vergleich ohne Zeitverrat: Ein frueher Abbruch beim ersten falschen
