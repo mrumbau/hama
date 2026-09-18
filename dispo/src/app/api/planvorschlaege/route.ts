@@ -6,6 +6,7 @@ import { writeAudit } from '@/server/audit';
 import { dbDateToIso } from '@/lib/dates';
 import { fullName } from '@/lib/utils';
 import { darfVerbindlichPlanen } from '@/server/planung';
+import { findeDoppelvorschlaege, type VorschlagZeile } from '@/server/doppelvorschlaege';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,29 +36,38 @@ export const GET = handler(async () => {
     orderBy: [{ startDate: 'asc' }],
   });
 
+  const vorschlaege = rows.map((a) => ({
+    id: a.id,
+    startDate: dbDateToIso(a.startDate),
+    endDate: dbDateToIso(a.endDate),
+    startTime: a.startTime,
+    endTime: a.endTime,
+    note: a.note,
+    tasks: a.tasks,
+    projectId: a.projectId,
+    projektTitel: a.project.internKey ? a.project.name : a.project.customerName,
+    projektOrt: a.project.city,
+    employeeId: a.employeeId,
+    ressource: a.employee
+      ? fullName(a.employee)
+      : a.siteManager
+        ? fullName(a.siteManager)
+        : (a.subcontractor?.companyName ?? a.placeholderLabel ?? 'Unbesetzt'),
+    vorgeschlagenVon: a.createdBy
+      ? `${a.createdBy.firstName} ${a.createdBy.lastName}`
+      : 'Unbekannt',
+    vorgeschlagenAm: a.createdAt.toISOString(),
+  }));
+
   return ok({
     darfFreigeben: alle,
-    vorschlaege: rows.map((a) => ({
-      id: a.id,
-      startDate: dbDateToIso(a.startDate),
-      endDate: dbDateToIso(a.endDate),
-      startTime: a.startTime,
-      endTime: a.endTime,
-      note: a.note,
-      tasks: a.tasks,
-      projectId: a.projectId,
-      projektTitel: a.project.internKey ? a.project.name : a.project.customerName,
-      projektOrt: a.project.city,
-      ressource: a.employee
-        ? fullName(a.employee)
-        : a.siteManager
-          ? fullName(a.siteManager)
-          : (a.subcontractor?.companyName ?? a.placeholderLabel ?? 'Unbesetzt'),
-      vorgeschlagenVon: a.createdBy
-        ? `${a.createdBy.firstName} ${a.createdBy.lastName}`
-        : 'Unbekannt',
-      vorgeschlagenAm: a.createdAt.toISOString(),
-    })),
+    vorschlaege,
+    /*
+     * Zwei Vorschlaege fuer denselben Mann am selben Tag sind kein Fehler,
+     * sondern die Folge davon, dass zwei Bauleiter unabhaengig voneinander
+     * vorausplanen. Deshalb ein Hinweis mit Namen statt einer Sperre.
+     */
+    doppelt: findeDoppelvorschlaege(vorschlaege satisfies VorschlagZeile[]),
   });
 });
 

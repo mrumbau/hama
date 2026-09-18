@@ -46,7 +46,19 @@ interface SettingsResponse {
     microsoftKonfiguriert: boolean;
     microsoftUmleitung: string;
     microsoftGeheimnis: 'wert' | 'id-statt-wert' | 'zu-kurz' | null;
+    /** Welche Box-Angaben noch fehlen. Leer heißt: eingerichtet. */
+    boxFehlt: string[];
   };
+}
+
+/** Was der letzte Sicherungslauf hinterlassen hat. */
+interface LetzteSicherung {
+  stand: string;
+  datei: string;
+  bytes: number;
+  neu: boolean;
+  ausloeser: string;
+  anzahl: Record<string, number>;
 }
 
 interface ErpVerbindung {
@@ -617,28 +629,118 @@ function SystemTab() {
         </CardContent>
       </Card>
 
-      <Card className="sm:col-span-2">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-1.5">
-            <Download className="size-4" /> Backup
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-1 text-xs text-muted-foreground">
-          <p>
-            Die gesamte Disposition liegt in einer PostgreSQL-Datenbank. Ein Backup ist ein Dump:
-          </p>
-          <pre className="overflow-auto rounded bg-muted p-2 text-2xs">
-            pg_dump &quot;$DATABASE_URL&quot; -Fc -f backups/dispo-$(date +%F).dump
-          </pre>
-          <p>Wiederherstellen:</p>
-          <pre className="overflow-auto rounded bg-muted p-2 text-2xs">
-            pg_restore -d &quot;$DATABASE_URL&quot; --clean --if-exists
-            backups/dispo-2026-09-16.dump
-          </pre>
-        </CardContent>
-      </Card>
+      <Sicherung />
     </div>
   );
+}
+
+/**
+ * Die nächtliche Sicherung.
+ *
+ * Vorher stand hier ein pg_dump-Befehl zum Abtippen. Eine Sicherung, die
+ * jemand von Hand anstoßen muss, findet an dem Tag nicht statt, an dem man
+ * sie braucht.
+ */
+function Sicherung() {
+  const { data } = useSettings();
+  const queryClient = useQueryClient();
+  const [meldung, setMeldung] = React.useState<{ art: 'gut' | 'schlecht'; text: string } | null>(null);
+
+  const fehlt = data?.env.boxFehlt ?? [];
+  const letzte: LetzteSicherung | null = leseLetzteSicherung(data?.settings.letzteSicherung);
+
+  const sichern = useMutation({
+    mutationFn: () => api.post<LetzteSicherung>('/api/sicherung', {}),
+    onSuccess: (ergebnis) => {
+      setMeldung({
+        art: 'gut',
+        text: `${ergebnis.datei} liegt in Box (${kilobyte(ergebnis.bytes)}).`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+    },
+    onError: (fehler: Error) => setMeldung({ art: 'schlecht', text: fehler.message }),
+  });
+
+  return (
+    <Card className="sm:col-span-2">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-1.5">
+          <Download className="size-4" /> Sicherung
+          <Badge variant={fehlt.length ? 'grau' : 'gruen'}>
+            {fehlt.length ? 'Box nicht eingerichtet' : 'jede Nacht nach Box'}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2 text-xs text-muted-foreground">
+        <p>
+          Jede Nacht legt die App den kompletten Stand als lesbare Datei in Box ab, unter{' '}
+          <strong>MRumbau / Dispo-Sicherung</strong> – eine Datei je Tag. Kennwörter und Zugänge
+          stehen nicht darin.
+        </p>
+
+        {fehlt.length ? (
+          <p className="text-destructive">
+            Es fehlt noch: <code>{fehlt.join('</code>, <code>')}</code>. Die Schritte dazu stehen in{' '}
+            <code>docs/betrieb.md</code>.
+          </p>
+        ) : letzte ? (
+          <p>
+            Zuletzt: <strong>{letzte.datei}</strong> am {datumZeit(letzte.stand)} (
+            {kilobyte(letzte.bytes)}, {letzte.anzahl.projects} Projekte, {letzte.anzahl.assignments}{' '}
+            Einsätze
+            {letzte.ausloeser === 'zeitplan' ? ', nachts' : ', von Hand'})
+          </p>
+        ) : (
+          <p>Noch keine Sicherung gelaufen.</p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" onClick={() => sichern.mutate()} disabled={sichern.isPending}>
+            <Download className={sichern.isPending ? 'animate-pulse' : ''} /> Jetzt sichern
+          </Button>
+          {/*
+            Auch wenn Box steht: Wer nie hineingeschaut hat, weiss nicht, ob
+            in der Sicherung etwas drinsteht. Das hier ist derselbe Inhalt,
+            nur direkt in die Hand.
+          */}
+          <Button size="sm" variant="outline" asChild>
+            <a href="/api/sicherung" download>
+              Sicherung herunterladen
+            </a>
+          </Button>
+        </div>
+
+        {meldung ? (
+          <p className={meldung.art === 'gut' ? 'text-ampel-gruen' : 'text-destructive'}>
+            {meldung.text}
+          </p>
+        ) : null}
+
+        <p>
+          Zurückspielen geht bewusst nur an der Kommandozeile –{' '}
+          <code>node scripts/sicherung-einspielen.mjs datei.json</code>. Etwas, das eine ganze
+          Datenbank überschreibt, soll man nicht aus Versehen anklicken können.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function leseLetzteSicherung(roh: string | undefined): LetzteSicherung | null {
+  if (!roh) return null;
+  try {
+    return JSON.parse(roh) as LetzteSicherung;
+  } catch {
+    return null;
+  }
+}
+
+function kilobyte(bytes: number): string {
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+function datumZeit(iso: string): string {
+  return new Date(iso).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
 }
 
 /**

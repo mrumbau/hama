@@ -74,7 +74,8 @@ export async function middleware(request: NextRequest) {
    * er dahinter. Ohne gueltigen Ausweis verlangt die Route eine Anmeldung
    * wie jede andere.
    */
-  if (pfad === '/api/integrations/das-programm/sync' && request.headers.get('x-dispo-cron')) {
+  const ZEITPLAN_ZIELE = ['/api/integrations/das-programm/sync', '/api/sicherung'];
+  if (ZEITPLAN_ZIELE.includes(pfad) && request.headers.get('x-dispo-cron')) {
     return NextResponse.next();
   }
 

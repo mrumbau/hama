@@ -1,6 +1,6 @@
-import { timingSafeEqual } from 'node:crypto';
 import { handler, ok } from '@/server/api';
 import { verlange } from '@/server/auth';
+import { stammtVomZeitplan, ZEITPLAN_HEADER } from '@/server/zeitplan';
 import { syncProjects } from '@/server/integrations/sync';
 import { prisma } from '@/lib/db';
 import { getErpProvider } from '@/server/integrations';
@@ -53,8 +53,7 @@ export const GET = handler(async () => {
  * angemeldet herein, wie bisher.
  */
 export const POST = handler(async (request: Request) => {
-  const mitgebracht = request.headers.get('x-dispo-cron')?.trim();
-  const vomZeitplan = mitgebracht ? await stammtVomZeitplan(mitgebracht) : false;
+  const vomZeitplan = await stammtVomZeitplan(request.headers.get(ZEITPLAN_HEADER));
 
   if (!vomZeitplan) await verlange('sync');
 
@@ -67,32 +66,6 @@ export const POST = handler(async (request: Request) => {
 
   return ok({ ...result, ausloeser: vomZeitplan ? 'zeitplan' : 'benutzer' });
 });
-
-/**
- * Weckt uns der Zeitplan?
- *
- * Das Geheimnis erzeugt die Datenbank selbst (siehe die Migration
- * 20260918110000). Damit steht es weder im Repository noch muss es jemand
- * von Hand irgendwo eintragen. Eine Umgebungsvariable geht zusaetzlich,
- * falls jemand es lieber dort fuehrt.
- */
-async function stammtVomZeitplan(mitgebracht: string): Promise<boolean> {
-  const ausDerUmgebung = process.env.DISPO_CRON_TOKEN?.trim();
-  if (ausDerUmgebung && zeitgleich(ausDerUmgebung, mitgebracht)) return true;
-
-  const zeile = await prisma.setting.findUnique({ where: { key: 'cronToken' } });
-  return Boolean(zeile?.value && zeitgleich(zeile.value.trim(), mitgebracht));
-}
-
-/**
- * Vergleich ohne Zeitverrat: Ein frueher Abbruch beim ersten falschen
- * Zeichen laesst das Token Stueck fuer Stueck erraten.
- */
-function zeitgleich(a: string, b: string): boolean {
-  const x = Buffer.from(a);
-  const y = Buffer.from(b);
-  return x.length === y.length && timingSafeEqual(x, y);
-}
 
 async function merkeMutationen() {
   try {
