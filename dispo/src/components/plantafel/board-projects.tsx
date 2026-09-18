@@ -5,7 +5,7 @@ import { MapPin, Palmtree, Plus, Thermometer, Truck, Warehouse } from 'lucide-re
 import { cn } from '@/lib/utils';
 import { useBoardMasse } from './masse';
 import type { AssignmentDTO, BoardResponse, ProjectSummaryDTO } from '@/lib/types';
-import { PROJECT_STATUS_LABEL } from '@/lib/labels';
+import { PROJECT_STATUS_LABEL, internFarbe } from '@/lib/labels';
 import { type IsoDate } from '@/lib/dates';
 import { AmpelDot, AmpelErklaerung } from '@/components/ui/ampel';
 import { Badge } from '@/components/ui/badge';
@@ -126,6 +126,7 @@ function ProjectRowHeader({ project, onOpen }: { project: ProjectSummaryDTO; onO
    * Blick als „intern" zu erkennen ist.
    */
   const intern = project.internKey;
+  const farbe = internFarbe(intern);
   const InternSymbol =
     intern === 'LAGER'
       ? Warehouse
@@ -138,17 +139,23 @@ function ProjectRowHeader({ project, onOpen }: { project: ProjectSummaryDTO; onO
   return (
     <th
       scope="row"
-      className={`board-sticky-col border-b border-r p-0 text-left align-top${
-        intern ? ' bg-muted/40' : ''
-      }`}
-      style={{ width: 'var(--board-spalte)', minWidth: 'var(--board-spalte)' }}
+      className="board-sticky-col border-b border-r border-l-[3px] p-0 text-left align-top"
+      style={{
+        width: 'var(--board-spalte)',
+        minWidth: 'var(--board-spalte)',
+        // Feste Zeilen tragen ihre Farbe an der Kante: rot faellt aus,
+        // lila ist lange bekannt, blau arbeitet - nur nicht auf einer
+        // Baustelle.
+        borderLeftColor: farbe ?? 'transparent',
+        backgroundColor: farbe ? `${farbe}14` : undefined,
+      }}
     >
       <button
         onClick={onOpen}
         className="flex w-full items-start gap-2 px-2 py-1.5 text-left transition hover:bg-accent/60"
       >
         {intern ? (
-          <span className="mt-0.5 text-muted-foreground">
+          <span className="mt-0.5" style={{ color: farbe ?? undefined }}>
             <InternSymbol className="size-3.5" aria-hidden />
           </span>
         ) : (

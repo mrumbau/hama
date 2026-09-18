@@ -52,6 +52,7 @@ interface ProjectDetail {
   erpId: string | null;
   erpStatus: string | null;
   orderNumber: string | null;
+  internKey: string | null;
   projectNumber: string | null;
   customerName: string;
   name: string;
@@ -154,7 +155,7 @@ export function ProjectPanel({ projectId, onClose }: { projectId: string; onClos
                       warum eine Baustelle nicht auf der Plantafel steht –
                       „Im ERP: Angebotserstellung" ist die Antwort.
                     */}
-                    {project.erpStatus ? (
+                    {project.erpStatus && !project.internKey ? (
                       <Badge
                         variant={gehoertAufDieTafel(project.erpStatus) ? 'gruen' : 'grau'}
                         title={
@@ -166,7 +167,7 @@ export function ProjectPanel({ projectId, onClose }: { projectId: string; onClos
                         Das Programm: {erpStatusName(project.erpStatus)}
                       </Badge>
                     ) : null}
-                    {project.primarySiteManagerName ? (
+                    {project.internKey ? null : project.primarySiteManagerName ? (
                       <Badge variant="primary">
                         <User className="size-3" /> {project.primarySiteManagerName}
                       </Badge>
@@ -204,7 +205,16 @@ export function ProjectPanel({ projectId, onClose }: { projectId: string; onClos
             >
               <div className="shrink-0 overflow-x-auto border-b px-4 py-2">
                 <TabsList>
-                  {TABS.map((t) => (
+                  {/*
+                    Lager, Besorgungsfahrten, Urlaub und Krank brauchen keine
+                    Planung, kein Team und keine Aenderungsanfragen - nur
+                    Uebersicht und Notizen. Alles andere waere ein Formular,
+                    das eine Baustelle vortaeuscht, die es nicht gibt.
+                  */}
+                  {(project.internKey
+                    ? TABS.filter((t) => t.value === 'uebersicht' || t.value === 'notizen')
+                    : TABS
+                  ).map((t) => (
                     <TabsTrigger key={t.value} value={t.value}>
                       {t.label}
                     </TabsTrigger>
@@ -214,7 +224,11 @@ export function ProjectPanel({ projectId, onClose }: { projectId: string; onClos
 
               <div className="min-h-0 flex-1 overflow-auto p-4">
                 <TabsContent value="uebersicht">
-                  <OverviewTab project={project} />
+                  {project.internKey ? (
+                    <InternUebersicht assignments={assignments} />
+                  ) : (
+                    <OverviewTab project={project} />
+                  )}
                 </TabsContent>
                 <TabsContent value="planung">
                   <AssignmentsTab
@@ -918,4 +932,54 @@ function NotesTab({ project }: { project: ProjectDetail }) {
       )}
     </div>
   );
+}
+
+/**
+ * Wer war wann hier?
+ *
+ * Fuer Lager, Besorgungsfahrten, Urlaub und Krank ist das die einzige
+ * interessante Frage. Keine Ampel, kein Material, kein Bauleiter - nur die
+ * Liste, wer wie lange da war, die Neueste oben.
+ */
+function InternUebersicht({ assignments }: { assignments: AssignmentDTO[] }) {
+  const sortiert = [...assignments]
+    .filter((a) => a.status !== 'ABGESAGT')
+    .sort((a, b) => b.startDate.localeCompare(a.startDate));
+
+  if (sortiert.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Noch nichts eingetragen. Auf der Plantafel eine Person in diese Zeile ziehen – und die
+        rechte Kante über mehrere Tage aufziehen.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      <p className="mb-2 text-2xs text-muted-foreground">
+        {sortiert.length} Einträge · Auswertung nach Monat und Jahr unter „Auswertung“.
+      </p>
+      {sortiert.map((a) => (
+        <div
+          key={a.id}
+          className="flex items-center gap-2 rounded-md border p-2 text-xs"
+          style={{ borderLeftColor: a.color, borderLeftWidth: 3 }}
+        >
+          <span className="min-w-0 flex-1 truncate font-medium">{a.resourceLabel}</span>
+          <span className="shrink-0 tabular-nums text-muted-foreground">
+            {formatDateShort(a.startDate)}
+            {a.endDate !== a.startDate ? ` – ${formatDateShort(a.endDate)}` : ''}
+          </span>
+          <Badge variant="outline">{tageZwischen(a.startDate, a.endDate)} Tage</Badge>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Kalendertage einschliesslich beider Enden. */
+function tageZwischen(von: string, bis: string): number {
+  const ms = new Date(`${bis}T00:00:00Z`).getTime() - new Date(`${von}T00:00:00Z`).getTime();
+  return Math.max(1, Math.round(ms / 86_400_000) + 1);
 }

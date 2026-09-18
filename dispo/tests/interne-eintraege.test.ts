@@ -120,3 +120,21 @@ describe('Abwesenheiten', () => {
     await del(`/api/employees/${mitarbeiterId}`);
   });
 });
+
+/**
+ * Die festen Zeilen sind keine Projekte und haben in der Projektliste
+ * nichts verloren – dort sucht man Baustellen aus „Das Programm".
+ */
+describe('Nicht in der Projektliste', () => {
+  it('taucht keine der vier festen Zeilen bei den Projekten auf', async () => {
+    const res = await get<{ projects: { internKey: string | null }[] }>(
+      '/api/projects?abgeschlossen=1',
+    );
+    expect(res.body.projects.filter((p) => p.internKey)).toHaveLength(0);
+  });
+
+  it('steht aber weiterhin auf der Plantafel', async () => {
+    const board = await get<{ projects: { internKey: string | null }[] }>('/api/board');
+    expect(board.body.projects.filter((p) => p.internKey)).toHaveLength(4);
+  });
+});
