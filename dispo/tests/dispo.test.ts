@@ -390,7 +390,7 @@ describe('Filter', () => {
     const res = await get<{ projects: { internKey: string | null }[] }>(
       `/api/board?datum=${MO}&zeitraum=woche&ampel=ROT&abgeschlossen=1`,
     );
-    expect(res.body.projects.filter((p) => p.internKey)).toHaveLength(2);
+    expect(res.body.projects.filter((p) => p.internKey)).toHaveLength(4);
   });
 
   it('blendet abgeschlossene Projekte standardmäßig aus', async () => {

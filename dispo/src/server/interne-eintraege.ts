@@ -12,7 +12,7 @@
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/server/api';
 
-export type InternerSchluessel = 'LAGER' | 'BESORGUNG';
+export type InternerSchluessel = 'LAGER' | 'BESORGUNG' | 'URLAUB' | 'KRANK';
 
 /**
  * Was an einem festen Eintrag geändert werden darf.
@@ -25,11 +25,15 @@ export type InternerSchluessel = 'LAGER' | 'BESORGUNG';
 const ERLAUBT: Record<InternerSchluessel, readonly string[]> = {
   LAGER: ['internalNotes', 'specialNotes'],
   BESORGUNG: ['internalNotes', 'specialNotes'],
+  URLAUB: ['internalNotes', 'specialNotes'],
+  KRANK: ['internalNotes', 'specialNotes'],
 };
 
 export const INTERNE_NAMEN: Record<InternerSchluessel, string> = {
   LAGER: 'Lager',
   BESORGUNG: 'Besorgungsfahrten',
+  URLAUB: 'Urlaub',
+  KRANK: 'Krank / Abwesend',
 };
 
 /**

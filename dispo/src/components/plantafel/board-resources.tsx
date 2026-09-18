@@ -4,7 +4,7 @@
  * Spalten sind Tage. Doppelbelegungen springen hier sofort ins Auge.
  */
 import * as React from 'react';
-import { ChevronDown, ChevronRight, Users } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Users, X } from 'lucide-react';
 import { projektTitel } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 import { useBoardMasse } from './masse';
@@ -29,11 +29,16 @@ export function BoardResources({
   actions,
   onQuickPlan,
   showInactive,
+  onSubAufTafel,
+  onSubVonTafel,
 }: {
   board: BoardResponse;
   actions: ChipActions;
   onQuickPlan: (resource: ResourceDTO, date: IsoDate) => void;
   showInactive: boolean;
+  /** Subunternehmer auf die Tafel holen bzw. wieder herunternehmen. */
+  onSubAufTafel: (subcontractorId: string) => void;
+  onSubVonTafel: (resource: ResourceDTO) => void;
 }) {
   // Zeilenhoehe und Spaltenbreiten gehoeren dem Benutzer, nicht uns.
   const { masse, aendern, stil } = useBoardMasse();
@@ -147,7 +152,13 @@ export function BoardResources({
               </tr>
               {(zugeklappt.includes(group.type) ? [] : group.items).map((resource) => (
                 <tr key={resource.key}>
-                  <ResourceRowHeader resource={resource} />
+                  <ResourceRowHeader
+                    resource={resource}
+                    verplant={verplanteSubs.has(resource.key)}
+                    onVonTafel={
+                      resource.gruppe === 'SUBUNTERNEHMER' ? onSubVonTafel : undefined
+                    }
+                  />
                   {board.days.map((day) => {
                     const items = nachUhrzeit(byResourceDay.get(`${resource.key}|${day}`) ?? []);
                     const conflict = Boolean(board.conflicts[`${resource.key}|${day}`]);
@@ -193,6 +204,29 @@ export function BoardResources({
                   })}
                 </tr>
               ))}
+
+              {/*
+                Von dreissig Subunternehmern arbeitet man mit einer Handvoll.
+                Statt vorher ueberall Sterne zu setzen, stellt man sich die
+                Tafel hier zusammen - und nimmt mit dem x wieder herunter,
+                was man nicht braucht.
+              */}
+              {group.type === 'SUBUNTERNEHMER' && !zugeklappt.includes(group.type) ? (
+                <tr>
+                  <th
+                    scope="row"
+                    className="board-sticky-col border-b border-r px-2 py-1 text-left align-top"
+                    style={{ width: 'var(--board-spalte)', minWidth: 'var(--board-spalte)' }}
+                  >
+                    <SubHinzufuegen
+                      vorhanden={board.resources}
+                      aufTafel={new Set(resources.map((r) => r.key))}
+                      onWaehlen={onSubAufTafel}
+                    />
+                  </th>
+                  <td className="border-b" colSpan={board.days.length} />
+                </tr>
+              ) : null}
             </React.Fragment>
           ))}
 
@@ -248,9 +282,23 @@ export function BoardResources({
   );
 }
 
-function ResourceRowHeader({ resource }: { resource: ResourceDTO }) {
+function ResourceRowHeader({
+  resource,
+  onVonTafel,
+  verplant,
+}: {
+  resource: ResourceDTO;
+  /** Nur bei Subunternehmern gesetzt: von der Tafel nehmen. */
+  onVonTafel?: (resource: ResourceDTO) => void;
+  /** Steht schon ein Einsatz drin? Dann nicht ausblenden. */
+  verplant?: boolean;
+}) {
   return (
-    <th scope="row" className="board-sticky-col border-b border-r px-2 py-1.5 text-left align-top">
+    <th
+      scope="row"
+      className="board-sticky-col group/res border-b border-r px-2 py-1.5 text-left align-top"
+      style={{ width: 'var(--board-spalte)', minWidth: 'var(--board-spalte)' }}
+    >
       <span className="flex items-start gap-1.5">
         <span
           className="mt-1 size-2 shrink-0 rounded-full"
@@ -272,6 +320,22 @@ function ResourceRowHeader({ resource }: { resource: ResourceDTO }) {
           ) : null}
         </span>
         {!resource.active ? <Badge variant="grau">inaktiv</Badge> : null}
+        {/*
+          Subunternehmer wieder von der Tafel nehmen. Wer schon eingeplant
+          ist, bleibt - ihn auszublenden hiesse, einen bestehenden Einsatz
+          unsichtbar zu machen.
+        */}
+        {onVonTafel && !verplant ? (
+          <button
+            type="button"
+            aria-label={`${resource.label} von der Plantafel nehmen`}
+            title="Von der Plantafel nehmen"
+            onClick={() => onVonTafel(resource)}
+            className="mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground group-hover/res:opacity-100"
+          >
+            <X className="size-3" />
+          </button>
+        ) : null}
       </span>
     </th>
   );
@@ -291,4 +355,50 @@ function nachUhrzeit(items: AssignmentDTO[]): AssignmentDTO[] {
     return t ? Number(t[1]) * 60 + Number(t[2]) : -1;
   };
   return [...items].sort((a, b) => minuten(a.startTime) - minuten(b.startTime));
+}
+
+/**
+ * „Subunternehmer hinzufügen" – ein Auswahlfeld unter der Gruppe.
+ *
+ * Bewusst am Ende der Liste und nicht als Knopf in der Kopfzeile: Dort
+ * sucht man ihn, wenn einem beim Planen auffällt, dass ein Betrieb fehlt.
+ */
+function SubHinzufuegen({
+  vorhanden,
+  aufTafel,
+  onWaehlen,
+}: {
+  vorhanden: ResourceDTO[];
+  aufTafel: Set<string>;
+  onWaehlen: (subcontractorId: string) => void;
+}) {
+  const offen = vorhanden
+    .filter((r) => r.gruppe === 'SUBUNTERNEHMER' && r.active && !aufTafel.has(r.key))
+    .sort((a, b) => a.label.localeCompare(b.label, 'de'));
+
+  if (offen.length === 0) {
+    return <span className="text-2xs text-muted-foreground">Alle Betriebe stehen auf der Tafel.</span>;
+  }
+
+  return (
+    <label className="flex items-center gap-1.5 text-2xs text-muted-foreground">
+      <Plus className="size-3 shrink-0" aria-hidden />
+      <select
+        value=""
+        onChange={(e) => {
+          if (e.target.value) onWaehlen(e.target.value);
+          e.target.value = '';
+        }}
+        className="min-w-0 flex-1 rounded border border-dashed bg-transparent px-1 py-0.5 text-2xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <option value="">Subunternehmer hinzufügen …</option>
+        {offen.map((r) => (
+          <option key={r.key} value={r.id}>
+            {r.label}
+            {r.subtitle ? ` · ${r.subtitle}` : ''}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 }

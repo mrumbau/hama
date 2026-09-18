@@ -1,7 +1,7 @@
 'use client';
 /** Ansicht A – Zeilen sind Baustellen, Spalten sind Tage. */
 import * as React from 'react';
-import { MapPin, Plus, Truck, Warehouse } from 'lucide-react';
+import { MapPin, Palmtree, Plus, Thermometer, Truck, Warehouse } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBoardMasse } from './masse';
 import type { AssignmentDTO, BoardResponse, ProjectSummaryDTO } from '@/lib/types';
@@ -110,6 +110,14 @@ export function BoardProjects({
   );
 }
 
+/** Was in der Zeile steht, solange niemand eine Notiz hinterlegt hat. */
+const INTERN_HINWEIS: Record<string, string> = {
+  LAGER: 'Interner Arbeitsort',
+  BESORGUNG: 'Was besorgt werden soll – Notiz hinterlegen',
+  URLAUB: 'Wer Urlaub hat – hier hineinziehen und über die Tage aufziehen',
+  KRANK: 'Wer ausfällt – hier hineinziehen',
+};
+
 function ProjectRowHeader({ project, onOpen }: { project: ProjectSummaryDTO; onOpen: () => void }) {
   /*
    * Lager und Besorgungsfahrten sind keine Baustellen. Eine Ampel waere
@@ -118,7 +126,14 @@ function ProjectRowHeader({ project, onOpen }: { project: ProjectSummaryDTO; onO
    * Blick als „intern" zu erkennen ist.
    */
   const intern = project.internKey;
-  const InternSymbol = intern === 'LAGER' ? Warehouse : Truck;
+  const InternSymbol =
+    intern === 'LAGER'
+      ? Warehouse
+      : intern === 'BESORGUNG'
+        ? Truck
+        : intern === 'URLAUB'
+          ? Palmtree
+          : Thermometer;
 
   return (
     <th
@@ -162,9 +177,7 @@ function ProjectRowHeader({ project, onOpen }: { project: ProjectSummaryDTO; onO
           </span>
           <span className="block truncate text-2xs text-muted-foreground">
             {intern
-              ? intern === 'LAGER'
-                ? 'Interner Arbeitsort'
-                : (project.internalNotes ?? 'Was besorgt werden soll – Notiz hinterlegen')
+              ? (project.internalNotes ?? INTERN_HINWEIS[intern])
               : `${project.name}${project.city ? ` · ${project.city}` : ''}`}
           </span>
           <span className="mt-0.5 flex flex-wrap items-center gap-1">
