@@ -98,4 +98,22 @@ describe('Fähigkeit „Bauleitung“', () => {
     const treffer = alle.body.filter((m) => m.firstName === 'Neu' && m.lastName === NACHNAME);
     expect(treffer).toHaveLength(1);
   });
+
+  it('nimmt Bauleiter aus der Mitarbeiterliste heraus – aber nicht aus der Datenbank', async () => {
+    const id = angelegteMitarbeiter[0]; // „Neu", traegt Bauleitung
+
+    const standard = await get<{ id: string }[]>('/api/employees');
+    expect(standard.body.map((e) => e.id)).not.toContain(id);
+
+    // Sonst waere das Haekchen eine Einbahnstrasse: gesetzt, nie wieder weg.
+    const mit = await get<{ id: string }[]>('/api/employees?auchBauleiter=1');
+    expect(mit.body.map((e) => e.id)).toContain(id);
+  });
+
+  it('lässt einen Mitarbeiter ohne die Fähigkeit in seiner Liste', async () => {
+    await legeAn('Bleibt', [sonstigesId]);
+    const id = angelegteMitarbeiter[angelegteMitarbeiter.length - 1];
+    const standard = await get<{ id: string }[]>('/api/employees');
+    expect(standard.body.map((e) => e.id)).toContain(id);
+  });
 });
