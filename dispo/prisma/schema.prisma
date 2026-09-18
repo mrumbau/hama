@@ -381,6 +381,11 @@ model Project {
   internalNotes        String?
   specialNotes         String?
   isDemo               Boolean            @default(false)
+  /// Feste Eintraege der Dispo, die es in "Das Programm" nicht gibt und
+  /// nicht geben soll: "LAGER" und "BESORGUNG". Sie stehen immer auf der
+  /// Tafel, lassen sich nicht loeschen und nicht umbenennen. Null = ein
+  /// gewoehnliches Projekt.
+  internKey            String?            @unique
 
   assignments    Assignment[]
   notes          ProjectNote[]

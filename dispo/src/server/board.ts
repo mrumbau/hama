@@ -203,6 +203,7 @@ export async function loadBoard(
 
     return {
       id: p.id,
+      internKey: p.internKey as ProjectSummaryDTO['internKey'],
       erpId: p.erpId,
       erpStatus: p.erpStatus,
       orderNumber: p.orderNumber,
@@ -257,9 +258,11 @@ export async function loadBoard(
   };
 
   // --- Filter anwenden ---
-  const projects = allProjects.filter((p) =>
-    matchesFilters(p, byProject.get(p.id) ?? [], filters, startOfWeek(today)),
-  );
+  const projects = allProjects
+    .filter((p) => matchesFilters(p, byProject.get(p.id) ?? [], filters, startOfWeek(today)))
+    // Lager und Besorgungsfahrten stehen oben: Sie werden am haeufigsten
+    // gebraucht und sollen nicht zwischen den Baustellen gesucht werden.
+    .sort((a, b) => Number(Boolean(b.internKey)) - Number(Boolean(a.internKey)));
   const visibleIds = new Set(projects.map((p) => p.id));
   const visibleAssignments = assignments.filter((a) => visibleIds.has(a.projectId));
 
@@ -332,6 +335,15 @@ function matchesFilters(
   f: BoardFilters,
   wochenBeginn?: IsoDate,
 ): boolean {
+  /*
+   * Lager und Besorgungsfahrten sind keine Baustellen, sondern Orte, an
+   * denen die eigenen Leute Zeit verbringen. Sie haben keine Bauzeit und
+   * keinen Bauleiter - jeder Filter wuerde sie wegblenden, und dann fehlte
+   * genau die Zeile, in die man den Rest der Mannschaft schiebt. Sie
+   * bleiben immer stehen.
+   */
+  if (p.internKey) return true;
+
   if (!f.includeClosed && CLOSED_PROJECT_STATUS.includes(p.status)) return false;
   if (f.nurAktuell && wochenBeginn) {
     // Ein Einsatz in dieser Woche oder spaeter zaehlt genauso wie ein

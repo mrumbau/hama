@@ -353,26 +353,44 @@ describe('Suche', () => {
 });
 
 describe('Filter', () => {
+  /*
+   * Lager und Besorgungsfahrten stehen absichtlich ueber jedem Filter - sie
+   * sind die Zeilen, in die man den Rest der Mannschaft schiebt. Fuer die
+   * Filterpruefung zaehlen nur die echten Baustellen.
+   */
+  const ohneFeste = <T extends { internKey?: string | null }>(projects: T[]) =>
+    projects.filter((p) => !p.internKey);
+
   it('filtert die Plantafel nach Bauleiter', async () => {
-    const res = await get<{ projects: { primarySiteManagerId: string }[] }>(
+    const res = await get<{ projects: { primarySiteManagerId: string; internKey: string | null }[] }>(
       `/api/board?datum=${MO}&zeitraum=woche&bauleiter=${ids.manager}&abgeschlossen=1`,
     );
-    expect(res.body.projects.length).toBeGreaterThan(0);
-    expect(res.body.projects.every((p) => p.primarySiteManagerId === ids.manager)).toBe(true);
+    const baustellen = ohneFeste(res.body.projects);
+    expect(baustellen.length).toBeGreaterThan(0);
+    expect(baustellen.every((p) => p.primarySiteManagerId === ids.manager)).toBe(true);
   });
 
   it('zeigt mit „Nur Probleme" ausschließlich gelbe und rote Baustellen', async () => {
-    const res = await get<{ projects: { trafficLight: string }[] }>(
+    const res = await get<{ projects: { trafficLight: string; internKey: string | null }[] }>(
       `/api/board?datum=${MO}&zeitraum=woche&nurProbleme=1&abgeschlossen=1`,
     );
-    expect(res.body.projects.every((p) => ['ROT', 'GELB'].includes(p.trafficLight))).toBe(true);
+    expect(
+      ohneFeste(res.body.projects).every((p) => ['ROT', 'GELB'].includes(p.trafficLight)),
+    ).toBe(true);
   });
 
   it('filtert nach Ampelfarbe', async () => {
-    const res = await get<{ projects: { trafficLight: string }[] }>(
+    const res = await get<{ projects: { trafficLight: string; internKey: string | null }[] }>(
       `/api/board?datum=${MO}&zeitraum=woche&ampel=ROT&abgeschlossen=1`,
     );
-    expect(res.body.projects.every((p) => p.trafficLight === 'ROT')).toBe(true);
+    expect(ohneFeste(res.body.projects).every((p) => p.trafficLight === 'ROT')).toBe(true);
+  });
+
+  it('behält Lager und Besorgungsfahrten trotz Filter – sie sind keine Baustellen', async () => {
+    const res = await get<{ projects: { internKey: string | null }[] }>(
+      `/api/board?datum=${MO}&zeitraum=woche&ampel=ROT&abgeschlossen=1`,
+    );
+    expect(res.body.projects.filter((p) => p.internKey)).toHaveLength(2);
   });
 
   it('blendet abgeschlossene Projekte standardmäßig aus', async () => {

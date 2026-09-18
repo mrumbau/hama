@@ -1,7 +1,7 @@
 'use client';
 /** Ansicht A – Zeilen sind Baustellen, Spalten sind Tage. */
 import * as React from 'react';
-import { MapPin, Plus } from 'lucide-react';
+import { MapPin, Plus, Truck, Warehouse } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AssignmentDTO, BoardResponse, ProjectSummaryDTO } from '@/lib/types';
 import { PROJECT_STATUS_LABEL } from '@/lib/labels';
@@ -107,27 +107,47 @@ export function BoardProjects({
 }
 
 function ProjectRowHeader({ project, onOpen }: { project: ProjectSummaryDTO; onOpen: () => void }) {
+  /*
+   * Lager und Besorgungsfahrten sind keine Baustellen. Eine Ampel waere
+   * dort sinnlos - es gibt keinen Kunden, keinen Termin und nichts, was rot
+   * werden koennte. Stattdessen ein Symbol, damit die Zeile auf den ersten
+   * Blick als „intern" zu erkennen ist.
+   */
+  const intern = project.internKey;
+  const InternSymbol = intern === 'LAGER' ? Warehouse : Truck;
+
   return (
-    <th scope="row" className="board-sticky-col border-b border-r p-0 text-left align-top">
+    <th
+      scope="row"
+      className={`board-sticky-col border-b border-r p-0 text-left align-top${
+        intern ? ' bg-muted/40' : ''
+      }`}
+    >
       <button
         onClick={onOpen}
         className="flex w-full items-start gap-2 px-2 py-1.5 text-left transition hover:bg-accent/60"
       >
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="mt-1">
-              <AmpelDot light={project.trafficLight} />
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="right" align="start">
-            <AmpelErklaerung light={project.trafficLight} reasons={project.trafficLightReasons} />
-          </TooltipContent>
-        </Tooltip>
+        {intern ? (
+          <span className="mt-0.5 text-muted-foreground">
+            <InternSymbol className="size-3.5" aria-hidden />
+          </span>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="mt-1">
+                <AmpelDot light={project.trafficLight} />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="right" align="start">
+              <AmpelErklaerung light={project.trafficLight} reasons={project.trafficLightReasons} />
+            </TooltipContent>
+          </Tooltip>
+        )}
 
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline gap-1.5">
             <span className="truncate text-xs font-semibold leading-tight">
-              {project.customerName}
+              {intern ? project.name : project.customerName}
             </span>
             {project.orderNumber ? (
               <span className="shrink-0 text-2xs tabular-nums text-muted-foreground">
@@ -136,8 +156,11 @@ function ProjectRowHeader({ project, onOpen }: { project: ProjectSummaryDTO; onO
             ) : null}
           </span>
           <span className="block truncate text-2xs text-muted-foreground">
-            {project.name}
-            {project.city ? ` · ${project.city}` : ''}
+            {intern
+              ? intern === 'LAGER'
+                ? 'Interner Arbeitsort'
+                : (project.internalNotes ?? 'Was besorgt werden soll – Notiz hinterlegen')
+              : `${project.name}${project.city ? ` · ${project.city}` : ''}`}
           </span>
           <span className="mt-0.5 flex flex-wrap items-center gap-1">
             {project.primarySiteManagerName ? (

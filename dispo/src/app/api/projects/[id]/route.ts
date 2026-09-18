@@ -3,6 +3,7 @@ import { deleteProject, projectUpdateSchema, updateProject } from '@/server/proj
 import { prisma } from '@/lib/db';
 import { dbDateToIso } from '@/lib/dates';
 import { computeAmpel } from '@/server/ampel';
+import { pruefeAenderung, pruefeLoeschen } from '@/server/interne-eintraege';
 import { fullName } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -96,6 +97,17 @@ export const GET = handler(async (_request: Request, ctx: Ctx) => {
 export const PATCH = handler(async (request: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   const input = await parseBody(request, projectUpdateSchema);
+
+  // Lager und Besorgungsfahrten sind feste Zeilen der Tafel. Dort lassen
+  // sich nur Notizen aendern - alles andere wuerde eine Baustelle
+  // vortaeuschen, die es nicht gibt.
+  const vorhanden = await prisma.project.findUnique({
+    where: { id },
+    select: { internKey: true },
+  });
+  if (!vorhanden) return fail('Projekt nicht gefunden.', 404);
+  pruefeAenderung(vorhanden.internKey, input as Record<string, unknown>);
+
   const { project, changed, erp } = await updateProject(id, input);
 
   // Der Disponent soll sehen, ob der Status auch im ERP angekommen ist –
@@ -113,6 +125,14 @@ export const PATCH = handler(async (request: Request, ctx: Ctx) => {
 
 export const DELETE = handler(async (_request: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
+
+  const vorhanden = await prisma.project.findUnique({
+    where: { id },
+    select: { internKey: true },
+  });
+  if (!vorhanden) return fail('Projekt nicht gefunden.', 404);
+  pruefeLoeschen(vorhanden.internKey);
+
   const p = await deleteProject(id);
   return ok({ message: `Projekt „${p.name}“ wurde gelöscht.` });
 });
