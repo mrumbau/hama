@@ -32,6 +32,13 @@ describe('Feste Einträge auf der Plantafel', () => {
     expect((await festerEintrag('KRANK')).name).toBe('Krank / Abwesend');
   });
 
+  it('zeigt Besorgungsfahrten nicht als Baustellenzeile – sie gehen immer FÜR eine Baustelle', async () => {
+    // Auf der Tafel bleibt sie (Ressourcenansicht), in der Baustellenliste
+    // waere sie eine Baustelle ohne Ziel.
+    const board = await get<{ projects: Projekt[] }>('/api/board');
+    expect(board.body.projects.some((p) => p.internKey === 'BESORGUNG')).toBe(true);
+  });
+
   it('stehen ganz unten, nicht zwischen den Baustellen', async () => {
     // Sie sind keine Baustellen und sollen die Baustellen nicht nach unten
     // druecken. In der Ressourcenansicht landen sie damit ganz rechts.

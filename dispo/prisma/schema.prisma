@@ -82,6 +82,10 @@ enum AssignmentKind {
   AUFMASS
   MATERIAL_BESTELLEN
   MATERIAL_ANLIEFERUNG
+  /// Besorgungsfahrt FUER eine Baustelle - jemand holt etwas und bringt es
+  /// hin. Deshalb eine Einsatzart auf der Baustelle und keine eigene Zeile:
+  /// Eine Besorgungsfahrt ohne Ziel gibt es nicht.
+  BESORGUNGSFAHRT
   ABNAHME
   BESPRECHUNG
   NACHARBEIT

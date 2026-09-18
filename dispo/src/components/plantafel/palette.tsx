@@ -15,7 +15,7 @@ import * as React from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { ChevronDown, ChevronUp, GripVertical, Plus, Search } from 'lucide-react';
 import { api } from '@/lib/api-client';
-import { projektTitel, projektZeile } from '@/lib/labels';
+import { internFarbe, projektTitel, projektZeile } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 import type { BoardResponse, ProjectSummaryDTO, ResourceDTO } from '@/lib/types';
 import type { IsoDate } from '@/lib/dates';
@@ -194,6 +194,8 @@ function ProjectChip({ project }: { project: ProjectSummaryDTO }) {
     data: { paletteItem: { art: 'projekt', project } satisfies PaletteProjectItem },
   });
 
+  const farbe = internFarbe(project.internKey);
+
   return (
     <button
       ref={setNodeRef}
@@ -207,7 +209,20 @@ function ProjectChip({ project }: { project: ProjectSummaryDTO }) {
       )}
     >
       <GripVertical className="size-3 shrink-0 text-muted-foreground" />
-      <AmpelDot light={project.trafficLight} className="size-2" />
+      {/*
+        Lager, Besorgungsfahrten, Urlaub und Krank tragen ihre eigene Farbe
+        statt einer Ampel. Ein grauer Punkt sagt dort nichts - es gibt keinen
+        Termin, der reissen koennte.
+      */}
+      {farbe ? (
+        <span
+          className="size-2 shrink-0 rounded-full"
+          style={{ backgroundColor: farbe }}
+          aria-hidden
+        />
+      ) : (
+        <AmpelDot light={project.trafficLight} className="size-2" />
+      )}
       <span className="max-w-[12rem] truncate font-medium">{projektTitel(project)}</span>
       {project.orderNumber ? (
         <Badge variant="outline" className="shrink-0">

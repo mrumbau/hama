@@ -21,14 +21,12 @@ const MONATE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 
 interface MonatsWert {
   monat: number;
   tage: number;
-  stunden: number | null;
   eintraege: number;
 }
 interface PersonenZeile {
   name: string;
   monate: MonatsWert[];
   summeTage: number;
-  summeStunden: number | null;
   summeEintraege: number;
 }
 interface Block {
