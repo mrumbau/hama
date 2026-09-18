@@ -1,6 +1,7 @@
 import { handler, ok, parseBody } from '@/server/api';
 import { prisma } from '@/lib/db';
 import { writeAudit } from '@/server/audit';
+import { ergaenzeHandarbeit, neueHandarbeit } from '@/server/handpflege';
 import { subcontractorSchema } from '@/server/resource-schemas';
 
 export const dynamic = 'force-dynamic';
@@ -21,9 +22,29 @@ export const PATCH = handler(async (request: Request, ctx: Ctx) => {
     }
   }
 
+  /*
+   * Merken, was dieser Mensch geaendert hat. Der Abgleich mit „Das Programm"
+   * laesst genau diese Felder danach in Ruhe - sonst kaeme beim naechsten
+   * Lauf die alte Schreibweise aus dem ERP zurueck.
+   */
+  const vorher = await prisma.subcontractor.findUnique({ where: { id } });
+  const eingabe = {
+    companyName: input.companyName?.trim(),
+    contactName: input.contactName,
+    phone: input.phone,
+    email: input.email,
+    street: input.street,
+    zip: input.zip,
+    city: input.city,
+  };
+  const manuelleFelder = vorher
+    ? ergaenzeHandarbeit(vorher.manuelleFelder, neueHandarbeit(vorher, eingabe))
+    : undefined;
+
   const sub = await prisma.subcontractor.update({
     where: { id },
     data: {
+      manuelleFelder,
       companyName: input.companyName?.trim(),
       contactName: input.contactName,
       phone: input.phone,

@@ -24,6 +24,15 @@ if (!process.env.DATABASE_URL) {
 // eine Verbindung pro Aufruf, sofort wieder frei. Migrationen funktionieren
 // darüber aber nicht – sie brauchen eine Sitzungsverbindung (Port 5432).
 // Ist keine eigene Adresse hinterlegt, leiten wir sie ab.
+// Vorschau-Builds duerfen die echten Daten nicht anfassen. Die Migrationen
+// laufen hier im Build, also muss der Riegel vor allem anderen greifen -
+// dieselbe Regel wie in src/lib/db-url.ts, weil der Build an dem Code nicht
+// vorbeikommt. Nur VERCEL_ENV=production arbeitet im Schema "dispo".
+process.env.DATABASE_URL = mitSchema(process.env.DATABASE_URL);
+if (process.env.DIRECT_DATABASE_URL) {
+  process.env.DIRECT_DATABASE_URL = mitSchema(process.env.DIRECT_DATABASE_URL);
+}
+
 if (!process.env.DIRECT_DATABASE_URL) {
   process.env.DIRECT_DATABASE_URL = ableitenDirektverbindung(process.env.DATABASE_URL);
 }
@@ -36,6 +45,21 @@ if (!process.env.DIRECT_DATABASE_URL) {
 //   FATAL: (EMAXCONNSESSION) max clients reached in session mode
 // ab, sobald die App parallel laeuft und die 15 Sitzungsplaetze belegt sind.
 process.env.DATABASE_URL = ableitenPoolverbindung(process.env.DATABASE_URL);
+
+function mitSchema(url) {
+  const env = process.env.VERCEL_ENV;
+  if (!env) return url;
+  const schema = env === 'production' ? 'dispo' : 'dispo_test';
+  try {
+    const parsed = new URL(url);
+    if (parsed.searchParams.get('schema') === schema) return url;
+    parsed.searchParams.set('schema', schema);
+    console.log(`Umgebung "${env}" arbeitet im Schema "${schema}".`);
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
 
 function ableitenPoolverbindung(url) {
   try {

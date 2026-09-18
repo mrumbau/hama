@@ -4,7 +4,7 @@
  * jede Regel einzeln belegt sein, besonders die Fälle, in denen NICHTS
  * passieren darf.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { ohneGeheimnis, pooltauglicheUrl } from '@/lib/db-url';
 
 const BASIS = 'postgresql://user:geheim@aws-0-eu-central-1.pooler.supabase.com';
@@ -68,5 +68,51 @@ describe('Anzeige', () => {
     const anzeige = ohneGeheimnis(`${BASIS}:6543/postgres?schema=dispo`);
     expect(anzeige).toBe('aws-0-eu-central-1.pooler.supabase.com:6543/postgres');
     expect(anzeige).not.toContain('geheim');
+  });
+});
+
+/**
+ * Der Riegel zwischen Probieren und Ernst.
+ *
+ * Vorschau-Builds liefen gegen dieselbe Datenbank wie der Livebetrieb. Ein
+ * Push auf einen Zweig hat damit sofort echte Daten verändert. Diese Tests
+ * halten fest, dass nur die Produktion an „dispo" darf.
+ */
+describe('Schema je Umgebung', () => {
+  const ADRESSE = 'postgresql://u:p@aws-0-eu-central-1.pooler.supabase.com:6543/postgres';
+
+  afterEach(() => {
+    delete process.env.VERCEL_ENV;
+  });
+
+  it('lässt nur die Produktion an die echten Daten', () => {
+    process.env.VERCEL_ENV = 'production';
+    expect(new URL(pooltauglicheUrl(ADRESSE).url).searchParams.get('schema')).toBe('dispo');
+  });
+
+  it('schickt Vorschau und Entwicklung daneben', () => {
+    for (const env of ['preview', 'development']) {
+      process.env.VERCEL_ENV = env;
+      expect(new URL(pooltauglicheUrl(ADRESSE).url).searchParams.get('schema')).toBe('dispo_test');
+    }
+  });
+
+  it('überschreibt ein falsch eingetragenes Schema', () => {
+    process.env.VERCEL_ENV = 'preview';
+    const url = pooltauglicheUrl(`${ADRESSE}?schema=dispo`).url;
+    expect(new URL(url).searchParams.get('schema')).toBe('dispo_test');
+  });
+
+  it('greift auch bei Adressen, die nicht auf den Supabase-Pooler zeigen', () => {
+    process.env.VERCEL_ENV = 'preview';
+    const url = pooltauglicheUrl('postgresql://u:p@db.example.org:5432/dispo').url;
+    expect(new URL(url).searchParams.get('schema')).toBe('dispo_test');
+    // Port und Pooler-Parameter bleiben fremden Hosts erspart.
+    expect(new URL(url).port).toBe('5432');
+  });
+
+  it('lässt lokale Läufe unangetastet – dort gibt es kein VERCEL_ENV', () => {
+    const roh = 'postgresql://postgres@localhost:5432/dispo_test?schema=dispo';
+    expect(pooltauglicheUrl(roh).url).toBe(roh);
   });
 });

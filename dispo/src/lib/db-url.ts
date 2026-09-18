@@ -20,6 +20,31 @@
 /** Hosts, bei denen wir wissen, was die Ports bedeuten. */
 const POOLER_HOST = /\.pooler\.supabase\.com$/i;
 
+/**
+ * Das Schema, in dem der Livebetrieb steht. Alles andere - Vorschau-Builds,
+ * Zweige, lokale Versuche - arbeitet daneben.
+ */
+export const LIVE_SCHEMA = 'dispo';
+export const PROBE_SCHEMA = 'dispo_test';
+
+/**
+ * Welches Schema diese Umgebung benutzen darf.
+ *
+ * Vorschau-Builds liefen bisher gegen dieselbe Datenbank wie der
+ * Livebetrieb. Ein Push auf einen Zweig hat damit sofort echte Daten
+ * veraendert - einmal hat genau das drei Personen angelegt, die dort nicht
+ * hingehoerten, Stunden bevor jemand „live" gesagt hatte.
+ *
+ * Deshalb entscheidet das hier der Code und nicht eine Einstellung, die man
+ * vergessen oder falsch setzen kann: Nur `VERCEL_ENV=production` fasst die
+ * echten Daten an. Ohne Vercel - also lokal - bleibt alles, wie es in der
+ * Adresse steht; dort zeigt die Adresse ohnehin auf eine eigene Datenbank.
+ */
+export function schemaFuerUmgebung(env = process.env.VERCEL_ENV): string | null {
+  if (!env) return null;
+  return env === 'production' ? LIVE_SCHEMA : PROBE_SCHEMA;
+}
+
 export interface UrlKorrektur {
   url: string;
   /** Wurde etwas geändert? Für die Anzeige in den Einstellungen. */
@@ -38,11 +63,25 @@ export function pooltauglicheUrl(roh: string | undefined): UrlKorrektur {
     return { url: roh, angepasst: false, hinweis: null };
   }
 
-  if (!POOLER_HOST.test(parsed.hostname)) {
-    return { url: roh, angepasst: false, hinweis: null };
+  const aenderungen: string[] = [];
+
+  // Zuerst das Schema - das gilt auch fuer Adressen, die nicht auf den
+  // Supabase-Pooler zeigen. Es ist der Riegel zwischen Probieren und Ernst.
+  const schema = schemaFuerUmgebung();
+  if (schema && parsed.searchParams.get('schema') !== schema) {
+    parsed.searchParams.set('schema', schema);
+    aenderungen.push(`schema=${schema}`);
   }
 
-  const aenderungen: string[] = [];
+  if (!POOLER_HOST.test(parsed.hostname)) {
+    return aenderungen.length
+      ? {
+          url: parsed.toString(),
+          angepasst: true,
+          hinweis: `DATABASE_URL angepasst: ${aenderungen.join(', ')}.`,
+        }
+      : { url: roh, angepasst: false, hinweis: null };
+  }
 
   if (parsed.port === '5432' || parsed.port === '') {
     parsed.port = '6543';

@@ -165,6 +165,13 @@ export const RECHTE = {
   protokoll: ['ADMIN', 'LEITUNG'],
   /** Benutzer anlegen und Rollen vergeben. */
   benutzerverwaltung: ['ADMIN'],
+  /**
+   * Abgleich mit „Das Programm" anstossen. Ausdruecklich jeder - das war
+   * die Vorgabe: „Projekte aus Das Programm aktualisieren kann jeder
+   * machen." Es steht hier trotzdem, damit niemand ohne Anmeldung an den
+   * Knopf kommt.
+   */
+  sync: ['ADMIN', 'LEITUNG', 'BAULEITER'],
 } as const satisfies Record<string, readonly Rolle[]>;
 
 export type Recht = keyof typeof RECHTE;

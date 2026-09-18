@@ -1,6 +1,7 @@
 import { handler, ok, parseBody } from '@/server/api';
 import { prisma } from '@/lib/db';
 import { writeAudit } from '@/server/audit';
+import { ergaenzeHandarbeit, neueHandarbeit } from '@/server/handpflege';
 import { pflegeBauleitung } from '@/server/bauleitung';
 import { fullName } from '@/lib/utils';
 import { employeeSchema } from '@/server/resource-schemas';
@@ -23,9 +24,23 @@ export const PATCH = handler(async (request: Request, ctx: Ctx) => {
     }
   }
 
+  // Siehe Subunternehmer: Was hier von Hand gesetzt wird, gewinnt gegen den
+  // naechsten Abgleich.
+  const vorher = await prisma.employee.findUnique({ where: { id } });
+  const eingabe = {
+    firstName: input.firstName,
+    lastName: input.lastName,
+    phone: input.phone,
+    profession: input.profession,
+  };
+  const manuelleFelder = vorher
+    ? ergaenzeHandarbeit(vorher.manuelleFelder, neueHandarbeit(vorher, eingabe))
+    : undefined;
+
   const employee = await prisma.employee.update({
     where: { id },
     data: {
+      manuelleFelder,
       firstName: input.firstName,
       lastName: input.lastName,
       shortCode: input.shortCode?.trim() || undefined,
