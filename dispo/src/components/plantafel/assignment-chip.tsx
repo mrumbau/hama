@@ -82,8 +82,27 @@ export function AssignmentChip({
       {...listeners}
       {...attributes}
       data-dnd-dragging={isDragging}
+      /*
+       * Die ganze Karte oeffnet den Einsatz, nicht nur die drei Punkte in
+       * der Ecke. Die waren mit der Maus kaum zu treffen und lagen genau
+       * dort, wo man zum Ziehen hinfasst.
+       *
+       * Das beisst sich nicht mit dem Schieben: Der Zeiger loest ein Ziehen
+       * erst nach fuenf Pixeln Bewegung aus (activationConstraint in der
+       * Plantafel). Ein Klick ohne Bewegung ist also eindeutig ein Klick.
+       */
+      role="button"
+      tabIndex={0}
+      onClick={() => actions.onEdit(assignment)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          actions.onEdit(assignment);
+        }
+      }}
       className={cn(
         'group relative w-full cursor-grab touch-none select-none rounded border-l-[3px] bg-card px-1.5 py-1 text-left shadow-sm ring-1 ring-border/60 transition',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         'hover:shadow-md hover:ring-border',
         isDragging && 'opacity-40',
         abgesagt && 'opacity-50 line-through',
@@ -182,6 +201,7 @@ export function AssignmentChip({
         }}
         className="absolute right-0.5 top-0.5 hidden rounded p-0.5 text-muted-foreground hover:bg-accent group-hover:block"
         aria-label="Einsatz bearbeiten"
+        title="Einsatz bearbeiten – geht auch mit einem Klick auf die Karte"
       >
         <MoreVertical className="size-3" />
       </button>
