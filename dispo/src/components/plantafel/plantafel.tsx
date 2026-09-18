@@ -20,14 +20,14 @@ import {
 import { Loader2, Plus, TriangleAlert } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { AssignmentDTO, ResourceDTO } from '@/lib/types';
-import { type IsoDate } from '@/lib/dates';
+import { formatDateShort, type IsoDate } from '@/lib/dates';
 import { verschobenerBeginn } from '@/lib/board-range';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Field, Select, Textarea } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { EmptyState } from '@/components/ui/misc';
-import { CHANGE_REASON_KEYS, CHANGE_REASON_LABEL } from '@/lib/labels';
+import { CHANGE_REASON_KEYS, CHANGE_REASON_LABEL, projektZeile } from '@/lib/labels';
 import { ProjectPanel } from '@/components/project/project-panel';
 import { MorningDialog } from '@/components/morning-dialog';
 import { BoardProjects } from './board-projects';
@@ -234,7 +234,7 @@ export function Plantafel() {
             endDate: zielTag,
             kind: art === 'BAULEITER' ? 'BESICHTIGUNG' : 'ARBEIT',
           },
-          `${palette.project.customerName} – ${palette.project.name}`,
+          projektZeile(palette.project),
         );
       }
       return;
@@ -314,6 +314,34 @@ export function Plantafel() {
   const actions: ChipActions = React.useMemo(
     () => ({
       onEdit: setEditing,
+      /*
+       * Einsatz aufziehen: derselbe Mann, laenger. Nur das Ende wandert -
+       * der Beginn bleibt, wo er ist, sonst waere es ein Verschieben.
+       *
+       * `force` steht hier bewusst: Wer eine Woche aufzieht, weiss, dass er
+       * Doppelbelegungen erzeugen kann. Sie werden danach als Konflikt rot
+       * angezeigt, statt das Aufziehen zu verweigern.
+       */
+      onVerlaengern: async (a, bisDatum) => {
+        try {
+          const res = await api.patch<{ message: string }>(`/api/assignments/${a.id}`, {
+            endDate: bisDatum,
+            force: true,
+          });
+          refresh();
+          toast({
+            title: res.message,
+            description: `${a.resourceLabel}: ${formatDateShort(a.startDate)} bis ${formatDateShort(bisDatum)}.`,
+            tone: 'success',
+          });
+        } catch (e) {
+          toast({
+            title: 'Aufziehen nicht möglich',
+            description: e instanceof Error ? e.message : '',
+            tone: 'error',
+          });
+        }
+      },
       onConfirm: async (a) => {
         try {
           const res = await api.patch<{ message: string }>(`/api/assignments/${a.id}`, {
@@ -439,7 +467,7 @@ export function Plantafel() {
               <div className="rounded border-l-[3px] border-l-primary bg-card px-1.5 py-1 text-xs font-medium shadow-lg ring-1 ring-border">
                 {draggingPalette.art === 'ressource'
                   ? draggingPalette.resource.label
-                  : `${draggingPalette.project.customerName} – ${draggingPalette.project.name}`}
+                  : projektZeile(draggingPalette.project)}
               </div>
             ) : null}
           </DragOverlay>

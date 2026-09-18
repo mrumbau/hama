@@ -5,14 +5,10 @@ import { useDraggable } from '@dnd-kit/core';
 import { AlertTriangle, Clock, ListChecks, MoreVertical, StickyNote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AssignmentDTO, ProjectSummaryDTO } from '@/lib/types';
-import {
-  ASSIGNMENT_KIND_LABEL,
-  ASSIGNMENT_KIND_SHORT,
-  ASSIGNMENT_STATUS_LABEL,
-  RESOURCE_TYPE_LABEL,
-} from '@/lib/labels';
+import { ASSIGNMENT_KIND_LABEL, ASSIGNMENT_KIND_SHORT, ASSIGNMENT_STATUS_LABEL, RESOURCE_TYPE_LABEL, projektZeile } from '@/lib/labels';
 import { formatDateShort, type IsoDate } from '@/lib/dates';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { VerlaengernGriff } from './verlaengern';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -23,6 +19,11 @@ import {
 } from '@/components/ui/context-menu';
 
 export interface ChipActions {
+  /**
+   * Einsatz bis zu diesem Tag aufziehen. Getrennt vom Verschieben, weil es
+   * eine andere Absicht ist: „derselbe Mann, laenger" statt „woanders hin".
+   */
+  onVerlaengern: (a: AssignmentDTO, bisDatum: IsoDate) => void;
   onEdit: (a: AssignmentDTO) => void;
   onConfirm: (a: AssignmentDTO) => void;
   onAddNote: (a: AssignmentDTO) => void;
@@ -94,6 +95,21 @@ export function AssignmentChip({
       )}
       style={{ borderLeftColor: assignment.color }}
     >
+      {/*
+        Nur an der letzten Karte eines Einsatzes: Ein mehrtaegiger Einsatz
+        erscheint in mehreren Zellen, aber aufziehen laesst er sich nur an
+        seinem Ende. Ein Griff mitten im Zeitraum waere ein Versprechen, das
+        die Karte nicht halten kann.
+      */}
+      {!abgesagt && date === assignment.endDate ? (
+        <VerlaengernGriff
+          vonDatum={assignment.startDate}
+          bisDatum={assignment.endDate}
+          compact={compact}
+          onFertig={(bis) => actions.onVerlaengern(assignment, bis)}
+        />
+      ) : null}
+
       <div className="flex items-center gap-1">
         <span
           className={cn(
@@ -228,7 +244,7 @@ function ChipTooltip({
       {project ? (
         <>
           <p className="font-semibold">
-            {project.customerName} – {project.name}
+            {projektZeile(project)}
           </p>
           <p className="text-muted-foreground">
             {[project.street, [project.zip, project.city].filter(Boolean).join(' ')]

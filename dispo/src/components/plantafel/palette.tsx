@@ -15,6 +15,7 @@ import * as React from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { ChevronDown, ChevronUp, GripVertical, Plus, Search } from 'lucide-react';
 import { api } from '@/lib/api-client';
+import { projektTitel, projektZeile } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 import type { BoardResponse, ProjectSummaryDTO, ResourceDTO } from '@/lib/types';
 import type { IsoDate } from '@/lib/dates';
@@ -199,7 +200,7 @@ function ProjectChip({ project }: { project: ProjectSummaryDTO }) {
       {...listeners}
       {...attributes}
       type="button"
-      title={`${project.customerName} – ${project.name}`}
+      title={projektZeile(project)}
       className={cn(
         'flex cursor-grab touch-none items-center gap-1 rounded border bg-card px-1.5 py-1 text-2xs shadow-sm transition hover:shadow',
         isDragging && 'opacity-40',
@@ -207,7 +208,7 @@ function ProjectChip({ project }: { project: ProjectSummaryDTO }) {
     >
       <GripVertical className="size-3 shrink-0 text-muted-foreground" />
       <AmpelDot light={project.trafficLight} className="size-2" />
-      <span className="max-w-[12rem] truncate font-medium">{project.customerName}</span>
+      <span className="max-w-[12rem] truncate font-medium">{projektTitel(project)}</span>
       {project.orderNumber ? (
         <Badge variant="outline" className="shrink-0">
           {project.orderNumber}

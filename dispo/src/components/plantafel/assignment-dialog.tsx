@@ -133,7 +133,7 @@ export function AssignmentDialog({
             <Select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {[p.orderNumber, p.customerName, p.name].filter(Boolean).join(' · ')}
+                  {p.internKey ? p.name : [p.orderNumber, p.customerName, p.name].filter(Boolean).join(' · ')}
                 </option>
               ))}
             </Select>

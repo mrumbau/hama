@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { MapPin, Plus, Truck, Warehouse } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useBoardMasse } from './masse';
 import type { AssignmentDTO, BoardResponse, ProjectSummaryDTO } from '@/lib/types';
 import { PROJECT_STATUS_LABEL } from '@/lib/labels';
 import { type IsoDate } from '@/lib/dates';
@@ -25,6 +26,8 @@ export function BoardProjects({
   onOpenProject: (id: string) => void;
   onQuickPlan: (projectId: string, date: IsoDate) => void;
 }) {
+  // Zeilenhoehe und Spaltenbreiten gehoeren dem Benutzer, nicht uns.
+  const { masse, aendern, stil } = useBoardMasse();
   const dense = board.days.length > 16;
 
   // Einsätze pro Projekt und Tag vorbereiten – einmal, nicht pro Zelle.
@@ -56,12 +59,13 @@ export function BoardProjects({
   return (
     // pb-32: Luft unter der letzten Zeile. Ohne sie klebt sie am
     // Fensterrand und man sieht nicht, dass die Liste zu Ende ist.
-    <div className="min-h-0 flex-1 overflow-auto pb-32">
+    <div className="min-h-0 flex-1 overflow-auto pb-32" style={stil}>
       <table className="w-full border-separate border-spacing-0 text-sm">
         <BoardHeader
           days={board.days}
           firstColumnLabel="Baustelle"
-          firstColumnWidth="w-[11rem] min-w-[11rem] sm:w-[17rem] sm:min-w-[17rem]"
+          masse={masse}
+          onMass={aendern}
           dense={dense}
         />
         <tbody>
@@ -122,6 +126,7 @@ function ProjectRowHeader({ project, onOpen }: { project: ProjectSummaryDTO; onO
       className={`board-sticky-col border-b border-r p-0 text-left align-top${
         intern ? ' bg-muted/40' : ''
       }`}
+      style={{ width: 'var(--board-spalte)', minWidth: 'var(--board-spalte)' }}
     >
       <button
         onClick={onOpen}
