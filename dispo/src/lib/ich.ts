@@ -23,6 +23,9 @@ export interface IchAntwort {
     system: boolean;
     protokoll: boolean;
     benutzerverwaltung: boolean;
+    /** Vorschlaege annehmen, fremde und bestaetigte Einsaetze aendern. */
+    planungFreigeben: boolean;
+    alleOffenenPunkte: boolean;
   } | null;
 }
 

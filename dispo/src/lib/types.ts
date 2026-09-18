@@ -39,6 +39,16 @@ export interface AssignmentDTO {
   kind: AssignmentKindKey;
   /// Konkrete Tätigkeiten für diesen Tag.
   tasks: string[];
+  /**
+   * Initialen dessen, der den Einsatz angelegt hat („MT", „GP").
+   *
+   * Steht bei Vorschlägen auf der Karte: „Vorschlag GP". Ohne den Namen
+   * muss man jeden Vorschlag anklicken, um zu wissen, mit wem man reden
+   * muss.
+   */
+  angelegtVon: string | null;
+  /** Ausgeschrieben für den Tooltip. */
+  angelegtVonName: string | null;
 }
 
 /**

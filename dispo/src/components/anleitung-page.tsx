@@ -154,16 +154,23 @@ export function AnleitungPage() {
             </p>
           </Abschnitt>
 
-          <Abschnitt icon={CheckCircle2} titel="Geplant ist noch kein Termin">
+          <Abschnitt icon={CheckCircle2} titel="Erst Vorschlag, dann Termin">
             <p>
-              Alles, was du hineinziehst, ist zuerst nur{' '}
-              <span className="font-medium text-foreground">geplant</span> – die Karte ist
-              gestrichelt und trägt „vorl.". Das heißt: hingeschrieben, aber mit niemandem
-              abgestimmt.
+              Alles, was jemand hineinzieht, ist zuerst ein{' '}
+              <span className="font-medium text-foreground">Vorschlag</span> – grau, gestrichelt,
+              mit den Initialen dran: „Vorschlag GP".{' '}
+              <span className="font-medium text-foreground">Das gilt für alle</span>, auch für die
+              Geschäftsführung. Unsere Leute sind knapp, und niemand soll still einen greifen –
+              auch nicht der Chef.
             </p>
             <p>
-              Erst wenn du den Einsatz öffnest und{' '}
-              <span className="font-medium text-foreground">bestätigst</span>, wird ein grünes{' '}
+              <span className="font-medium text-foreground">Marlon und Carsten nehmen
+              Vorschläge an</span> – dann wird richtige Planung daraus. Alle offenen Vorschläge
+              stehen unter „Planvorschläge", für jeden sichtbar.
+            </p>
+            <p>
+              Und wenn der angenommene Einsatz dann{' '}
+              <span className="font-medium text-foreground">bestätigt</span> wird, wird ein grünes{' '}
               <span className="font-medium text-foreground">T</span> daraus – ein fester Termin.
               Solange kein T dasteht, ist nichts zugesagt. Genau dafür ist der Buchstabe da: Man
               sieht über die ganze Tafel hinweg, was steht und was nicht.

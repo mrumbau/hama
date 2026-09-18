@@ -19,6 +19,7 @@ import {
 } from '@dnd-kit/core';
 import { Loader2, Plus, TriangleAlert } from 'lucide-react';
 import { api } from '@/lib/api-client';
+import { useIch } from '@/lib/ich';
 import type { AssignmentDTO, ResourceDTO } from '@/lib/types';
 import { formatDateShort, type IsoDate } from '@/lib/dates';
 import { verschobenerBeginn } from '@/lib/board-range';
@@ -56,6 +57,8 @@ export function Plantafel() {
   const params = useSearchParams();
 
   const [dragging, setDragging] = React.useState<AssignmentDTO | null>(null);
+  // Wer ist angemeldet? Davon haengt ab, ob der Haken zum Annehmen erscheint.
+  const { data: ich } = useIch();
   const [draggingPalette, setDraggingPalette] = React.useState<PaletteItem | null>(null);
   const [quickPlan, setQuickPlan] = React.useState<QuickPlanSeed | null>(null);
   const [editing, setEditing] = React.useState<AssignmentDTO | null>(null);
@@ -336,6 +339,22 @@ export function Plantafel() {
   const actions: ChipActions = React.useMemo(
     () => ({
       onEdit: setEditing,
+      /*
+       * Vorschlag annehmen - nur fuer die, die freigeben duerfen. Wer das
+       * Recht nicht hat, bekommt den Haken gar nicht erst zu sehen; ein
+       * Knopf, der nichts tut, ist schlimmer als keiner.
+       */
+      onAnnehmen: ich?.rechte?.planungFreigeben
+        ? async (a: AssignmentDTO) => {
+            try {
+              await api.post('/api/planvorschlaege', { ids: [a.id], annehmen: true });
+              refresh();
+              toast({ title: `${a.resourceLabel} ist jetzt fest eingeplant.`, tone: 'success' });
+            } catch (e) {
+              toast({ title: e instanceof Error ? e.message : 'Fehler', tone: 'error' });
+            }
+          }
+        : undefined,
       /*
        * Einsatz aufziehen: derselbe Mann, laenger. Nur das Ende wandert -
        * der Beginn bleibt, wo er ist, sonst waere es ein Verschieben.

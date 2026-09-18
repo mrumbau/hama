@@ -36,15 +36,26 @@ export function darfVerbindlichPlanen(benutzer: AngemeldeterBenutzer | null): bo
 /**
  * Welchen Status bekommt ein neu angelegter Einsatz?
  *
- * Bauleiter erzeugen Vorschläge, die Leitung erzeugt Planung. Ein Vorschlag
- * ist kein halber Einsatz – er ist eine Bitte, und als solche muss er
- * aussehen.
+ * **Jeder schlägt vor – auch die Geschäftsführung.**
+ *
+ * Das war eine bewusste Entscheidung gegen den ersten Entwurf, in dem die
+ * Leitung direkt planen durfte. Der Vorschlag-Schritt ist kein Antrag bei
+ * einem Vorgesetzten, sondern ein Abstimmungsschritt: Niemand soll still
+ * einen knappen Monteur greifen, alles wird einmal die Woche gemeinsam
+ * angeschaut. Auch die Geschäftsführung kann am Freitag etwas zusagen, von
+ * dem der Bauleiter erst am Montag erfährt.
+ *
+ * Wäre die Leitung ausgenommen, wäre die wöchentliche Liste unvollständig –
+ * und damit wertlos für genau den Zweck, für den es sie gibt.
+ *
+ * Damit das niemanden ausbremst, kann annehmen, wer das Recht dazu hat, den
+ * eigenen Vorschlag direkt auf der Karte freigeben: ein Klick mehr, kein
+ * Umweg.
  */
 export function statusBeimAnlegen(
-  benutzer: AngemeldeterBenutzer | null,
-  gewuenscht?: EinsatzStatus,
+  _benutzer: AngemeldeterBenutzer | null,
+  _gewuenscht?: EinsatzStatus,
 ): EinsatzStatus {
-  if (darfVerbindlichPlanen(benutzer)) return gewuenscht ?? 'GEPLANT';
   return 'VORSCHLAG';
 }
 

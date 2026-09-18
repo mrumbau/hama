@@ -2,7 +2,7 @@
 /** Ein Einsatz als kompakte Karte in einer Plantafel-Zelle. */
 import * as React from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { AlertTriangle, Clock, ListChecks, MoreVertical, StickyNote } from 'lucide-react';
+import { AlertTriangle, Check, Clock, ListChecks, MoreVertical, StickyNote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AssignmentDTO, ProjectSummaryDTO } from '@/lib/types';
 import { ASSIGNMENT_KIND_LABEL, ASSIGNMENT_KIND_SHORT, ASSIGNMENT_STATUS_LABEL, RESOURCE_TYPE_LABEL, internFarbe, projektZeile } from '@/lib/labels';
@@ -19,6 +19,11 @@ import {
 } from '@/components/ui/context-menu';
 
 export interface ChipActions {
+  /**
+   * Vorschlag direkt auf der Karte annehmen. Nur gesetzt, wenn der
+   * Angemeldete freigeben darf - sonst waere es ein Knopf, der nichts tut.
+   */
+  onAnnehmen?: (a: AssignmentDTO) => void;
   /**
    * Einsatz bis zu diesem Tag aufziehen. Getrennt vom Verschieben, weil es
    * eine andere Absicht ist: „derselbe Mann, laenger" statt „woanders hin".
@@ -136,6 +141,27 @@ export function AssignmentChip({
         seinem Ende. Ein Griff mitten im Zeitraum waere ein Versprechen, das
         die Karte nicht halten kann.
       */}
+      {/*
+        Auch die Leitung legt Vorschlaege an - damit die Freitagsliste
+        vollstaendig bleibt. Der Haken hier macht daraus einen Klick statt
+        eines Umwegs ueber die Vorschlagsseite.
+      */}
+      {vorschlag && actions.onAnnehmen ? (
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            actions.onAnnehmen!(assignment);
+          }}
+          title="Vorschlag annehmen"
+          aria-label="Vorschlag annehmen"
+          className="absolute bottom-0.5 right-0.5 hidden rounded p-0.5 text-ampel-gruen hover:bg-ampel-gruen/15 group-hover:block"
+        >
+          <Check className="size-3" />
+        </button>
+      ) : null}
+
       {!abgesagt && date === assignment.endDate ? (
         <VerlaengernGriff
           vonDatum={assignment.startDate}
@@ -181,9 +207,13 @@ export function AssignmentChip({
         {vorschlag ? (
           <span
             className="shrink-0 rounded-sm border border-dashed border-muted-foreground/60 px-1 text-[9px] font-medium leading-tight text-muted-foreground"
-            title="Vorschlag – die Leitung gibt ihn frei"
+            title={
+              assignment.angelegtVonName
+                ? `Vorschlag von ${assignment.angelegtVonName} – die Leitung gibt ihn frei`
+                : 'Vorschlag – die Leitung gibt ihn frei'
+            }
           >
-            Vorschlag
+            Vorschlag{assignment.angelegtVon ? ` ${assignment.angelegtVon}` : ''}
           </span>
         ) : null}
         {vorlaeufig && !vorschlag ? (

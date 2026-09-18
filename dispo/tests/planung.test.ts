@@ -30,19 +30,21 @@ describe('Wer darf verbindlich planen', () => {
 });
 
 describe('Status beim Anlegen', () => {
-  it('macht aus der Planung eines Bauleiters einen Vorschlag', () => {
+  it('macht aus jeder neuen Planung einen Vorschlag – auch bei der Leitung', () => {
+    /*
+     * Der Vorschlag-Schritt ist ein Abstimmungsschritt, kein Antrag bei
+     * einem Vorgesetzten. Waere die Leitung ausgenommen, waere die
+     * woechentliche Liste unvollstaendig - und damit wertlos fuer genau
+     * den Zweck, fuer den es sie gibt.
+     */
     expect(statusBeimAnlegen(philipp)).toBe('VORSCHLAG');
+    expect(statusBeimAnlegen(carsten)).toBe('VORSCHLAG');
+    expect(statusBeimAnlegen(marlon)).toBe('VORSCHLAG');
   });
 
-  it('lässt einen Bauleiter seinen Vorschlag nicht selbst zum Termin erklären', () => {
-    // Auch wenn er BESTAETIGT mitschickt - sonst waere die Freigabe eine
-    // Formalitaet, die man umgeht.
+  it('lässt sich auch nicht durch einen mitgeschickten Status umgehen', () => {
     expect(statusBeimAnlegen(philipp, 'BESTAETIGT')).toBe('VORSCHLAG');
-  });
-
-  it('plant die Leitung verbindlich', () => {
-    expect(statusBeimAnlegen(marlon)).toBe('GEPLANT');
-    expect(statusBeimAnlegen(carsten, 'BESTAETIGT')).toBe('BESTAETIGT');
+    expect(statusBeimAnlegen(marlon, 'BESTAETIGT')).toBe('VORSCHLAG');
   });
 });
 
