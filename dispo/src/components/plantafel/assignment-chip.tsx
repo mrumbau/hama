@@ -5,7 +5,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { AlertTriangle, Clock, ListChecks, MoreVertical, StickyNote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AssignmentDTO, ProjectSummaryDTO } from '@/lib/types';
-import { ASSIGNMENT_KIND_LABEL, ASSIGNMENT_KIND_SHORT, ASSIGNMENT_STATUS_LABEL, RESOURCE_TYPE_LABEL, projektZeile } from '@/lib/labels';
+import { ASSIGNMENT_KIND_LABEL, ASSIGNMENT_KIND_SHORT, ASSIGNMENT_STATUS_LABEL, RESOURCE_TYPE_LABEL, internFarbe, projektZeile } from '@/lib/labels';
 import { formatDateShort, type IsoDate } from '@/lib/dates';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { VerlaengernGriff } from './verlaengern';
@@ -93,7 +93,12 @@ export function AssignmentChip({
         muted && 'bg-muted/40 text-muted-foreground',
         conflict && 'ring-2 ring-destructive',
       )}
-      style={{ borderLeftColor: assignment.color }}
+      /*
+       * Bei den festen Zeilen zaehlt ihre Farbe, nicht die der Person:
+       * Krank ist rot, Urlaub lila, Lager und Besorgung blau. So sieht man
+       * in der Ressourcenansicht auf einen Blick, wer ausfaellt.
+       */
+      style={{ borderLeftColor: internFarbe(project?.internKey) ?? assignment.color }}
     >
       {/*
         Nur an der letzten Karte eines Einsatzes: Ein mehrtaegiger Einsatz

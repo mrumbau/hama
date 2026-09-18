@@ -2,19 +2,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import {
-  AlertTriangle,
-  CalendarRange,
-  HardHat,
-  LayoutGrid,
-  LogOut,
-  Menu,
-  MessageSquare,
-  Settings,
-  Truck,
-  Users,
-  X,
-} from 'lucide-react';
+import { AlertTriangle, BarChart3, CalendarRange, HardHat, LayoutGrid, LogOut, Menu, MessageSquare, Settings, Truck, Users, X } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { ROLLE_LABEL, useIch } from '@/lib/ich';
 import { cn } from '@/lib/utils';
@@ -29,6 +17,7 @@ const NAV = [
   { href: '/subunternehmer', label: 'Subunternehmer', icon: Truck },
   { href: '/kommunikation', label: 'Änderungen / Kommunikation', icon: MessageSquare },
   { href: '/offene-punkte', label: 'Offene Punkte', icon: AlertTriangle, badge: true },
+  { href: '/auswertung', label: 'Auswertung', icon: BarChart3 },
   { href: '/einstellungen', label: 'Einstellungen', icon: Settings },
 ] as const;
 

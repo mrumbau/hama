@@ -248,3 +248,25 @@ export function projektTitel(p: ProjektBeschriftung): string {
 export function projektZeile(p: ProjektBeschriftung): string {
   return p.internKey ? p.name : `${p.customerName} – ${p.name}`;
 }
+
+/**
+ * Farben der festen Zeilen.
+ *
+ * Auf der Tafel muss man Abwesenheit auf einen Blick von Arbeit
+ * unterscheiden koennen - und krank von Urlaub, weil das eine ungeplant ist
+ * und das andere lange vorher feststand.
+ *
+ *   rot   Krank / Abwesend  - faellt aus, meist ungeplant
+ *   lila  Urlaub            - faellt aus, aber lange bekannt
+ *   blau  Lager, Besorgung  - arbeitet, nur nicht auf einer Baustelle
+ */
+export const INTERN_FARBE: Record<string, string> = {
+  KRANK: '#dc2626',
+  URLAUB: '#7c3aed',
+  LAGER: '#2563eb',
+  BESORGUNG: '#2563eb',
+};
+
+export function internFarbe(internKey: string | null | undefined): string | null {
+  return internKey ? (INTERN_FARBE[internKey] ?? null) : null;
+}

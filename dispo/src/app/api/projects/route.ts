@@ -37,7 +37,16 @@ export const GET = handler(async (request: Request) => {
     includeClosed: params.get('abgeschlossen') === '1',
   });
 
-  return ok({ projects: board.projects, assignments: board.assignments });
+  /*
+   * Lager, Besorgungsfahrten, Urlaub und Krank sind keine Projekte. Sie
+   * gehoeren auf die Plantafel, aber nicht in die Projektliste und erst
+   * recht nicht in „Projekt finden" - dort sucht man Baustellen aus „Das
+   * Programm", nicht die eigenen Sammelzeilen.
+   */
+  return ok({
+    projects: board.projects.filter((p) => !p.internKey),
+    assignments: board.assignments,
+  });
 });
 
 export const POST = handler(async (request: Request) => {
