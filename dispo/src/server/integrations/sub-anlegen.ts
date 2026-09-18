@@ -62,6 +62,25 @@ export async function uebertrageSubAnErp(
     };
   }
 
+  /*
+   * „Das Programm" kennt keinen Schreibbefehl fuer Lieferanten - die
+   * Abfrage seines Schemas beim Abgleich hat es schwarz auf weiss ergeben.
+   * Es trotzdem zu versuchen, brächte dem Anwender nur eine unverständliche
+   * Fehlermeldung aus der Schnittstelle und einen roten Vermerk am
+   * Subunternehmer, der wie eine Stoerung aussieht. Also gar nicht erst
+   * versuchen und klar sagen, was Sache ist.
+   */
+  if (!(await kannLieferantenAnlegen())) {
+    return {
+      versucht: false,
+      erfolg: false,
+      erpId: null,
+      nachricht:
+        'Angelegt. In „Das Programm" muss der Subunternehmer von Hand erfasst werden – ' +
+        'die Schnittstelle dort kennt dafür keinen Befehl.',
+    };
+  }
+
   // Hausnummer aus der Straße lösen – „Das Programm“ führt sie getrennt.
   const { strasse, hausnummer } = trenneHausnummer(daten.street);
 
@@ -135,4 +154,36 @@ export function trenneHausnummer(eingabe: string | null): {
   );
   if (!treffer) return { strasse: eingabe.trim(), hausnummer: null };
   return { strasse: treffer[1].trim(), hausnummer: treffer[2].replace(/\s+/g, '') };
+}
+
+/**
+ * Kennt „Das Programm" einen Schreibbefehl fuer Lieferanten?
+ *
+ * Die Antwort legt der Abgleich bei jedem Lauf ab (siehe die Sync-Route).
+ * Steht noch nichts da, versuchen wir es - lieber einmal vergeblich als
+ * einen Weg verbauen, den es vielleicht doch gibt.
+ */
+async function kannLieferantenAnlegen(): Promise<boolean> {
+  const zeile = await prisma.setting
+    .findUnique({ where: { key: 'erpMutationen' } })
+    .catch(() => null);
+  return erlaubtLieferanten(zeile?.value ?? null);
+}
+
+/**
+ * Die Regel allein, ohne Datenbank.
+ *
+ * Im Zweifel ja: Steht noch keine Auskunft da oder ist sie unlesbar,
+ * versuchen wir es. Lieber einmal vergeblich als einen Weg verbauen, den es
+ * vielleicht doch gibt.
+ */
+export function erlaubtLieferanten(gespeicherteAuskunft: string | null): boolean {
+  if (!gespeicherteAuskunft) return true;
+  try {
+    const { liste } = JSON.parse(gespeicherteAuskunft) as { liste?: string[] | null };
+    if (!Array.isArray(liste)) return true;
+    return liste.includes('createSupplier');
+  } catch {
+    return true;
+  }
 }

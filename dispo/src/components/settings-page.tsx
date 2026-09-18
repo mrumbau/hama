@@ -325,6 +325,20 @@ function TradesTab() {
     onError: (e: Error) => toast({ title: e.message, tone: 'error' }),
   });
 
+  /*
+   * Loeschen sagt im Zweifel Nein: Ist das Gewerk noch bei jemandem
+   * hinterlegt, meldet der Server, bei wem - statt es ihm stillschweigend
+   * wegzunehmen.
+   */
+  const entfernen = useMutation({
+    mutationFn: (id: string) => api.delete<{ message: string }>(`/api/trades/${id}`),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['trades'] });
+      toast({ title: res.message, tone: 'success' });
+    },
+    onError: (e: Error) => toast({ title: e.message, tone: 'error' }),
+  });
+
   return (
     <div className="max-w-2xl space-y-3">
       <Card>
@@ -367,10 +381,21 @@ function TradesTab() {
             {trades?.map((t) => (
               <span
                 key={t.id}
-                className="rounded border px-2 py-0.5 text-xs"
+                className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs"
                 style={{ borderColor: t.color, color: t.color }}
               >
                 {t.name}
+                <button
+                  type="button"
+                  aria-label={`Gewerk ${t.name} löschen`}
+                  className="opacity-50 transition-opacity hover:opacity-100"
+                  disabled={entfernen.isPending}
+                  onClick={() => {
+                    if (confirm(`Gewerk „${t.name}“ löschen?`)) entfernen.mutate(t.id);
+                  }}
+                >
+                  <Trash2 className="size-3" />
+                </button>
               </span>
             ))}
           </div>

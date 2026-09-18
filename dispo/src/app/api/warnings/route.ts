@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { handler, ok, parseBody } from '@/server/api';
 import { computeWarnings } from '@/server/warnings';
 import { prisma } from '@/lib/db';
-import { aktuellerBenutzer } from '@/server/auth';
+import { aktuellerBenutzer, darf } from '@/server/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,16 +10,43 @@ export const GET = handler(async (request: Request) => {
   const params = new URL(request.url).searchParams;
   const benutzer = await aktuellerBenutzer();
 
-  // Voreinstellung: die eigenen Baustellen. Wer alles sehen will, sagt es
-  // ausdruecklich – dann steht auch dran, dass es alle sind.
-  const alle = params.get('alle') === '1';
-  const siteManagerId = alle ? null : (benutzer?.siteManagerId ?? null);
+  /*
+   * Jeder sieht seine eigenen Baustellen - das war die Vorgabe.
+   *
+   * „Alles sehen" darf nur, wer ohnehin ueber alle Baustellen schaut:
+   * Geschaeftsfuehrung und Leitung. Frueher genuegte dafuer ein `?alle=1`
+   * in der Adresszeile, und ein Bauleiter ohne verknuepften
+   * Bauleiter-Datensatz bekam sogar ungefragt alles zu sehen, weil ohne
+   * Verknuepfung nicht gefiltert wurde. Beides ist zu.
+   */
+  const darfAllesSehen = darf(benutzer, 'alleOffenenPunkte');
+  const eigene = benutzer?.siteManagerId ?? null;
+
+  /*
+   * Auch Leitung und Geschaeftsfuehrung sehen zuerst ihre eigenen
+   * Baustellen - „jeder nur seine offenen Punkte zu seinen Baustellen".
+   * Nur wer gar keine eigenen hat, weil zu seinem Konto kein Bauleiter
+   * gehoert, bekommt den Gesamtblick; ihm waere sonst die Seite leer.
+   */
+  const alle = darfAllesSehen && (params.get('alle') === '1' || !eigene);
+
+  if (!alle && !eigene) {
+    // Kein Bauleiter-Datensatz, also auch keine eigenen Baustellen. Lieber
+    // nichts zeigen als versehentlich alles.
+    return ok({
+      warnings: [],
+      nurEigene: true,
+      hinweis: darfAllesSehen
+        ? null
+        : 'Zu diesem Konto ist kein Bauleiter hinterlegt. Bitte in den Einstellungen verknüpfen lassen.',
+    });
+  }
 
   const warnings = await computeWarnings({
     includeDismissed: params.get('erledigte') === '1',
-    siteManagerId,
+    siteManagerId: alle ? null : eigene,
   });
-  return ok({ warnings, nurEigene: Boolean(siteManagerId) });
+  return ok({ warnings, nurEigene: !alle, darfAllesSehen });
 });
 
 /** Einen offenen Punkt abhaken bzw. wieder aktivieren. */
