@@ -1,6 +1,7 @@
 import { handler, ok, parseBody } from '@/server/api';
 import { prisma } from '@/lib/db';
 import { writeAudit } from '@/server/audit';
+import { pflegeBauleitung } from '@/server/bauleitung';
 import { fullName, initials } from '@/lib/utils';
 import { employeeSchema, uniqueShortCode } from '@/server/resource-schemas';
 
@@ -52,5 +53,18 @@ export const POST = handler(async (request: Request) => {
     newValue: { name: fullName(employee), shortCode },
   });
 
-  return ok({ employee, message: `${fullName(employee)} wurde angelegt.` }, { status: 201 });
+  // Wird jemand gleich mit der Faehigkeit „Bauleitung" angelegt, muss er
+  // auch sofort am Projekt waehlbar sein - nicht erst nach einer Aenderung.
+  const bauleitung = await pflegeBauleitung(employee.id);
+
+  return ok(
+    {
+      employee,
+      message:
+        bauleitung === 'angelegt'
+          ? `${fullName(employee)} wurde angelegt und steht auch bei den Bauleitern zur Auswahl.`
+          : `${fullName(employee)} wurde angelegt.`,
+    },
+    { status: 201 },
+  );
 });

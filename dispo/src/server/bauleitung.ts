@@ -46,8 +46,25 @@ export async function pflegeBauleitung(
     },
   });
 
+  /*
+   * Gibt es zu dieser Person ein Benutzerkonto, haengen wir es an den
+   * Bauleiter-Datensatz. Davon haengt ab, welche Baustellen in „Offene
+   * Punkte" als seine gelten - und das gilt auch dann, wenn der Bauleiter
+   * schon vorher da war. Genau dieser Fall ist frueher durchgerutscht.
+   */
+  const verknuepfeBenutzer = (siteManagerId: string) =>
+    prisma.user.updateMany({
+      where: {
+        firstName: mitarbeiter.firstName,
+        lastName: mitarbeiter.lastName,
+        siteManagerId: null,
+      },
+      data: { siteManagerId },
+    });
+
   if (leitetBau) {
     if (vorhanden) {
+      await verknuepfeBenutzer(vorhanden.id);
       if (vorhanden.active) return null;
       await prisma.siteManager.update({ where: { id: vorhanden.id }, data: { active: true } });
       return 'angelegt';
@@ -64,16 +81,7 @@ export async function pflegeBauleitung(
         phone: mitarbeiter.phone,
       },
     });
-    // Gibt es zu dieser Person ein Benutzerkonto, hängen wir es gleich an –
-    // davon hängt ab, welche Baustellen in „Offene Punkte" als seine gelten.
-    await prisma.user.updateMany({
-      where: {
-        firstName: mitarbeiter.firstName,
-        lastName: mitarbeiter.lastName,
-        siteManagerId: null,
-      },
-      data: { siteManagerId: angelegt.id },
-    });
+    await verknuepfeBenutzer(angelegt.id);
 
     await writeAudit({
       entityType: 'site_manager',
@@ -99,4 +107,34 @@ export async function pflegeBauleitung(
   }
 
   return null;
+}
+
+/**
+ * Dasselbe für alle auf einmal.
+ *
+ * Die Fähigkeit kann auf mehreren Wegen an eine Person kommen: von Hand in
+ * der Mitarbeiterliste, beim Anlegen, oder aus „Das Programm". Sich darauf zu
+ * verlassen, dass jeder dieser Wege daran denkt, hat schon einmal nicht
+ * funktioniert. Deshalb wird nach jedem Abgleich einmal über alle gegangen –
+ * das ist billig und kann nicht vergessen werden.
+ *
+ * Nur Nachholen, nie Stilllegen: Wer die Fähigkeit nicht (mehr) trägt, wird
+ * hier nicht angefasst. Das entscheidet die Mitarbeiterliste, nicht der Sync.
+ */
+export async function gleicheBauleitungAb(): Promise<string[]> {
+  const kandidaten = await prisma.employee.findMany({
+    where: {
+      active: true,
+      trades: { some: { trade: { name: { equals: BAULEITUNG_FAEHIGKEIT, mode: 'insensitive' } } } },
+    },
+    select: { id: true, firstName: true, lastName: true },
+  });
+
+  const neu: string[] = [];
+  for (const k of kandidaten) {
+    if ((await pflegeBauleitung(k.id)) === 'angelegt') {
+      neu.push(`${k.firstName} ${k.lastName}`);
+    }
+  }
+  return neu;
 }
