@@ -93,6 +93,9 @@ enum AssignmentKind {
 }
 
 enum AssignmentStatus {
+  /// Ein Bauleiter haette es gern so. Noch keine Zusage, belegt niemanden
+  /// verbindlich - die Leitung muss ihn erst annehmen.
+  VORSCHLAG
   GEPLANT
   BESTAETIGT
   ABGESAGT
@@ -203,6 +206,10 @@ model User {
   siteManager   SiteManager? @relation(fields: [siteManagerId], references: [id], onDelete: SetNull)
   active       Boolean  @default(true)
   lastLoginAt  DateTime?
+
+  /// Einsaetze, die dieser Benutzer angelegt hat - vor allem seine
+  /// Planvorschlaege.
+  angelegteEinsaetze Assignment[] @relation("EinsatzAngelegt")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -463,6 +470,16 @@ model Assignment {
   note   String?
   status AssignmentStatus @default(GEPLANT)
   source Source           @default(MANUELL)
+
+  /// Wer hat diesen Einsatz angelegt? Ohne das laesst sich nicht sagen,
+  /// wessen Vorschlag da steht - und ein Bauleiter koennte fremde
+  /// Vorschlaege aendern.
+  createdById String?
+  createdBy   User?   @relation("EinsatzAngelegt", fields: [createdById], references: [id], onDelete: SetNull)
+
+  /// Warum ein Vorschlag abgelehnt wurde. Ohne Begruendung schlaegt
+  /// derselbe Bauleiter naechste Woche dasselbe wieder vor.
+  ablehnungsgrund String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

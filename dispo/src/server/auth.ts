@@ -178,6 +178,16 @@ export const RECHTE = {
    * Baustellen". Leitung und Geschaeftsfuehrung schauen ueber alle.
    */
   alleOffenenPunkte: ['ADMIN', 'LEITUNG'],
+  /**
+   * Verbindlich planen: fremde Einsaetze aendern, bestaetigte Termine
+   * anfassen, Vorschlaege annehmen oder ablehnen.
+   *
+   * Bauleiter duerfen weiterhin planen - nur wird daraus ein Vorschlag,
+   * und den koennen sie beliebig umbauen, solange er ihnen gehoert. Was
+   * verbindlich ist, ruehrt niemand ausser der Leitung an. Die Ressourcen
+   * sind begrenzt; wer sie verteilt, muss einer sein.
+   */
+  planungFreigeben: ['ADMIN', 'LEITUNG'],
 } as const satisfies Record<string, readonly Rolle[]>;
 
 export type Recht = keyof typeof RECHTE;

@@ -199,7 +199,9 @@ async function resolveResourceLabel(data: {
   return data.placeholderLabel ?? 'Unbesetzt';
 }
 
-export async function createAssignment(input: CreateAssignmentInput) {
+export async function createAssignment(
+  input: CreateAssignmentInput & { createdById?: string | null },
+) {
   const startDate = input.startDate;
   const endDate = input.endDate ?? input.startDate;
   if (endDate < startDate) throw new ApiError('Das Ende liegt vor dem Beginn.', 422);
@@ -248,6 +250,10 @@ export async function createAssignment(input: CreateAssignmentInput) {
       kind: (input.kind ?? 'ARBEIT') as never,
       tasks: input.tasks ?? [],
       status: (input.status ?? 'GEPLANT') as never,
+      // Wer hat das angelegt? Ohne diese Angabe laesst sich nicht sagen,
+      // wessen Vorschlag da steht - und ein Bauleiter koennte fremde
+      // Vorschlaege umbauen.
+      createdById: input.createdById ?? null,
       source: (input.source ?? 'MANUELL') as never,
     },
   });

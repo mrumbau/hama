@@ -1,6 +1,8 @@
 import { handler, ok, parseBody } from '@/server/api';
 import { createAssignment, createAssignmentSchema } from '@/server/assignments';
 import { prisma } from '@/lib/db';
+import { aktuellerBenutzer } from '@/server/auth';
+import { statusBeimAnlegen, type EinsatzStatus } from '@/server/planung';
 import { dbDateToIso, isoToDbDate, todayIso } from '@/lib/dates';
 
 export const dynamic = 'force-dynamic';
@@ -32,7 +34,21 @@ export const GET = handler(async (request: Request) => {
 
 export const POST = handler(async (request: Request) => {
   const input = await parseBody(request, createAssignmentSchema);
-  const { assignment, label } = await createAssignment(input);
+
+  /*
+   * Ein Bauleiter plant vor, die Leitung plant verbindlich. Beides landet
+   * auf derselben Tafel - aber ein Vorschlag muss auch aussehen wie einer,
+   * sonst verlaesst sich jemand darauf.
+   */
+  const benutzer = await aktuellerBenutzer();
+  const status = statusBeimAnlegen(benutzer, input.status as EinsatzStatus | undefined);
+
+  const { assignment, label } = await createAssignment({
+    ...input,
+    status,
+    createdById: benutzer?.id ?? null,
+  });
+
   return ok(
     {
       assignment: {
@@ -40,7 +56,10 @@ export const POST = handler(async (request: Request) => {
         startDate: dbDateToIso(assignment.startDate),
         endDate: dbDateToIso(assignment.endDate),
       },
-      message: `${label} wurde eingeplant.`,
+      message:
+        status === 'VORSCHLAG'
+          ? `${label} wurde als Vorschlag eingetragen. Die Leitung gibt ihn frei.`
+          : `${label} wurde eingeplant.`,
     },
     { status: 201 },
   );
