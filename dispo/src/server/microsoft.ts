@@ -100,8 +100,114 @@ export function anmeldeAdresse(
     // vorhandenen Konto zuzuordnen. Kein Zugriff auf Postfach oder Kalender.
     scope: 'openid profile email',
     state,
+    /*
+     * Immer fragen, wer sich anmeldet.
+     *
+     * Ohne das nimmt Microsoft stillschweigend das Konto, das im Browser
+     * gerade angemeldet ist. Wer mehrere hat – Firma, IT, Kunde – wird so
+     * mit dem falschen hereingelassen oder abgewiesen, ohne je eine Auswahl
+     * gesehen zu haben. Und abmelden kann man sich davon hier nicht: Die
+     * Sitzung gehoert Microsoft, nicht uns.
+     */
+    prompt: 'select_account',
   });
   return `${basis(konfig.tenantId)}/authorize?${p.toString()}`;
+}
+
+// ---------------------------------------------------------------------------
+// Verständliche Fehlermeldungen
+// ---------------------------------------------------------------------------
+
+/**
+ * Wie das hinterlegte Client-Geheimnis aussieht – ohne es je preiszugeben.
+ *
+ * In Entra stehen bei „Zertifikate & Geheimnisse" zwei Spalten nebeneinander:
+ * „Wert" und „Geheimnis-ID". Gebraucht wird der **Wert**. Er ist nur direkt
+ * nach dem Anlegen sichtbar, die ID dagegen immer – deshalb wird fast immer
+ * die ID erwischt. Eine ID ist eine GUID, ein Wert nie.
+ */
+export type GeheimnisForm = 'wert' | 'id-statt-wert' | 'zu-kurz';
+
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function geheimnisForm(clientSecret: string): GeheimnisForm {
+  if (GUID.test(clientSecret.trim())) return 'id-statt-wert';
+  if (clientSecret.trim().length < 30) return 'zu-kurz';
+  return 'wert';
+}
+
+/**
+ * Microsofts Antworten sind technisch korrekt und für den Anwender wertlos.
+ * Hier wird daraus ein Satz, der sagt, was zu tun ist.
+ */
+export function erklaereMicrosoftFehler(rohantwort: string, form: GeheimnisForm): string {
+  const code = /AADSTS\d+/.exec(rohantwort)?.[0] ?? '';
+
+  switch (code) {
+    case 'AADSTS7000215':
+      return form === 'id-statt-wert'
+        ? 'Microsoft weist das Client-Geheimnis zurück. In MICROSOFT_CLIENT_SECRET steht eine GUID – das ist die Geheimnis-ID, gebraucht wird die Spalte „Wert" aus „Zertifikate & Geheimnisse".'
+        : form === 'zu-kurz'
+          ? 'Microsoft weist das Client-Geheimnis zurück. Der hinterlegte Wert ist auffällig kurz, vermutlich beim Kopieren abgeschnitten.'
+          : 'Microsoft weist das Client-Geheimnis zurück. Bitte in Entra ein neues Geheimnis anlegen und dessen „Wert" als MICROSOFT_CLIENT_SECRET hinterlegen.';
+    case 'AADSTS7000222':
+      return 'Das Client-Geheimnis ist abgelaufen. Bitte in Entra ein neues anlegen und dessen „Wert" als MICROSOFT_CLIENT_SECRET hinterlegen.';
+    case 'AADSTS700016':
+    case 'AADSTS900023':
+      return 'Microsoft findet diese Anwendung nicht. Bitte MICROSOFT_CLIENT_ID und MICROSOFT_TENANT_ID prüfen.';
+    case 'AADSTS50011':
+      return 'Die Umleitungs-Adresse ist in der App-Registrierung nicht hinterlegt. Die benötigte Adresse steht in den Einstellungen unter „System".';
+    case 'AADSTS65001':
+      return 'Die Anwendung ist im Verzeichnis noch nicht freigegeben. Ein Administrator muss die Zustimmung erteilen.';
+    default:
+      return `Microsoft lehnte die Anmeldung ab${code ? ` (${code})` : ''}. ${rohantwort.slice(0, 200)}`;
+  }
+}
+
+/**
+ * Zugangsdaten prüfen, ohne dass sich jemand anmelden muss.
+ *
+ * Wir holen uns über den Client-Credentials-Fluss ein Token auf uns selbst.
+ * Das verlangt keine Berechtigungen und gibt uns keine – es beantwortet nur
+ * die eine Frage, um die es hier geht: Akzeptiert Microsoft diese Kombination
+ * aus Verzeichnis, Anwendung und Geheimnis?
+ *
+ * Damit lässt sich die Einrichtung prüfen, ohne den Anmeldeknopf zu drücken
+ * und Microsofts Rohtext deuten zu müssen.
+ */
+export async function pruefeMicrosoftZugang(
+  konfig: MicrosoftKonfiguration,
+): Promise<{ erfolg: boolean; meldung: string }> {
+  let res: Response;
+  try {
+    res = await fetch(`${basis(konfig.tenantId)}/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: konfig.clientId,
+        client_secret: konfig.clientSecret,
+        grant_type: 'client_credentials',
+        scope: 'https://graph.microsoft.com/.default',
+      }).toString(),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    return { erfolg: false, meldung: 'Microsoft war nicht erreichbar.' };
+  }
+
+  if (res.ok) {
+    return {
+      erfolg: true,
+      meldung: 'Verzeichnis, Anwendung und Geheimnis stimmen. Die Anmeldung kann funktionieren.',
+    };
+  }
+
+  const text = await res.text().catch(() => '');
+  return {
+    erfolg: false,
+    meldung: erklaereMicrosoftFehler(text, geheimnisForm(konfig.clientSecret)),
+  };
 }
 
 export interface MicrosoftIdentitaet {
@@ -140,7 +246,7 @@ export async function holeIdentitaet(
 
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`Microsoft lehnte die Anmeldung ab (${res.status}): ${text.slice(0, 300)}`);
+    throw new Error(erklaereMicrosoftFehler(text, geheimnisForm(konfig.clientSecret)));
   }
 
   const daten = JSON.parse(text) as { id_token?: string };

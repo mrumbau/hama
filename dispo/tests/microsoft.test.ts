@@ -10,6 +10,8 @@ import { describe, expect, it } from 'vitest';
 import {
   anmeldeAdresse,
   baueState,
+  erklaereMicrosoftFehler,
+  geheimnisForm,
   leseIdToken,
   pruefeState,
   rueckkehrAdresse,
@@ -103,5 +105,67 @@ describe('Identität aus dem id_token', () => {
   it('meldet fehlende Angaben, statt irgendetwas anzunehmen', () => {
     expect(() => leseIdToken(jwt({ name: 'Ohne Adresse' }))).toThrow(/E-Mail/);
     expect(() => leseIdToken('kein.jwt')).toThrow(/Format/);
+  });
+});
+
+/**
+ * Microsofts Fehlertexte sind fuer den Anwender wertlos. Der haeufigste
+ * Einrichtungsfehler - Geheimnis-ID statt Geheimnis-Wert - muss beim Namen
+ * genannt werden, sonst sucht man Stunden an der falschen Stelle.
+ */
+describe('Fehlermeldungen von Microsoft', () => {
+  const ID = '55d5549d-76da-43c8-87cd-f2d9c0435a86';
+  const WERT = 'Abc8Q~kJ3nR_pL0vXyZ2mQ7tE4sW9dF1gH6jK5nB';
+
+  it('erkennt die Geheimnis-ID an ihrer Form, ohne sie preiszugeben', () => {
+    expect(geheimnisForm(ID)).toBe('id-statt-wert');
+    expect(geheimnisForm(` ${ID} `)).toBe('id-statt-wert');
+    expect(geheimnisForm(WERT)).toBe('wert');
+    expect(geheimnisForm('zu-kurz-abc')).toBe('zu-kurz');
+  });
+
+  it('sagt bei AADSTS7000215 mit GUID, dass die ID statt des Werts hinterlegt ist', () => {
+    const roh =
+      '{"error":"invalid_client","error_description":"AADSTS7000215: Invalid client secret provided."}';
+    const text = erklaereMicrosoftFehler(roh, geheimnisForm(ID));
+    expect(text).toMatch(/Geheimnis-ID/);
+    expect(text).toMatch(/Wert/);
+    // Der Text darf nie das Geheimnis selbst weiterreichen.
+    expect(text).not.toContain(ID);
+  });
+
+  it('rät bei gültig aussehendem Geheimnis zum Neuanlegen statt zur ID', () => {
+    const roh = 'AADSTS7000215: Invalid client secret provided.';
+    const text = erklaereMicrosoftFehler(roh, geheimnisForm(WERT));
+    expect(text).toMatch(/neues Geheimnis/);
+    expect(text).not.toMatch(/Geheimnis-ID/);
+    expect(text).not.toContain(WERT);
+  });
+
+  it('übersetzt abgelaufenes Geheimnis, falsche App und fehlende Umleitung', () => {
+    expect(erklaereMicrosoftFehler('AADSTS7000222: expired', 'wert')).toMatch(/abgelaufen/);
+    expect(erklaereMicrosoftFehler('AADSTS700016: not found', 'wert')).toMatch(
+      /MICROSOFT_CLIENT_ID/,
+    );
+    expect(erklaereMicrosoftFehler('AADSTS50011: mismatch', 'wert')).toMatch(/Umleitungs-Adresse/);
+  });
+
+  it('gibt Unbekanntes weiter, statt es zu verschlucken', () => {
+    const text = erklaereMicrosoftFehler('AADSTS99999: etwas ganz Neues', 'wert');
+    expect(text).toMatch(/AADSTS99999/);
+    expect(text).toMatch(/etwas ganz Neues/);
+  });
+});
+
+/**
+ * Wer mehrere Microsoft-Konten hat, muss waehlen koennen. Ohne
+ * prompt=select_account nimmt Microsoft stillschweigend das Konto, das im
+ * Browser gerade offen ist - und weist den Benutzer dann mit einem Konto ab,
+ * das er nie ausgesucht hat.
+ */
+describe('Kontoauswahl', () => {
+  it('verlangt bei jeder Anmeldung eine Kontoauswahl', () => {
+    const ziel = new URL(anmeldeAdresse(KONFIG, rueckkehrAdresse('https://dispo.mrumbau.de'), 'x'));
+    expect(ziel.searchParams.get('prompt')).toBe('select_account');
   });
 });

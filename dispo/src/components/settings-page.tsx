@@ -45,6 +45,7 @@ interface SettingsResponse {
     database: string;
     microsoftKonfiguriert: boolean;
     microsoftUmleitung: string;
+    microsoftGeheimnis: 'wert' | 'id-statt-wert' | 'zu-kurz' | null;
   };
 }
 
@@ -459,8 +460,25 @@ function AuditTab() {
   );
 }
 
+interface MicrosoftPruefung {
+  eingerichtet: boolean;
+  erfolg: boolean;
+  meldung: string;
+  geheimnis: 'wert' | 'id-statt-wert' | 'zu-kurz' | null;
+  umleitung: string;
+}
+
 function SystemTab() {
   const { data } = useSettings();
+
+  // Wie beim ERP: der einzige Weg, die hinterlegten Zugangsdaten von der
+  // laufenden App aus zu pruefen, statt Microsofts Rohtext zu deuten.
+  const msPruefung = useQuery({
+    queryKey: ['microsoft-pruefung'],
+    queryFn: () => api.get<MicrosoftPruefung>('/api/auth/microsoft/pruefen'),
+    enabled: false,
+    retry: false,
+  });
 
   return (
     <div className="grid max-w-3xl gap-3 sm:grid-cols-2">
@@ -519,6 +537,44 @@ function SystemTab() {
               <br />
               <code className="break-all">{data?.env.microsoftUmleitung ?? '–'}</code>
             </p>
+            {/*
+              Der haeufigste Einrichtungsfehler: In Entra stehen „Wert" und
+              „Geheimnis-ID" nebeneinander, aber nur der Wert ist kurz nach dem
+              Anlegen sichtbar. Wer spaeter nachschaut, kopiert die ID – und
+              Microsoft antwortet dann nur mit AADSTS7000215.
+            */}
+            {data?.env.microsoftGeheimnis === 'id-statt-wert' && (
+              <p className="text-destructive">
+                In <code>MICROSOFT_CLIENT_SECRET</code> steht eine GUID. Das ist die Geheimnis-ID,
+                gebraucht wird die Spalte „Wert" aus „Zertifikate &amp; Geheimnisse".
+              </p>
+            )}
+            {data?.env.microsoftGeheimnis === 'zu-kurz' && (
+              <p className="text-destructive">
+                Das hinterlegte <code>MICROSOFT_CLIENT_SECRET</code> ist auffällig kurz – vermutlich
+                beim Kopieren abgeschnitten.
+              </p>
+            )}
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-1"
+              onClick={() => msPruefung.refetch()}
+              disabled={msPruefung.isFetching}
+            >
+              <Plug className={msPruefung.isFetching ? 'animate-pulse' : ''} /> Microsoft-Anmeldung
+              prüfen
+            </Button>
+
+            {msPruefung.data ? (
+              <div className="flex items-start gap-2">
+                <Badge variant={msPruefung.data.erfolg ? 'gruen' : 'rot'}>
+                  {msPruefung.data.erfolg ? 'Zugang in Ordnung' : 'Kein Zugang'}
+                </Badge>
+                <span className="text-muted-foreground">{msPruefung.data.meldung}</span>
+              </div>
+            ) : null}
           </div>
 
           <p>

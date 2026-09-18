@@ -42,7 +42,7 @@ export async function GET(request: Request) {
     identitaet = await holeIdentitaet(konfig, code, rueckkehrAdresse(url.origin));
   } catch (e) {
     return zurueckMitFehler(
-      e instanceof Error ? e.message.slice(0, 200) : 'Anmeldung fehlgeschlagen.',
+      e instanceof Error ? e.message.slice(0, 300) : 'Anmeldung fehlgeschlagen.',
     );
   }
 
@@ -56,7 +56,8 @@ export async function GET(request: Request) {
   if (!user || !user.active) {
     // Microsoft sagt, WER jemand ist – nicht, dass er hereindarf.
     return zurueckMitFehler(
-      `Für ${identitaet.email} gibt es hier kein Konto. Bitte an die Verwaltung wenden.`,
+      `Das Microsoft-Konto ${identitaet.email} ist hier nicht hinterlegt. Bitte erneut anmelden ` +
+        `und ein anderes Konto wählen – oder an die Verwaltung wenden.`,
     );
   }
 
