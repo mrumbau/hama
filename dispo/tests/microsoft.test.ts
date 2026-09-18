@@ -125,7 +125,8 @@ describe('Fehlermeldungen von Microsoft', () => {
   });
 
   it('sagt bei AADSTS7000215 mit GUID, dass die ID statt des Werts hinterlegt ist', () => {
-    const roh = '{"error":"invalid_client","error_description":"AADSTS7000215: Invalid client secret provided."}';
+    const roh =
+      '{"error":"invalid_client","error_description":"AADSTS7000215: Invalid client secret provided."}';
     const text = erklaereMicrosoftFehler(roh, geheimnisForm(ID));
     expect(text).toMatch(/Geheimnis-ID/);
     expect(text).toMatch(/Wert/);
@@ -143,7 +144,9 @@ describe('Fehlermeldungen von Microsoft', () => {
 
   it('übersetzt abgelaufenes Geheimnis, falsche App und fehlende Umleitung', () => {
     expect(erklaereMicrosoftFehler('AADSTS7000222: expired', 'wert')).toMatch(/abgelaufen/);
-    expect(erklaereMicrosoftFehler('AADSTS700016: not found', 'wert')).toMatch(/MICROSOFT_CLIENT_ID/);
+    expect(erklaereMicrosoftFehler('AADSTS700016: not found', 'wert')).toMatch(
+      /MICROSOFT_CLIENT_ID/,
+    );
     expect(erklaereMicrosoftFehler('AADSTS50011: mismatch', 'wert')).toMatch(/Umleitungs-Adresse/);
   });
 
@@ -151,5 +154,18 @@ describe('Fehlermeldungen von Microsoft', () => {
     const text = erklaereMicrosoftFehler('AADSTS99999: etwas ganz Neues', 'wert');
     expect(text).toMatch(/AADSTS99999/);
     expect(text).toMatch(/etwas ganz Neues/);
+  });
+});
+
+/**
+ * Wer mehrere Microsoft-Konten hat, muss waehlen koennen. Ohne
+ * prompt=select_account nimmt Microsoft stillschweigend das Konto, das im
+ * Browser gerade offen ist - und weist den Benutzer dann mit einem Konto ab,
+ * das er nie ausgesucht hat.
+ */
+describe('Kontoauswahl', () => {
+  it('verlangt bei jeder Anmeldung eine Kontoauswahl', () => {
+    const ziel = new URL(anmeldeAdresse(KONFIG, rueckkehrAdresse('https://dispo.mrumbau.de'), 'x'));
+    expect(ziel.searchParams.get('prompt')).toBe('select_account');
   });
 });

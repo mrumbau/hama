@@ -19,12 +19,19 @@ import { SESSION_COOKIE } from '@/server/auth-edge';
  * Route. Die Middleware läuft in der Edge-Laufzeit und kommt nicht an die
  * Datenbank.
  */
+/**
+ * Genau diese Pfade – nicht ihre Unterpfade. Eine Vorsilbe als Regel waere
+ * bequemer und genau deshalb gefaehrlich: Jede spaeter unter
+ * /api/auth/microsoft/ angelegte Route stuende sonst ungefragt offen.
+ */
 const OFFEN = [
   '/anmelden',
   '/api/auth/login',
-  // Der Microsoft-Weg fuehrt selbst zur Anmeldung – er darf nicht hinter
-  // der Anmeldung liegen.
+  // Die beiden Schritte des Microsoft-Wegs fuehren selbst zur Anmeldung –
+  // sie duerfen nicht hinter der Anmeldung liegen. Alles andere unter
+  // /api/auth/microsoft/ schon, etwa die Einrichtungspruefung.
   '/api/auth/microsoft',
+  '/api/auth/microsoft/callback',
   // Sagt nur, ob und wer angemeldet ist; ohne Sitzung kommt schlicht null.
   '/api/auth/ich',
   // Sagt nur, welcher Stand laeuft – kein Geheimnis, aber die schnellste
@@ -57,7 +64,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // --- Riegel 2: Anmeldung ---
-  if (OFFEN.some((o) => pfad === o || pfad.startsWith(`${o}/`))) return NextResponse.next();
+  if (OFFEN.includes(pfad)) return NextResponse.next();
 
   const cookie = request.cookies.get(SESSION_COOKIE)?.value;
   if (cookie) return NextResponse.next();

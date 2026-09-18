@@ -100,6 +100,16 @@ export function anmeldeAdresse(
     // vorhandenen Konto zuzuordnen. Kein Zugriff auf Postfach oder Kalender.
     scope: 'openid profile email',
     state,
+    /*
+     * Immer fragen, wer sich anmeldet.
+     *
+     * Ohne das nimmt Microsoft stillschweigend das Konto, das im Browser
+     * gerade angemeldet ist. Wer mehrere hat – Firma, IT, Kunde – wird so
+     * mit dem falschen hereingelassen oder abgewiesen, ohne je eine Auswahl
+     * gesehen zu haben. Und abmelden kann man sich davon hier nicht: Die
+     * Sitzung gehoert Microsoft, nicht uns.
+     */
+    prompt: 'select_account',
   });
   return `${basis(konfig.tenantId)}/authorize?${p.toString()}`;
 }
@@ -152,6 +162,52 @@ export function erklaereMicrosoftFehler(rohantwort: string, form: GeheimnisForm)
     default:
       return `Microsoft lehnte die Anmeldung ab${code ? ` (${code})` : ''}. ${rohantwort.slice(0, 200)}`;
   }
+}
+
+/**
+ * Zugangsdaten prüfen, ohne dass sich jemand anmelden muss.
+ *
+ * Wir holen uns über den Client-Credentials-Fluss ein Token auf uns selbst.
+ * Das verlangt keine Berechtigungen und gibt uns keine – es beantwortet nur
+ * die eine Frage, um die es hier geht: Akzeptiert Microsoft diese Kombination
+ * aus Verzeichnis, Anwendung und Geheimnis?
+ *
+ * Damit lässt sich die Einrichtung prüfen, ohne den Anmeldeknopf zu drücken
+ * und Microsofts Rohtext deuten zu müssen.
+ */
+export async function pruefeMicrosoftZugang(
+  konfig: MicrosoftKonfiguration,
+): Promise<{ erfolg: boolean; meldung: string }> {
+  let res: Response;
+  try {
+    res = await fetch(`${basis(konfig.tenantId)}/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: konfig.clientId,
+        client_secret: konfig.clientSecret,
+        grant_type: 'client_credentials',
+        scope: 'https://graph.microsoft.com/.default',
+      }).toString(),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    return { erfolg: false, meldung: 'Microsoft war nicht erreichbar.' };
+  }
+
+  if (res.ok) {
+    return {
+      erfolg: true,
+      meldung: 'Verzeichnis, Anwendung und Geheimnis stimmen. Die Anmeldung kann funktionieren.',
+    };
+  }
+
+  const text = await res.text().catch(() => '');
+  return {
+    erfolg: false,
+    meldung: erklaereMicrosoftFehler(text, geheimnisForm(konfig.clientSecret)),
+  };
 }
 
 export interface MicrosoftIdentitaet {
