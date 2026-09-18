@@ -70,8 +70,14 @@ export const TOUR: TourSchritt[] = [
   {
     pfad: '/plantafel',
     ziel: '[data-tour="tafel"]',
-    titel: 'Geplant ist noch kein Termin',
-    text: 'Alles, was du hineinziehst, ist zuerst nur GEPLANT – gestrichelt, mit „vorl.". Erst wenn du es öffnest und bestätigst, wird ein grünes T daraus: ein fester Termin, mit dem Kunden abgestimmt. Solange kein T dasteht, ist nichts zugesagt.',
+    titel: 'Erst Vorschlag, dann Termin',
+    text: 'Alles, was jemand hineinzieht, ist zuerst ein VORSCHLAG – grau und gestrichelt, mit den Initialen dran („Vorschlag GP"). Das gilt für alle, auch für die Geschäftsführung: Unsere Leute sind knapp, und niemand soll still einen greifen.',
+  },
+  {
+    pfad: '/plantafel',
+    ziel: '[data-tour="tafel"]',
+    titel: 'Vom Vorschlag zum festen Termin',
+    text: 'Marlon und Carsten nehmen Vorschläge an – dann wird richtige Planung daraus. Wer dann noch bestätigt, bekommt ein grünes T: fester Termin, mit dem Kunden abgestimmt. Solange kein T dasteht, ist nichts zugesagt.',
   },
   {
     pfad: '/plantafel',
@@ -127,6 +133,11 @@ export const TOUR: TourSchritt[] = [
     pfad: '/subunternehmer',
     titel: 'Neu anlegen',
     text: 'Geht hier – aber der Betrieb landet NICHT in „Das Programm". Das kann die Schnittstelle dort nicht. Wer dauerhaft mit uns arbeitet, muss also auch in DAPO erfasst werden.',
+  },
+  {
+    pfad: '/planvorschlaege',
+    titel: 'Planvorschläge',
+    text: 'Hier stehen alle offenen Vorschläge – von jedem, für jeden sichtbar. Wer sieht, dass ein anderer denselben Monteur will, klärt das vielleicht schon vorher. Einmal die Woche geht die Leitung die Liste durch: auswählen, annehmen. Ablehnen nur mit einem Satz Begründung.',
   },
   {
     pfad: '/offene-punkte',

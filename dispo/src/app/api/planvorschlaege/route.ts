@@ -10,21 +10,21 @@ import { darfVerbindlichPlanen } from '@/server/planung';
 export const dynamic = 'force-dynamic';
 
 /**
- * Alle offenen Planvorschläge.
+ * Alle offenen Planvorschläge – für jeden sichtbar.
  *
- * Die Leitung sieht alle – das ist der Sinn der Sache. Ein Bauleiter sieht
- * seine eigenen, damit er weiß, was noch nicht freigegeben ist und was
- * abgelehnt wurde.
+ * Bewusst nicht „jeder sieht nur seine eigenen": Wenn Philipp sieht, dass
+ * Gerhard denselben Monteur will, klären die beiden das womöglich schon
+ * vorher untereinander. Die Liste ist ein Abstimmungswerkzeug, kein
+ * Postfach.
+ *
+ * Freigeben darf trotzdem nur die Leitung.
  */
 export const GET = handler(async () => {
   const benutzer = await aktuellerBenutzer();
   const alle = darfVerbindlichPlanen(benutzer);
 
   const rows = await prisma.assignment.findMany({
-    where: {
-      status: 'VORSCHLAG',
-      ...(alle ? {} : { createdById: benutzer?.id ?? '—' }),
-    },
+    where: { status: 'VORSCHLAG' },
     include: {
       project: true,
       employee: true,

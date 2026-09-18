@@ -15,6 +15,9 @@ export const GET = handler(async () => {
       system: darf(user, 'system'),
       protokoll: darf(user, 'protokoll'),
       benutzerverwaltung: darf(user, 'benutzerverwaltung'),
+      // Davon haengt ab, ob auf der Karte der Haken zum Annehmen erscheint.
+      planungFreigeben: darf(user, 'planungFreigeben'),
+      alleOffenenPunkte: darf(user, 'alleOffenenPunkte'),
     },
   });
 });

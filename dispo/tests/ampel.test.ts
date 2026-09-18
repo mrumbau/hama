@@ -26,6 +26,8 @@ function assignment(partial: Partial<AssignmentDTO> = {}): AssignmentDTO {
     color: '#000',
     kind: 'ARBEIT',
     tasks: [],
+    angelegtVon: null,
+    angelegtVonName: null,
     ...partial,
   };
 }

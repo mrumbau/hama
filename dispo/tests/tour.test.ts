@@ -66,10 +66,16 @@ describe('Tourschritte', () => {
     expect(schritt!.text).toMatch(/zuerst dort anlegen/i);
   });
 
-  it('erklärt, dass Geplantes erst durch Bestätigen zum Termin wird', () => {
-    const schritt = TOUR.find((s) => /Geplant ist noch kein Termin/i.test(s.titel));
-    expect(schritt, 'Der Schritt zu geplant/bestätigt fehlt').toBeDefined();
-    expect(schritt!.text).toMatch(/best[äa]tig/i);
+  it('erklärt den Weg vom Vorschlag zum festen Termin', () => {
+    const vorschlag = TOUR.find((s) => /Erst Vorschlag/i.test(s.titel));
+    expect(vorschlag, 'Der Schritt zum Vorschlag fehlt').toBeDefined();
+    // Der Satz, der den Aerger verhindert: Es gilt fuer alle, auch fuer die
+    // Geschaeftsfuehrung.
+    expect(vorschlag!.text).toMatch(/f[üu]r alle/i);
+
+    const termin = TOUR.find((s) => /zum festen Termin/i.test(s.titel));
+    expect(termin, 'Der Schritt zum Bestätigen fehlt').toBeDefined();
+    expect(termin!.text).toMatch(/best[äa]tig/i);
   });
 
   it('schließt mit der Bitte um Rückmeldung – daran hängt alles Weitere', () => {

@@ -84,7 +84,13 @@ describe('Einsätze planen und verschieben', () => {
     );
     expect(res.status).toBe(201);
     expect(res.body.assignment.startDate).toBe(MO);
-    expect(res.body.message).toMatch(/eingeplant/);
+    /*
+     * Jeder neue Einsatz beginnt als Vorschlag - auch der eines Admins.
+     * Der Vorschlag-Schritt ist ein Abstimmungsschritt, kein Antrag bei
+     * einem Vorgesetzten; waere die Leitung ausgenommen, waere die
+     * woechentliche Liste unvollstaendig.
+     */
+    expect(res.body.message).toMatch(/Vorschlag/);
     assignmentId = res.body.assignment.id;
   });
 

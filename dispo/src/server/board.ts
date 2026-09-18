@@ -71,6 +71,7 @@ export async function loadBoard(
           employee: true,
           siteManager: true,
           subcontractor: { include: { trades: { include: { trade: true } } } },
+          createdBy: true,
         },
       }),
       prisma.employee.findMany({
@@ -140,6 +141,12 @@ export async function loadBoard(
       color,
       kind: a.kind as AssignmentDTO['kind'],
       tasks: a.tasks,
+      angelegtVon: a.createdBy
+        ? `${a.createdBy.firstName.charAt(0)}${a.createdBy.lastName.charAt(0)}`.toUpperCase()
+        : null,
+      angelegtVonName: a.createdBy
+        ? `${a.createdBy.firstName} ${a.createdBy.lastName}`
+        : null,
     };
   });
 
