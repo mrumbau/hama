@@ -41,8 +41,19 @@ export interface AssignmentDTO {
   tasks: string[];
 }
 
+/**
+ * Feste Eintraege der Dispo, die es in „Das Programm" nicht gibt.
+ *
+ * Das Lager ist ein Arbeitsort, die Besorgungsfahrten sind ein Sammelposten
+ * fuer „wer holt was". Beides ist keine Baustelle, beides braucht aber eine
+ * Zeile auf der Tafel - sonst sieht niemand, wer wirklich frei ist.
+ */
+export type InternerEintrag = 'LAGER' | 'BESORGUNG';
+
 export interface ProjectSummaryDTO {
   id: string;
+  /** Gesetzt bei Lager und Besorgungsfahrten, sonst null. */
+  internKey: InternerEintrag | null;
   erpId: string | null;
   /** Roh-Status aus "Das Programm" – erklaert, warum eine Baustelle fehlt. */
   erpStatus: string | null;
