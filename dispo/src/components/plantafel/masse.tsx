@@ -29,7 +29,7 @@ export interface BoardMasse {
  * mehrere Einsätze, und wenn die Namen abgeschnitten sind, hilft die
  * schönste Planung nichts.
  */
-export const STANDARD_MASSE: BoardMasse = { spalte: 272, zeile: 56, tag: 128 };
+export const STANDARD_MASSE: BoardMasse = { spalte: 280, zeile: 68, tag: 144 };
 
 const GRENZEN: Record<keyof BoardMasse, [number, number]> = {
   spalte: [150, 560],

@@ -64,7 +64,11 @@ export const GET = handler(async () => {
 const entscheidung = z.object({
   ids: z.array(z.string().min(1)).min(1, 'Bitte mindestens einen Vorschlag auswählen.'),
   annehmen: z.boolean(),
-  /** Pflicht beim Ablehnen – ohne Grund kommt derselbe Vorschlag wieder. */
+  /**
+   * Freiwillig. Wird vieles direkt vor Ort besprochen, ist ein Tippfeld
+   * nur im Weg – wer sich gerade gegenübersitzt, braucht keine schriftliche
+   * Begründung. Steht einer da, landet er trotzdem im Protokoll.
+   */
   grund: z.string().max(300).nullish(),
 });
 
@@ -72,10 +76,6 @@ const entscheidung = z.object({
 export const POST = handler(async (request: Request) => {
   await verlange('planungFreigeben');
   const input = await parseBody(request, entscheidung);
-
-  if (!input.annehmen && !input.grund?.trim()) {
-    return fail('Bitte kurz sagen, warum – sonst kommt derselbe Vorschlag nächste Woche wieder.', 422);
-  }
 
   const betroffen = await prisma.assignment.findMany({
     where: { id: { in: input.ids }, status: 'VORSCHLAG' },
@@ -87,7 +87,7 @@ export const POST = handler(async (request: Request) => {
     where: { id: { in: betroffen.map((a) => a.id) } },
     data: input.annehmen
       ? { status: 'GEPLANT', ablehnungsgrund: null }
-      : { status: 'ABGESAGT', ablehnungsgrund: input.grund!.trim() },
+      : { status: 'ABGESAGT', ablehnungsgrund: input.grund?.trim() || null },
   });
 
   /*
@@ -109,7 +109,7 @@ export const POST = handler(async (request: Request) => {
       label: input.annehmen
         ? `Planvorschlag angenommen: ${wer}`
         : `Planvorschlag abgelehnt: ${wer}`,
-      note: input.annehmen ? null : input.grund!.trim(),
+      note: input.annehmen ? null : (input.grund?.trim() ?? null),
     }).catch(() => undefined);
   }
 
