@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Providers } from './providers';
 import { AppShell } from '@/components/app-shell';
+import { TourProvider } from '@/components/tour/tour';
 
 export const metadata: Metadata = {
   title: 'MR Umbau · Dispo',
@@ -19,7 +20,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="de" suppressHydrationWarning>
       <body>
         <Providers>
-          <AppShell>{children}</AppShell>
+          <TourProvider>
+            <AppShell>{children}</AppShell>
+          </TourProvider>
         </Providers>
       </body>
     </html>

@@ -17,12 +17,28 @@ import {
   LayoutGrid,
   MousePointerClick,
   Palmtree,
+  PlayCircle,
   RefreshCw,
   Truck,
   Users,
 } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useTour } from '@/components/tour/tour';
+
+/**
+ * Lesen ist das eine, einmal gezeigt bekommen das andere. Der Knopf steht
+ * oben, weil er das Erste ist, was jemand am ersten Tag drueckt.
+ */
+function TourKnopf() {
+  const { starten } = useTour();
+  return (
+    <Button size="sm" onClick={starten}>
+      <PlayCircle /> Tour starten
+    </Button>
+  );
+}
 
 function Abschnitt({
   icon: Icon,
@@ -61,10 +77,19 @@ export function AnleitungPage() {
       <PageHeader
         title="Anleitung"
         description="Was die Dispo macht, was sie nicht macht, und wie man sie bedient."
+        actions={<TourKnopf />}
       />
 
       <div className="min-h-0 flex-1 overflow-auto p-4">
         <div className="mx-auto grid max-w-3xl gap-3">
+          <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+            Lieber einmal gezeigt bekommen?{' '}
+            <span className="font-medium text-foreground">„Tour starten"</span> oben rechts geht die
+            App Schritt für Schritt mit dir durch und zeigt dabei auf die Stellen, um die es geht.
+            Dauert zwei Minuten, lässt sich jederzeit mit Escape beenden und ändert nichts an euren
+            Daten.
+          </p>
+
           <Abschnitt icon={HelpCircle} titel="Wofür ist das hier?">
             <p>
               Die Dispo beantwortet eine einzige Frage:{' '}
@@ -88,8 +113,8 @@ export function AnleitungPage() {
               Baustelle. Gut, um zu sehen, wer auf einer Baustelle ist.
             </p>
             <p>
-              <span className="font-medium text-foreground">Ressourcen:</span> Eine Zeile je
-              Person. Gut, um zu sehen, wer noch frei ist.
+              <span className="font-medium text-foreground">Ressourcen:</span> Eine Zeile je Person.
+              Gut, um zu sehen, wer noch frei ist.
             </p>
             <p>
               Beide zeigen dieselben Daten. Oben schaltest du um, blätterst wochenweise und wählst
@@ -140,8 +165,8 @@ export function AnleitungPage() {
 
           <Abschnitt icon={Palmtree} titel="Lager, Urlaub, Krank, Besorgungsfahrten">
             <p>
-              Ganz unten auf der Tafel stehen vier feste Zeilen. Sie sind keine Baustellen, aber
-              die Leute sind dort belegt – und genau das muss man sehen.
+              Ganz unten auf der Tafel stehen vier feste Zeilen. Sie sind keine Baustellen, aber die
+              Leute sind dort belegt – und genau das muss man sehen.
             </p>
             <p>
               <span className="font-medium text-ampel-rot">Krank / Abwesend</span> (rot) und{' '}
@@ -166,8 +191,8 @@ export function AnleitungPage() {
               Baustelle.
             </p>
             <p>
-              Unter <span className="font-medium text-foreground">Auswertung</span> steht, wie
-              viele Tage das je Person und Monat waren.
+              Unter <span className="font-medium text-foreground">Auswertung</span> steht, wie viele
+              Tage das je Person und Monat waren.
             </p>
           </Abschnitt>
 
@@ -178,9 +203,9 @@ export function AnleitungPage() {
               Mit einem Klick holst du eines zurück auf die Tafel.
             </p>
             <p>
-              Erst wenn dort wirklich nichts ist – etwa ein kleiner Auftrag für einen Tag, den es
-              in „Das Programm" gar nicht gibt – legst du eines von Hand an. Solche Projekte
-              überleben jeden Abgleich; sie gehen nicht verloren.
+              Erst wenn dort wirklich nichts ist – etwa ein kleiner Auftrag für einen Tag, den es in
+              „Das Programm" gar nicht gibt – legst du eines von Hand an. Solche Projekte überleben
+              jeden Abgleich; sie gehen nicht verloren.
             </p>
             <p>
               Eine Baustelle verschwindet von der Tafel, wenn sie in „Das Programm" einen Status
@@ -205,28 +230,29 @@ export function AnleitungPage() {
 
           <Abschnitt icon={Truck} titel="Subunternehmer">
             <p>
-              Von dreißig Betrieben braucht man beim Planen eine Handvoll. In der
-              Ressourcenansicht holst du sie dir unten über{' '}
+              Von dreißig Betrieben braucht man beim Planen eine Handvoll. In der Ressourcenansicht
+              holst du sie dir unten über{' '}
               <span className="font-medium text-foreground">„Subunternehmer hinzufügen"</span> auf
-              die Tafel und nimmst sie mit dem <span className="font-medium text-foreground">×</span>{' '}
-              wieder herunter. Wer schon eingeplant ist, bleibt stehen.
+              die Tafel und nimmst sie mit dem{' '}
+              <span className="font-medium text-foreground">×</span> wieder herunter. Wer schon
+              eingeplant ist, bleibt stehen.
             </p>
+            <p>Betriebe, die in „Das Programm" gesperrt sind, kommen gar nicht erst herein.</p>
             <p>
-              Betriebe, die in „Das Programm" gesperrt sind, kommen gar nicht erst herein.
-            </p>
-            <p>
-              <span className="font-medium text-foreground">Achtung:</span> Ein neuer
-              Subunternehmer wird <span className="font-medium text-foreground">nicht</span> nach
-              „Das Programm" übertragen – die Schnittstelle dort kann das nicht. Er muss dort von
-              Hand erfasst werden.
+              <span className="font-medium text-foreground">Achtung:</span> Ein neuer Subunternehmer
+              wird <span className="font-medium text-foreground">nicht</span> nach „Das Programm"
+              übertragen – die Schnittstelle dort kann das nicht. Er muss dort von Hand erfasst
+              werden.
             </p>
           </Abschnitt>
 
           <Abschnitt icon={AlertTriangle} titel="Offene Punkte">
             <p>
               Was heute Aufmerksamkeit braucht, automatisch berechnet.{' '}
-              <span className="font-medium text-foreground">Jeder sieht nur seine eigenen
-              Baustellen</span> – also die, bei denen er als Bauleiter eingetragen ist.
+              <span className="font-medium text-foreground">
+                Jeder sieht nur seine eigenen Baustellen
+              </span>{' '}
+              – also die, bei denen er als Bauleiter eingetragen ist.
             </p>
             <p>Abgehakte Punkte bleiben abgehakt, bis jemand sie wieder öffnet.</p>
           </Abschnitt>

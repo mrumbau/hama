@@ -77,7 +77,7 @@ export function ProjectsPage() {
         title="Projekte"
         description="Stammdaten kommen aus „Das Programm“. Disposition, Ampel und Historie pflegt diese App."
         actions={
-          <Button size="sm" onClick={() => setFinden(true)}>
+          <Button size="sm" onClick={() => setFinden(true)} data-tour="projekt-finden">
             <Search /> Projekt finden
           </Button>
         }

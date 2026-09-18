@@ -121,7 +121,7 @@ export function Palette({
     );
 
   return (
-    <div className="border-b bg-muted/30">
+    <div className="border-b bg-muted/30" data-tour="ablage">
       <div className="flex items-center gap-2 px-3 py-1.5">
         <Button
           variant="ghost"
