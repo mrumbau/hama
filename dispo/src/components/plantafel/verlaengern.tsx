@@ -80,6 +80,9 @@ export function VerlaengernGriff({
         aria-label="Einsatz über mehrere Tage aufziehen"
         title="Ziehen: Einsatz über mehrere Tage · Karte ziehen: verschieben"
         onPointerDown={start}
+        // Sonst oeffnet ein Klick auf den Griff den Einsatz - die Karte
+        // reagiert inzwischen auf jeden Klick.
+        onClick={(e) => e.stopPropagation()}
         className={cn(
           'absolute inset-y-0 right-0 flex cursor-col-resize items-center justify-center rounded-r',
           'opacity-0 transition-opacity group-hover:opacity-100',
