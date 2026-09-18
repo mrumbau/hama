@@ -172,7 +172,7 @@ export function QuickPlanDialog({
                 <option value="">– wählen –</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {[p.orderNumber, p.customerName, p.name].filter(Boolean).join(' · ')}
+                    {p.internKey ? p.name : [p.orderNumber, p.customerName, p.name].filter(Boolean).join(' · ')}
                   </option>
                 ))}
               </Select>

@@ -28,11 +28,13 @@ describe('Feste Einträge auf der Plantafel', () => {
     expect((await festerEintrag('BESORGUNG')).name).toBe('Besorgungsfahrten');
   });
 
-  it('stehen oben, nicht zwischen den Baustellen', async () => {
+  it('stehen ganz unten, nicht zwischen den Baustellen', async () => {
+    // Sie sind keine Baustellen und sollen die Baustellen nicht nach unten
+    // druecken. In der Ressourcenansicht landen sie damit ganz rechts.
     const board = await get<{ projects: Projekt[] }>('/api/board');
-    const ersteZwei = board.body.projects.slice(0, 2).map((p) => p.internKey);
-    expect(ersteZwei).toContain('LAGER');
-    expect(ersteZwei).toContain('BESORGUNG');
+    const letzteZwei = board.body.projects.slice(-2).map((p) => p.internKey);
+    expect(letzteZwei).toContain('LAGER');
+    expect(letzteZwei).toContain('BESORGUNG');
   });
 
   it('überleben jeden Filter – sonst fehlte die Zeile, in die man plant', async () => {

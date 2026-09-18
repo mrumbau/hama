@@ -27,6 +27,13 @@ export function BoardCell({
   return (
     <td
       ref={setNodeRef}
+      /*
+       * Der Tag am Element: Beim Aufziehen eines Einsatzes ueber mehrere
+       * Tage muss der Zeiger wissen, ueber welchem Tag er gerade steht.
+       * dnd-kit hilft dabei nicht - das ist kein Ziehen und Fallenlassen,
+       * sondern ein Aufziehen der Kante.
+       */
+      data-day={date}
       className={cn(
         'group/cell relative border-b border-l align-top transition-colors',
         dense ? 'p-0.5' : 'p-1',
@@ -36,7 +43,16 @@ export function BoardCell({
         className,
       )}
     >
-      <div className={cn('flex min-h-[2.25rem] flex-col gap-0.5', dense && 'min-h-[1.75rem]')}>
+      {/*
+        Die Hoehe kommt aus den Maßen, die der Benutzer gezogen hat. In der
+        gedraengten Ansicht bleibt es bei der festen kleinen Hoehe - dort
+        geht es gerade darum, moeglichst viel auf einen Bildschirm zu
+        bekommen.
+      */}
+      <div
+        className={cn('flex flex-col gap-0.5', dense && 'min-h-[1.75rem]')}
+        style={dense ? undefined : { minHeight: 'var(--board-zeile, 2.25rem)' }}
+      >
         {children}
       </div>
       {onQuickAdd && !active ? (

@@ -5,7 +5,9 @@
  */
 import * as React from 'react';
 import { ChevronDown, ChevronRight, Users } from 'lucide-react';
+import { projektTitel } from '@/lib/labels';
 import { cn } from '@/lib/utils';
+import { useBoardMasse } from './masse';
 import type { AssignmentDTO, BoardResponse, ResourceDTO } from '@/lib/types';
 import { type IsoDate } from '@/lib/dates';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +35,8 @@ export function BoardResources({
   onQuickPlan: (resource: ResourceDTO, date: IsoDate) => void;
   showInactive: boolean;
 }) {
+  // Zeilenhoehe und Spaltenbreiten gehoeren dem Benutzer, nicht uns.
+  const { masse, aendern, stil } = useBoardMasse();
   const dense = board.days.length > 16;
 
   const byResourceDay = React.useMemo(() => {
@@ -104,12 +108,13 @@ export function BoardResources({
   return (
     // pb-32: Luft unter der letzten Zeile. Ohne sie klebt sie am
     // Fensterrand und man sieht nicht, dass die Liste zu Ende ist.
-    <div className="min-h-0 flex-1 overflow-auto pb-32">
+    <div className="min-h-0 flex-1 overflow-auto pb-32" style={stil}>
       <table className="w-full border-separate border-spacing-0 text-sm">
         <BoardHeader
           days={board.days}
           firstColumnLabel="Ressource"
-          firstColumnWidth="w-[10rem] min-w-[10rem] sm:w-[15rem] sm:min-w-[15rem]"
+          masse={masse}
+          onMass={aendern}
           dense={dense}
         />
         <tbody>
@@ -169,8 +174,8 @@ export function BoardResources({
                                 primaryLabel={
                                   project
                                     ? dense
-                                      ? project.customerName.split(' ').slice(-1)[0]
-                                      : project.customerName
+                                      ? projektTitel(project).split(' ').slice(-1)[0]
+                                      : projektTitel(project)
                                     : 'Baustelle'
                                 }
                                 secondaryLabel={project?.city ?? null}
@@ -205,6 +210,7 @@ export function BoardResources({
                 <th
                   scope="row"
                   className="board-sticky-col border-b border-r px-2 py-1.5 text-left align-top"
+                  style={{ width: 'var(--board-spalte)', minWidth: 'var(--board-spalte)' }}
                 >
                   <span className="text-xs font-medium">Offen</span>
                   <span className="block text-2xs text-muted-foreground">

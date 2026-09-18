@@ -1,5 +1,6 @@
 'use client';
 import { cn } from '@/lib/utils';
+import { MassZieher, type BoardMasse } from './masse';
 import {
   formatDay,
   isoWeek,
@@ -14,41 +15,52 @@ import {
 export function BoardHeader({
   days,
   firstColumnLabel,
-  firstColumnWidth,
+  masse,
+  onMass,
   dense,
 }: {
   days: IsoDate[];
   firstColumnLabel: string;
-  firstColumnWidth: string;
+  masse: BoardMasse;
+  onMass: (art: keyof BoardMasse, wert: number) => void;
   dense?: boolean;
 }) {
   const today = todayIso();
   return (
     <thead className="board-sticky-head">
       <tr>
+        {/*
+          Die Ecke traegt beide Griffe: rechts die Breite der linken Spalte,
+          unten die Zeilenhoehe. Beide liegen auf der Kante, die sie
+          verschieben - da sucht man sie.
+        */}
         <th
-          className={cn(
-            'board-sticky-corner border-b border-r px-2 py-1.5 text-left text-2xs font-semibold uppercase tracking-wide text-muted-foreground',
-            firstColumnWidth,
-          )}
+          className="board-sticky-corner relative border-b border-r px-2 py-1.5 text-left text-2xs font-semibold uppercase tracking-wide text-muted-foreground"
+          style={{ width: 'var(--board-spalte)', minWidth: 'var(--board-spalte)' }}
         >
           {firstColumnLabel}
+          <MassZieher art="spalte" wert={masse.spalte} onAendern={onMass} />
+          <MassZieher art="zeile" wert={masse.zeile} onAendern={onMass} />
         </th>
-        {days.map((day) => {
+        {days.map((day, index) => {
           const isToday = day === today;
           const weekStart = weekdayIndex(day) === 1;
           return (
             <th
               key={day}
               className={cn(
-                'border-b border-l px-1 py-1.5 text-center font-medium',
+                'relative border-b border-l px-1 py-1.5 text-center font-medium',
                 dense ? 'text-2xs' : 'text-xs',
                 isWeekend(day) && 'bg-muted/40 text-muted-foreground',
                 isToday && 'bg-primary/10',
                 weekStart && 'border-l-2 border-l-border',
               )}
-              style={{ minWidth: dense ? '2.25rem' : '6rem' }}
+              style={{ minWidth: dense ? '2.25rem' : 'var(--board-tag)' }}
             >
+              {/* Ein Griff genuegt: Alle Tagesspalten sind gleich breit. */}
+              {index === 0 && !dense ? (
+                <MassZieher art="tag" wert={masse.tag} onAendern={onMass} />
+              ) : null}
               <span className={cn('block leading-tight', isToday && 'font-bold text-primary')}>
                 {WEEKDAY_SHORT[weekdayIndex(day)]}
               </span>

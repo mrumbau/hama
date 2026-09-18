@@ -225,3 +225,26 @@ export const ERP_STATUS_AUF_DER_TAFEL = ['won', 'order_fulfillment'];
 export function gehoertAufDieTafel(erpStatus: string | null): boolean {
   return erpStatus ? ERP_STATUS_AUF_DER_TAFEL.includes(erpStatus.trim().toLowerCase()) : false;
 }
+
+/**
+ * Wie eine Baustelle auf der Tafel heisst.
+ *
+ * Gewoehnliche Projekte tragen den Kundennamen - danach sucht jeder. Die
+ * festen Eintraege haben keinen Kunden; „MR Umbau (intern)" zweimal
+ * untereinander sagt niemandem, welche Zeile das Lager ist und welche die
+ * Besorgungsfahrten. Dort zaehlt ihr eigener Name.
+ */
+export interface ProjektBeschriftung {
+  internKey?: string | null;
+  customerName: string;
+  name: string;
+}
+
+export function projektTitel(p: ProjektBeschriftung): string {
+  return p.internKey ? p.name : p.customerName;
+}
+
+/** Eine Zeile fuer Tooltips und Listen: „Kunde – Projekt", intern nur der Name. */
+export function projektZeile(p: ProjektBeschriftung): string {
+  return p.internKey ? p.name : `${p.customerName} – ${p.name}`;
+}

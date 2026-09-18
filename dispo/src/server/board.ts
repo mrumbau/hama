@@ -260,9 +260,10 @@ export async function loadBoard(
   // --- Filter anwenden ---
   const projects = allProjects
     .filter((p) => matchesFilters(p, byProject.get(p.id) ?? [], filters, startOfWeek(today)))
-    // Lager und Besorgungsfahrten stehen oben: Sie werden am haeufigsten
-    // gebraucht und sollen nicht zwischen den Baustellen gesucht werden.
-    .sort((a, b) => Number(Boolean(b.internKey)) - Number(Boolean(a.internKey)));
+    // Lager und Besorgungsfahrten ans Ende: Sie sind keine Baustellen und
+    // sollen die Baustellen nicht nach unten druecken. In der
+    // Ressourcenansicht landen sie damit ganz rechts.
+    .sort((a, b) => Number(Boolean(a.internKey)) - Number(Boolean(b.internKey)));
   const visibleIds = new Set(projects.map((p) => p.id));
   const visibleAssignments = assignments.filter((a) => visibleIds.has(a.projectId));
 
