@@ -57,4 +57,22 @@ describe('Tourschritte', () => {
   it('endet auf der Anleitung – von dort wurde sie gestartet', () => {
     expect(TOUR[TOUR.length - 1].pfad).toBe('/anleitung');
   });
+
+  it('sagt beim leeren Suchergebnis, dass in DAPO angelegt werden muss', () => {
+    // Der wichtigste Satz der ganzen Tour: Wer hier anlegt statt in „Das
+    // Programm", hat die Baustelle zweimal und die Auftragsnummer nirgends.
+    const schritt = TOUR.find((s) => /Nichts gefunden/i.test(s.titel));
+    expect(schritt, 'Der Schritt zum leeren Suchergebnis fehlt').toBeDefined();
+    expect(schritt!.text).toMatch(/zuerst dort anlegen/i);
+  });
+
+  it('erklärt, dass Geplantes erst durch Bestätigen zum Termin wird', () => {
+    const schritt = TOUR.find((s) => /Geplant ist noch kein Termin/i.test(s.titel));
+    expect(schritt, 'Der Schritt zu geplant/bestätigt fehlt').toBeDefined();
+    expect(schritt!.text).toMatch(/best[äa]tig/i);
+  });
+
+  it('schließt mit der Bitte um Rückmeldung – daran hängt alles Weitere', () => {
+    expect(TOUR[TOUR.length - 1].text).toMatch(/Zettel/i);
+  });
 });

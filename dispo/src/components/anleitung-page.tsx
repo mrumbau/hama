@@ -13,12 +13,15 @@ import * as React from 'react';
 import {
   AlertTriangle,
   CalendarRange,
+  CheckCircle2,
   HelpCircle,
   LayoutGrid,
   MousePointerClick,
   Palmtree,
   PlayCircle,
+  MessageSquare,
   RefreshCw,
+  Settings,
   Truck,
   Users,
 } from 'lucide-react';
@@ -144,6 +147,34 @@ export function AnleitungPage() {
               welche: <span className="font-medium text-foreground">Hand</span> = verschieben,{' '}
               <span className="font-medium text-foreground">Doppelpfeil</span> = aufziehen.
             </p>
+            <p>
+              Ein Beispiel: Luigi in den Montag ziehen, dann seine rechte Kante bis Freitag
+              aufziehen – schon steht er die ganze Woche. Du musst ihn nicht fünfmal einzeln
+              hineinziehen.
+            </p>
+          </Abschnitt>
+
+          <Abschnitt icon={CheckCircle2} titel="Geplant ist noch kein Termin">
+            <p>
+              Alles, was du hineinziehst, ist zuerst nur{' '}
+              <span className="font-medium text-foreground">geplant</span> – die Karte ist
+              gestrichelt und trägt „vorl.". Das heißt: hingeschrieben, aber mit niemandem
+              abgestimmt.
+            </p>
+            <p>
+              Erst wenn du den Einsatz öffnest und{' '}
+              <span className="font-medium text-foreground">bestätigst</span>, wird ein grünes{' '}
+              <span className="font-medium text-foreground">T</span> daraus – ein fester Termin.
+              Solange kein T dasteht, ist nichts zugesagt. Genau dafür ist der Buchstabe da: Man
+              sieht über die ganze Tafel hinweg, was steht und was nicht.
+            </p>
+            <p>
+              Im geöffneten Einsatz trägst du außerdem ein, was zu tun ist{' '}
+              <span className="font-medium text-foreground">(Tätigkeiten)</span> und was sonst
+              wichtig ist <span className="font-medium text-foreground">(Notiz)</span> – etwa
+              welches Baumaterial mitkommt. Uhrzeiten nur, wenn sie zählen: Wer den ganzen Tag da
+              ist, braucht keine.
+            </p>
           </Abschnitt>
 
           <Abschnitt icon={AlertTriangle} titel="Die Ampel">
@@ -158,8 +189,14 @@ export function AnleitungPage() {
               <Badge variant="grau">Grau</Badge> nichts zu tun
             </p>
             <p>
-              Ein <span className="font-medium text-foreground">T</span> auf einer Karte heißt:
-              Termin bestätigt, mit dem Kunden abgestimmt. „vorl." heißt: nur geplant.
+              <span className="font-medium text-foreground">Eine rote Baustelle ist die einzige,
+              die heute deine Zeit braucht.</span> Gelb heißt: nachschauen, bevor es rot wird.
+              Grün und grau kannst du liegen lassen.
+            </p>
+            <p>
+              Der <span className="font-medium text-foreground">Materialstatus</span> am Projekt
+              geht direkt in die Ampel ein: Fehlt Material, wird die Baustelle gelb oder rot. Es
+              lohnt sich also, ihn zu pflegen.
             </p>
           </Abschnitt>
 
@@ -207,10 +244,33 @@ export function AnleitungPage() {
               „Das Programm" gar nicht gibt – legst du eines von Hand an. Solche Projekte überleben
               jeden Abgleich; sie gehen nicht verloren.
             </p>
+            <p className="rounded-md border border-dashed p-2">
+              <span className="font-medium text-foreground">Findet die Suche nichts</span>, dann
+              gibt es das Projekt in „Das Programm" noch nicht. Dann bitte{' '}
+              <span className="font-medium text-foreground">zuerst dort anlegen</span>, nicht
+              hier. Zehn Minuten später steht es von selbst auf der Tafel. Nur so bleiben
+              Auftragsnummer, Kunde und Rechnung an einer Stelle.
+            </p>
             <p>
-              Eine Baustelle verschwindet von der Tafel, wenn sie in „Das Programm" einen Status
-              bekommt, der nicht dorthin gehört (Angebotserstellung, abgeschlossen). Sie ist nicht
-              gelöscht – über „Projekt finden" ist sie wieder da.
+              Klickst du ein Projekt an, öffnet sich die Baustelle mit allem:{' '}
+              <span className="font-medium text-foreground">Übersicht</span> (Ampel und Eckdaten),{' '}
+              <span className="font-medium text-foreground">Planung</span> (alle Einsätze),{' '}
+              <span className="font-medium text-foreground">Team</span>,{' '}
+              <span className="font-medium text-foreground">SUBs</span>,{' '}
+              <span className="font-medium text-foreground">Kommunikation</span>,{' '}
+              <span className="font-medium text-foreground">Änderungen</span> und{' '}
+              <span className="font-medium text-foreground">Notizen</span>.
+            </p>
+            <p>
+              Dort setzt du auch <span className="font-medium text-foreground">zwei
+              Bauleiter</span> – einen ersten und einen zweiten, falls sich jemand vertreten lässt.
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Fertig ist erst fertig, wenn der
+              Status es sagt.</span> Eine Baustelle verschwindet von der Tafel, wenn ihr Status auf
+              „erledigt" steht – oder wenn sie in „Das Programm" einen Status bekommt, der nicht
+              auf die Tafel gehört (Angebotserstellung, abgeschlossen). Gelöscht ist sie nie; über
+              „Projekt finden" ist sie wieder da.
             </p>
           </Abschnitt>
 
@@ -226,6 +286,11 @@ export function AnleitungPage() {
               <span className="font-medium text-foreground">„Büro"</span> nimmt jemanden von der
               Plantafel – Verwaltung wird nicht disponiert.
             </p>
+            <p>
+              Bei jedem lässt sich eine <span className="font-medium text-foreground">Notiz</span>{' '}
+              hinterlegen: Führerschein, Sprache, wer mit wem gut arbeitet – was immer beim Planen
+              hilft und sonst nirgends steht.
+            </p>
           </Abschnitt>
 
           <Abschnitt icon={Truck} titel="Subunternehmer">
@@ -238,11 +303,32 @@ export function AnleitungPage() {
               eingeplant ist, bleibt stehen.
             </p>
             <p>Betriebe, die in „Das Programm" gesperrt sind, kommen gar nicht erst herein.</p>
+            <p>Klickst du einen Betrieb an, stehen dort vier Dinge, die du selbst pflegst:</p>
             <p>
+              <span className="font-medium text-foreground">Gewerke</span> – was der Betrieb kann.
+              Danach suchst du beim Planen. Kommen aus „Das Programm", lassen sich hier aber
+              ergänzen.
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Bewertung 1–5</span> – unsere eigene
+              Einschätzung. Steht nirgends sonst und sieht kein Kunde. Wer gut gearbeitet hat,
+              bekommt beim nächsten Mal den Zuschlag.
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Bevorzugter Partner (Stern)</span> –
+              entscheidet, ob der Betrieb auf der Plantafel steht. Von dreißig braucht man beim
+              Planen eine Handvoll.
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Aktiv</span> – ausgeschaltet
+              verschwindet er überall. Alte Einsätze bleiben aber stehen, die Historie geht nicht
+              verloren.
+            </p>
+            <p className="rounded-md border border-dashed p-2">
               <span className="font-medium text-foreground">Achtung:</span> Ein neuer Subunternehmer
               wird <span className="font-medium text-foreground">nicht</span> nach „Das Programm"
-              übertragen – die Schnittstelle dort kann das nicht. Er muss dort von Hand erfasst
-              werden.
+              übertragen – die Schnittstelle dort kann das nicht. Wer dauerhaft mit uns arbeitet,
+              muss also auch in DAPO erfasst werden.
             </p>
           </Abschnitt>
 
@@ -271,6 +357,31 @@ export function AnleitungPage() {
             </p>
           </Abschnitt>
 
+          <Abschnitt icon={MessageSquare} titel="Was noch kommt">
+            <p>
+              <span className="font-medium text-foreground">Änderungen / Kommunikation</span> ist
+              heute fast leer. Dort wird später die Telefonanlage andocken und Anrufe automatisch
+              der richtigen Baustelle zuordnen. Bis dahin ist da nichts zu tun.
+            </p>
+            <p>
+              Auch die <span className="font-medium text-foreground">Auswertung</span> ist erst der
+              Anfang. Was ihr dort wirklich braucht, kommt dazu – sagt es einfach.
+            </p>
+          </Abschnitt>
+
+          <Abschnitt icon={Settings} titel="Einstellungen">
+            <p>
+              <span className="font-medium text-foreground">Gewerke und Qualifikationen</span> könnt
+              ihr selbst hinzufügen und löschen – wenn etwas doppelt drinsteht oder fehlt. Ein
+              Gewerk, das noch bei jemandem hinterlegt ist, lässt sich nicht löschen; die App sagt
+              dann, bei wem.
+            </p>
+            <p>
+              Den Abgleich mit „Das Programm" könnt ihr hier auch von Hand anstoßen. Nötig ist es
+              nicht – er läuft alle zehn Minuten von selbst.
+            </p>
+          </Abschnitt>
+
           <Abschnitt icon={HelpCircle} titel="Wenn etwas nicht stimmt">
             <p>
               Erst <span className="font-medium text-foreground">Strg + Umschalt + R</span> – das
@@ -283,6 +394,39 @@ export function AnleitungPage() {
             </p>
             <p>Alles andere: Marlon Bescheid geben.</p>
           </Abschnitt>
+
+          {/*
+            Der Schluss, und bewusst der auffaelligste Kasten der Seite. Eine
+            Eigenentwicklung steht und faellt damit, dass die Leute sagen,
+            was fehlt - sonst benutzen sie sie schweigend falsch.
+          */}
+          <section className="rounded-lg border-2 border-primary bg-primary/5 p-4">
+            <h2 className="text-base font-bold">Das Wichtigste zum Schluss</h2>
+            <p className="mt-2 text-sm font-medium leading-relaxed">
+              Diese App ist kein gekauftes Programm. Sie ist bei MR Umbau selbst entstanden,
+              aufgebaut von Marlon Tschon und zugeschnitten auf genau unsere Arbeit.
+            </p>
+            <p className="mt-2 text-sm leading-relaxed">
+              Das heißt aber auch:{' '}
+              <span className="font-bold">
+                Sie kann nur wachsen und besser werden, wenn Kritik und Vorschläge von euch kommen.
+              </span>{' '}
+              Kein Hersteller merkt von allein, dass hier ein Klick fehlt oder dort etwas
+              umständlich ist. Nur ihr merkt das.
+            </p>
+            <p className="mt-2 text-sm leading-relaxed">
+              Deshalb die Bitte: Wenn euch beim Arbeiten auffällt „das müsste einfacher gehen" oder
+              „hier fehlt mir etwas" –{' '}
+              <span className="font-bold">schreibt es sofort auf einen Zettel.</span> Nicht merken,
+              aufschreiben; bis zum Feierabend ist es sonst weg.
+            </p>
+            <p className="mt-2 text-sm leading-relaxed">
+              Und dann kommt alle{' '}
+              <span className="font-bold">ein bis zwei Wochen mit dem Zettel zu Marlon.</span> Wir
+              gehen das zusammen durch: was geht, was nicht, was Probleme machen würde.{' '}
+              <span className="font-bold">Kein Wunsch ist zu klein.</span>
+            </p>
+          </section>
         </div>
       </div>
     </div>
