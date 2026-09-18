@@ -99,7 +99,11 @@ export function BoardToolbar({
   return (
     <div className="flex flex-wrap items-center gap-1.5 border-b bg-card px-3 py-2">
       {/* Ansicht */}
-      <Tabs value={view} onValueChange={(v) => onView(v as BoardView)}>
+      <Tabs
+        value={view}
+        onValueChange={(v) => onView(v as BoardView)}
+        data-tour="ansicht"
+      >
         <TabsList>
           <TabsTrigger value="baustellen">
             <LayoutGrid className="mr-1 size-3.5" /> Baustellen
@@ -113,7 +117,7 @@ export function BoardToolbar({
       <span className="mx-1 h-5 w-px bg-border" />
 
       {/* Zeitraum-Navigation */}
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-0.5" data-tour="zeitraum">
         <Button variant="outline" size="icon-sm" onClick={() => onShift(-1)} aria-label="Zurück">
           <ChevronLeft />
         </Button>
@@ -176,7 +180,7 @@ export function BoardToolbar({
       {/* Filter */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant={activeFilters ? 'secondary' : 'outline'} size="sm">
+          <Button variant={activeFilters ? 'secondary' : 'outline'} size="sm" data-tour="filter">
             <Filter /> Filter
             {activeFilters ? (
               <Badge variant="primary" className="ml-0.5">

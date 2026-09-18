@@ -59,7 +59,7 @@ export function BoardProjects({
   return (
     // pb-32: Luft unter der letzten Zeile. Ohne sie klebt sie am
     // Fensterrand und man sieht nicht, dass die Liste zu Ende ist.
-    <div className="min-h-0 flex-1 overflow-auto pb-32" style={stil}>
+    <div className="min-h-0 flex-1 overflow-auto pb-32" style={stil} data-tour="tafel">
       <table className="w-full border-separate border-spacing-0 text-sm">
         <BoardHeader
           days={board.days}
