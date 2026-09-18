@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { verlange } from '@/server/auth';
 import { pooltauglicheUrl } from '@/lib/db-url';
 import { geheimnisForm } from '@/server/microsoft';
+import { fehlendeBoxAngaben } from '@/server/box';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,6 +70,11 @@ export const GET = handler(async (request: Request) => {
       microsoftGeheimnis: process.env.MICROSOFT_CLIENT_SECRET
         ? geheimnisForm(process.env.MICROSOFT_CLIENT_SECRET)
         : null,
+      /**
+       * Steht die naechtliche Sicherung? Nicht „ist etwas gesetzt", sondern
+       * welche Angabe fehlt - sonst sucht man zu viert nach der falschen.
+       */
+      boxFehlt: fehlendeBoxAngaben(),
     },
   });
 });

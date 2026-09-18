@@ -128,3 +128,73 @@ describe('Annehmen und Ablehnen', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('Doppelt vorgeschlagen', () => {
+  /*
+   * Zwei Bauleiter planen unabhängig voneinander drei Wochen voraus – dass
+   * beide denselben Mann wollen, merkt sonst niemand vor dem Treffen.
+   */
+  it('nennt in der Liste, wer denselben Mann noch vorgeschlagen hat', async () => {
+    const zweites = await post<{ project: { id: string } }>('/api/projects', {
+      customerName: `Vorschlaege zweite ${TAG}`,
+      name: 'Zweite Testbaustelle',
+    });
+    const zweiteId = zweites.body.project.id;
+
+    const a = await neuerEinsatz();
+    const b = await post<{ assignment: { id: string } }>('/api/assignments', {
+      projectId: zweiteId,
+      resourceType: 'MITARBEITER',
+      employeeId: mitarbeiterId,
+      startDate: MO,
+      force: true,
+    });
+    const zweiterEinsatz = b.body.assignment.id;
+    aufraeumen.push(zweiterEinsatz);
+
+    try {
+      const liste = await get<{
+        doppelt: { ressource: string; tage: string[]; beteiligte: { id: string }[] }[];
+      }>('/api/planvorschlaege');
+
+      const treffer = liste.body.doppelt.find((d) =>
+        d.beteiligte.some((x) => x.id === a) && d.beteiligte.some((x) => x.id === zweiterEinsatz),
+      );
+      expect(treffer, 'Der doppelte Vorschlag wird nicht gemeldet').toBeDefined();
+      expect(treffer!.tage).toContain(MO);
+    } finally {
+      await del(`/api/assignments/${zweiterEinsatz}`);
+      await del(`/api/projects/${zweiteId}`);
+    }
+  });
+
+  it('warnt schon beim Anlegen und sagt, von wem der andere Vorschlag ist', async () => {
+    const zweites = await post<{ project: { id: string } }>('/api/projects', {
+      customerName: `Vorschlaege dritte ${TAG}`,
+      name: 'Dritte Testbaustelle',
+    });
+    const zweiteId = zweites.body.project.id;
+    const a = await neuerEinsatz();
+
+    try {
+      // Ohne force: Genau dann kommt die Warnung, statt still angelegt zu werden.
+      const res = await post<{ error: string; conflicts: { istVorschlag: boolean }[] }>(
+        '/api/assignments',
+        {
+          projectId: zweiteId,
+          resourceType: 'MITARBEITER',
+          employeeId: mitarbeiterId,
+          startDate: MO,
+        },
+      );
+      expect(res.status).toBe(409);
+      expect(res.body.conflicts[0].istVorschlag).toBe(true);
+      // Der Name ist der Punkt: Man soll wissen, wen man anruft.
+      expect(res.body.error).toMatch(/vorgeschlagen von /i);
+      expect(res.body.error).toMatch(/nur einer/i);
+    } finally {
+      await del(`/api/assignments/${a}`);
+      await del(`/api/projects/${zweiteId}`);
+    }
+  });
+});

@@ -10,7 +10,7 @@
  */
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ThumbsDown } from 'lucide-react';
+import { Check, ThumbsDown, Users } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { formatDateShort } from '@/lib/dates';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,19 @@ interface Vorschlag {
   vorgeschlagenVon: string;
 }
 
+/** Zwei Vorschläge greifen nach derselben Person – wer, wann, von wem. */
+interface Doppelvorschlag {
+  ressource: string;
+  tage: string[];
+  beteiligte: {
+    id: string;
+    projektTitel: string;
+    vorgeschlagenVon: string;
+    startDate: string;
+    endDate: string;
+  }[];
+}
+
 export function PlanvorschlaegePage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -46,7 +59,9 @@ export function PlanvorschlaegePage() {
   const { data, isLoading } = useQuery({
     queryKey: ['planvorschlaege'],
     queryFn: () =>
-      api.get<{ darfFreigeben: boolean; vorschlaege: Vorschlag[] }>('/api/planvorschlaege'),
+      api.get<{ darfFreigeben: boolean; vorschlaege: Vorschlag[]; doppelt: Doppelvorschlag[] }>(
+        '/api/planvorschlaege',
+      ),
   });
 
   const entscheiden = useMutation({
@@ -69,6 +84,11 @@ export function PlanvorschlaegePage() {
 
   const vorschlaege = data?.vorschlaege ?? [];
   const darfFreigeben = data?.darfFreigeben ?? false;
+  const doppelt = data?.doppelt ?? [];
+  const betroffen = React.useMemo(
+    () => new Set(doppelt.flatMap((d) => d.beteiligte.map((b) => b.id))),
+    [doppelt],
+  );
 
   // Nach Bauleiter gruppieren – so geht man im Treffen durch: „Philipp,
   // was hast du?"
@@ -127,6 +147,7 @@ export function PlanvorschlaegePage() {
           />
         ) : (
           <div className="mx-auto max-w-3xl space-y-3 pb-24">
+            <DoppelteHinweis doppelt={doppelt} />
             {gruppen.map(([wer, liste]) => (
               <section key={wer} className="rounded-lg border">
                 <div className="flex items-center gap-2 border-b px-3 py-2">
@@ -160,6 +181,11 @@ export function PlanvorschlaegePage() {
                         <span className="block font-medium">
                           {v.ressource} <span className="text-muted-foreground">auf</span>{' '}
                           {v.projektTitel}
+                          {betroffen.has(v.id) ? (
+                            <Badge variant="gelb" className="ml-1.5 align-middle">
+                              auch anderswo vorgeschlagen
+                            </Badge>
+                          ) : null}
                         </span>
                         <span className="block text-2xs text-muted-foreground">
                           {formatDateShort(v.startDate)}
@@ -255,5 +281,58 @@ export function PlanvorschlaegePage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/**
+ * Zwei Vorschläge für denselben Mann.
+ *
+ * Bewusst oben und bewusst mit Namen: Wer ihn liest, weiß sofort, mit wem er
+ * reden muss. Eine anonyme Warnung „Konflikt" hätte dieselbe Information
+ * versteckt und dieselbe Arbeit gemacht – nur langsamer.
+ */
+function DoppelteHinweis({ doppelt }: { doppelt: Doppelvorschlag[] }) {
+  if (!doppelt.length) return null;
+
+  return (
+    <section className="rounded-lg border border-ampel-gelb/50 bg-ampel-gelb/5 p-3">
+      <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+        <Users className="size-4 text-ampel-gelb" />
+        {doppelt.length === 1
+          ? 'Einer ist doppelt vorgeschlagen'
+          : `${doppelt.length} Leute sind doppelt vorgeschlagen`}
+      </h2>
+
+      <ul className="mt-2 space-y-2">
+        {doppelt.map((d) => (
+          <li key={d.ressource} className="text-xs">
+            <span className="font-medium">{d.ressource}</span>
+            <span className="text-muted-foreground">
+              {' '}
+              – {d.tage.length === 1 ? 'am' : 'an'} {d.tage.map(formatDateShort).join(', ')}
+            </span>
+            <ul className="mt-0.5 space-y-0.5 pl-3">
+              {d.beteiligte.map((b) => (
+                <li key={b.id} className="text-2xs text-muted-foreground">
+                  <span className="text-foreground">{b.vorgeschlagenVon}</span> schlägt{' '}
+                  {b.projektTitel} vor ({formatDateShort(b.startDate)}
+                  {b.endDate !== b.startDate ? `–${formatDateShort(b.endDate)}` : ''})
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+
+      {/*
+        Der Satz ist der eigentliche Zweck dieses Kastens: Ohne ihn ist ein
+        Hinweis nur eine Beunruhigung, und jeder klaert es anders.
+      */}
+      <p className="mt-2 border-t border-ampel-gelb/30 pt-2 text-2xs text-muted-foreground">
+        So gehen wir damit um: Beide dürfen stehen bleiben – das ist der Sinn eines Vorschlags.
+        Angenommen wird nur einer; der andere wird abgelehnt oder auf einen anderen Tag gezogen.
+        Wer beide annimmt, hat den Mann doppelt verplant, und die Plantafel meldet es als Konflikt.
+      </p>
+    </section>
   );
 }

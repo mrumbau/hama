@@ -97,6 +97,10 @@ export interface ConflictInfo {
   date: IsoDate;
   projectLabel: string;
   assignmentId: string;
+  /** Steht der andere Einsatz schon fest oder ist er selbst nur ein Vorschlag? */
+  istVorschlag: boolean;
+  /** Wer ihn eingeplant hat - damit man weiss, mit wem man redet. */
+  vonWem: string | null;
 }
 
 /**
@@ -139,6 +143,7 @@ export async function findConflicts(params: {
       employee: true,
       subcontractor: true,
       siteManager: true,
+      createdBy: true,
     },
     take: 20,
   });
@@ -162,17 +167,34 @@ export async function findConflicts(params: {
               : 'Ressource'),
         date: dbDateToIso(a.startDate),
         projectLabel: `${a.project.customerName} – ${a.project.name}`,
+        istVorschlag: a.status === 'VORSCHLAG',
+        vonWem: a.createdBy ? fullName(a.createdBy) : null,
       }))
   );
 }
 
+/**
+ * Die Meldung, wenn jemand schon verplant ist.
+ *
+ * Steht der andere Einsatz auch nur als Vorschlag da, ist das kein Fehler,
+ * sondern der Alltag zweier Bauleiter, die unabhaengig voneinander
+ * vorausplanen. Dann gehoert in die Meldung, WER ihn vorgeschlagen hat -
+ * ein anonymes „bereits eingeplant" laesst einen suchen, statt kurz
+ * anzurufen.
+ */
 function conflictMessage(conflicts: ConflictInfo[]): string {
   const first = conflicts[0];
   const rest = conflicts.length - 1;
-  return (
-    `${first.resourceLabel} ist am ${formatDateShort(first.date)} bereits auf Baustelle ` +
-    `${first.projectLabel} eingeplant${rest > 0 ? ` (und ${rest} weitere)` : ''}.`
-  );
+  const wer = first.vonWem ? ` von ${first.vonWem}` : '';
+  const wie = first.istVorschlag
+    ? `bereits auf Baustelle ${first.projectLabel} vorgeschlagen${wer}`
+    : `bereits auf Baustelle ${first.projectLabel} fest eingeplant`;
+  const weitere = rest > 0 ? ` (und ${rest} weitere)` : '';
+  const rat = first.istVorschlag
+    ? ' Beides darf als Vorschlag stehen bleiben – angenommen wird bei der Freigabe nur einer.'
+    : '';
+
+  return `${first.resourceLabel} ist am ${formatDateShort(first.date)} ${wie}${weitere}.${rat}`;
 }
 
 async function resolveResourceLabel(data: {
