@@ -69,6 +69,12 @@ export function AssignmentChip({
   });
 
   const abgesagt = assignment.status === 'ABGESAGT';
+  /*
+   * Ein Vorschlag ist noch keine Zusage. Er muss sich auf einen Blick von
+   * allem anderen unterscheiden - blasser, grau umrandet, mit Wort dran.
+   * Wer ihn fuer bare Muenze nimmt, plant an der Wirklichkeit vorbei.
+   */
+  const vorschlag = assignment.status === 'VORSCHLAG';
   const unbesetzt = assignment.resourceType === 'UNBESETZT';
   // „Geplant" heisst bei MR Umbau: kurzfristig hingeschrieben, noch nicht
   // mit dem Kunden abgestimmt. Das muss man sehen, ohne hinzuklicken –
@@ -106,6 +112,7 @@ export function AssignmentChip({
         'hover:shadow-md hover:ring-border',
         isDragging && 'opacity-40',
         abgesagt && 'opacity-50 line-through',
+        vorschlag && 'border-dashed border-muted-foreground/60 bg-muted/50 opacity-80 ring-dashed',
         vorlaeufig && 'border-dashed bg-card/60',
         bestaetigt && 'ring-ampel-gruen/50',
         unbesetzt && 'border-dashed bg-destructive/5',
@@ -117,7 +124,11 @@ export function AssignmentChip({
        * Krank ist rot, Urlaub lila, Lager und Besorgung blau. So sieht man
        * in der Ressourcenansicht auf einen Blick, wer ausfaellt.
        */
-      style={{ borderLeftColor: internFarbe(project?.internKey) ?? assignment.color }}
+      style={{
+        borderLeftColor: vorschlag
+          ? 'hsl(var(--muted-foreground))'
+          : (internFarbe(project?.internKey) ?? assignment.color),
+      }}
     >
       {/*
         Nur an der letzten Karte eines Einsatzes: Ein mehrtaegiger Einsatz
@@ -167,7 +178,15 @@ export function AssignmentChip({
             T
           </span>
         ) : null}
-        {vorlaeufig ? (
+        {vorschlag ? (
+          <span
+            className="shrink-0 rounded-sm border border-dashed border-muted-foreground/60 px-1 text-[9px] font-medium leading-tight text-muted-foreground"
+            title="Vorschlag – die Leitung gibt ihn frei"
+          >
+            Vorschlag
+          </span>
+        ) : null}
+        {vorlaeufig && !vorschlag ? (
           <span
             className="shrink-0 text-2xs font-medium text-muted-foreground"
             title="Nur geplant – noch nicht bestätigt"

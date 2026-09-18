@@ -127,6 +127,7 @@ export const KIND_SUGGESTIONS: Record<string, AssignmentKindKey[]> = {
 };
 
 export const ASSIGNMENT_STATUS_LABEL = {
+  VORSCHLAG: 'Vorschlag',
   GEPLANT: 'Geplant',
   BESTAETIGT: 'Bestätigt',
   ABGESAGT: 'Abgesagt',
