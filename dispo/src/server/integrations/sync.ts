@@ -17,6 +17,7 @@ import { fullName } from '@/lib/utils';
 import { erpStatusName, type ProjectStatusKey } from '@/lib/labels';
 import { writeAudit } from '@/server/audit';
 import { gleicheBauleitungAb } from '@/server/bauleitung';
+import { ohneHandarbeit, ohnePlatzhalter } from '@/server/handpflege';
 import { getErpProvider } from './index';
 import {
   entscheideStatus,
@@ -146,7 +147,11 @@ export async function syncProjects(): Promise<SyncResult> {
         // wurde, soll nicht beim nächsten Sync wieder auftauchen.
         await prisma.employee.update({
           where: { id: vorhanden.id },
-          data: { erpId: person.erpId, phone: person.phone ?? vorhanden.phone, isDemo: false },
+          data: {
+            erpId: person.erpId,
+            isDemo: false,
+            ...ohneHandarbeit({ phone: person.phone }, vorhanden.manuelleFelder),
+          },
         });
         mitarbeiter.aktualisiert++;
       } else {
@@ -212,19 +217,28 @@ export async function syncProjects(): Promise<SyncResult> {
         (await prisma.subcontractor.findFirst({ where: { companyName: lieferant.name } }));
 
       if (vorhanden) {
+        /*
+         * Der Abgleich fuellt Luecken - er korrigiert keine Menschen.
+         * `companyName` stand hier frueher bedingungslos drin, und genau
+         * das hat ein von Hand verbessertes „Lachmann" bei jedem Lauf
+         * wieder zu „Lechmann" gemacht.
+         */
+        const ausDemErp = ohneHandarbeit(
+          {
+            companyName: lieferant.name,
+            phone: lieferant.phone,
+            email: lieferant.email,
+            street: lieferant.street,
+            zip: lieferant.zip,
+            city: lieferant.city,
+            contactName: leseAnsprechpartner(lieferant.comment),
+          },
+          vorhanden.manuelleFelder,
+        );
+
         await prisma.subcontractor.update({
           where: { id: vorhanden.id },
-          data: {
-            erpId: lieferant.erpId,
-            isDemo: false,
-            companyName: lieferant.name,
-            phone: lieferant.phone ?? vorhanden.phone,
-            email: lieferant.email ?? vorhanden.email,
-            street: lieferant.street ?? vorhanden.street,
-            zip: lieferant.zip ?? vorhanden.zip,
-            city: lieferant.city ?? vorhanden.city,
-            contactName: leseAnsprechpartner(lieferant.comment) ?? vorhanden.contactName,
-          },
+          data: { erpId: lieferant.erpId, isDemo: false, ...ausDemErp },
         });
         subs.aktualisiert++;
       } else {
@@ -274,8 +288,15 @@ export async function syncProjects(): Promise<SyncResult> {
         ? (bauleiterNachErpId.get(erp.projectManagerErpId) ?? null)
         : null;
 
-      // Vom ERP geführte Felder.
-      const erpFelder = {
+      /*
+       * Vom ERP gefuehrte Felder.
+       *
+       * Ohne Platzhalter: Scheitert der Abruf der Projektdetails, lieferte
+       * die Schnittstelle „Unbekannter Kunde" und „Unbenanntes Projekt" -
+       * und die landeten ueber richtigen Namen. Ein Platzhalter ist keine
+       * Information; dann bleibt lieber stehen, was schon da war.
+       */
+      const erpFelder = ohnePlatzhalter({
         // Ein Datensatz, den das ERP besitzt, ist keine Demo – auch dann
         // nicht, wenn er urspruenglich aus den Beispieldaten stammte und
         // spaeter zugeordnet wurde. Genau das war Luigi Curatolo passiert.
@@ -291,14 +312,33 @@ export async function syncProjects(): Promise<SyncResult> {
         contactName: erp.contactName,
         contactPhone: erp.contactPhone,
         contactEmail: erp.contactEmail,
-      };
+      });
 
       if (!vorhanden) {
+        /*
+         * Ein Projekt, das wir nicht benennen koennen, gehoert nicht auf die
+         * Tafel. Genau so ist „Unbekannter Kunde / Unbenanntes Projekt" dort
+         * gelandet: Der Detailabruf war fehlgeschlagen, und statt das zu
+         * melden, hat der Abgleich Platzhalter eingetragen. Lieber
+         * ueberspringen und sagen, dass etwas fehlt.
+         */
+        const { customerName, name: projektName } = erpFelder;
+        if (!customerName || !projektName) {
+          projekte.unveraendert++;
+          hinweise.push(
+            `Projekt ${erp.referenceNumber ?? erp.erpId} kam ohne Kunde oder Bezeichnung und wurde ` +
+              `nicht uebernommen. Bitte in „Das Programm" pruefen.`,
+          );
+          continue;
+        }
+
         const status = entscheideStatus(erp.status, 'NEU');
         const angelegt = await prisma.project.create({
           data: {
             erpId: erp.erpId,
             ...erpFelder,
+            customerName,
+            name: projektName,
             primarySiteManagerId: bauleiterId,
             plannedStart: erp.plannedStart ? isoToDbDate(erp.plannedStart) : null,
             plannedEnd: erp.plannedEnd ? isoToDbDate(erp.plannedEnd) : null,

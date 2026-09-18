@@ -266,6 +266,11 @@ model Employee {
   active         Boolean @default(true)
   isDemo         Boolean @default(false)
 
+  /// Felder, die jemand hier von Hand gesetzt hat. Der Abgleich mit "Das
+  /// Programm" laesst sie in Ruhe - sonst kaeme bei jedem Lauf die alte
+  /// Schreibweise aus dem ERP zurueck.
+  manuelleFelder String[] @default([])
+
   trades      EmployeeTrade[]
   assignments Assignment[]
 
@@ -309,6 +314,11 @@ model Subcontractor {
   /// Verfuegbare Mannschaftsstaerke.
   crewSize    Int?
   isDemo      Boolean @default(false)
+
+  /// Felder, die jemand hier von Hand gesetzt hat. Der Abgleich mit "Das
+  /// Programm" laesst sie in Ruhe - sonst kaeme bei jedem Lauf die alte
+  /// Schreibweise aus dem ERP zurueck.
+  manuelleFelder String[] @default([])
 
   trades      SubcontractorTrade[]
   assignments Assignment[]
