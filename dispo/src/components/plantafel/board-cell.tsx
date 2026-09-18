@@ -3,6 +3,7 @@ import * as React from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { feiertagName } from '@/lib/feiertage';
 import { isWeekend, todayIso, type IsoDate } from '@/lib/dates';
 
 /** Eine Tageszelle der Plantafel – gleichzeitig Drop-Ziel. */
@@ -23,6 +24,7 @@ export function BoardCell({
 }) {
   const { setNodeRef, isOver, active } = useDroppable({ id, data: { date } });
   const today = date === todayIso();
+  const feiertag = feiertagName(date);
 
   return (
     <td
@@ -34,10 +36,12 @@ export function BoardCell({
        * sondern ein Aufziehen der Kante.
        */
       data-day={date}
+      title={feiertag ?? undefined}
       className={cn(
         'group/cell relative border-b border-l align-top transition-colors',
         dense ? 'p-0.5' : 'p-1',
         isWeekend(date) && 'bg-muted/40',
+        feiertag && 'bg-ampel-rot/5',
         today && 'bg-accent/40',
         isOver && 'bg-primary/10 ring-1 ring-inset ring-primary',
         className,

@@ -9,7 +9,13 @@
  *
  * Gezählt werden Kalendertage im jeweiligen Monat, nicht Einsätze: Ein
  * Urlaub vom 28. Juli bis 8. August ist nicht „ein Urlaub im Juli",
- * sondern vier Tage Juli und sechs Tage August.
+ * sondern vier Tage Juli und acht Tage August.
+ *
+ * Besorgungsfahrten zählen doppelt herein: die eigene Zeile der Plantafel
+ * UND jeder Einsatz auf einer echten Baustelle, der als Besorgungsfahrt
+ * gekennzeichnet ist. Beides ist dieselbe Tätigkeit, nur an verschiedenen
+ * Stellen eingetragen – die Auswertung soll nicht davon abhängen, wo
+ * jemand geklickt hat.
  *
  * Wochenenden zählen mit. Wer sie herausrechnen will, braucht zuerst einen
  * Arbeitszeitkalender – und den gibt es hier nicht, also wird auch nicht so
@@ -26,8 +32,6 @@ export interface MonatsWert {
   /** 1 = Januar. */
   monat: number;
   tage: number;
-  /** Nur gesetzt, wenn an allen Einsätzen Uhrzeiten hinterlegt sind. */
-  stunden: number | null;
   /** Wie viele einzelne Einträge – für „wie oft war jemand krank". */
   eintraege: number;
 }
@@ -38,7 +42,6 @@ export interface PersonenZeile {
   employeeId: string | null;
   monate: MonatsWert[];
   summeTage: number;
-  summeStunden: number | null;
   summeEintraege: number;
 }
 
@@ -50,22 +53,7 @@ export interface AuswertungsBlock {
 }
 
 function leereMonate(): MonatsWert[] {
-  return Array.from({ length: 12 }, (_, i) => ({
-    monat: i + 1,
-    tage: 0,
-    stunden: 0,
-    eintraege: 0,
-  }));
-}
-
-/** Stunden aus „07:30" und „16:00". Null, wenn eine Angabe fehlt. */
-export function stundenJeTag(startTime: string | null, endTime: string | null): number | null {
-  if (!startTime || !endTime) return null;
-  const [sh, sm] = startTime.split(':').map(Number);
-  const [eh, em] = endTime.split(':').map(Number);
-  if ([sh, sm, eh, em].some((n) => !Number.isFinite(n))) return null;
-  const minuten = eh * 60 + em - (sh * 60 + sm);
-  return minuten > 0 ? minuten / 60 : null;
+  return Array.from({ length: 12 }, (_, i) => ({ monat: i + 1, tage: 0, eintraege: 0 }));
 }
 
 /**
@@ -102,7 +90,7 @@ export async function baueAuswertung(jahr: number): Promise<AuswertungsBlock[]> 
   // passiert danach, nicht in der Abfrage.
   const einsaetze = await prisma.assignment.findMany({
     where: {
-      projectId: { in: projekte.map((p) => p.id) },
+      OR: [{ projectId: { in: projekte.map((p) => p.id) } }, { kind: 'BESORGUNGSFAHRT' }],
       status: { not: 'ABGESAGT' },
       startDate: { lte: new Date(Date.UTC(jahr, 11, 31)) },
       endDate: { gte: new Date(Date.UTC(jahr, 0, 1)) },
@@ -112,10 +100,19 @@ export async function baueAuswertung(jahr: number): Promise<AuswertungsBlock[]> 
 
   return projekte
     .map((projekt) => {
-      const eigene = einsaetze.filter((a) => a.projectId === projekt.id);
+      /*
+       * Fuer die Besorgungsfahrten zaehlt beides: die eigene Zeile der
+       * Plantafel und jeder Einsatz auf einer echten Baustelle, der als
+       * Besorgungsfahrt gekennzeichnet ist. Dieselbe Taetigkeit, nur an
+       * verschiedenen Stellen eingetragen.
+       */
+      const eigene = einsaetze.filter(
+        (a) =>
+          a.projectId === projekt.id ||
+          (projekt.internKey === 'BESORGUNG' && a.kind === 'BESORGUNGSFAHRT'),
+      );
       const proPerson = new Map<string, PersonenZeile>();
       const gesamt = leereMonate();
-      let gesamtOhneZeiten = false;
 
       for (const a of eigene) {
         const name = a.employee
@@ -131,16 +128,9 @@ export async function baueAuswertung(jahr: number): Promise<AuswertungsBlock[]> 
             employeeId: a.employeeId,
             monate: leereMonate(),
             summeTage: 0,
-            summeStunden: 0,
             summeEintraege: 0,
           };
           proPerson.set(name, zeile);
-        }
-
-        const stunden = stundenJeTag(a.startTime, a.endTime);
-        if (stunden === null) {
-          zeile.summeStunden = null;
-          gesamtOhneZeiten = true;
         }
 
         const verteilt = tageJeMonat(dbDateToIso(a.startDate), dbDateToIso(a.endDate), jahr);
@@ -157,20 +147,8 @@ export async function baueAuswertung(jahr: number): Promise<AuswertungsBlock[]> 
           // jemand im August krank" soll den Fall vom 28.07. mitzaehlen.
           m.eintraege += 1;
           g.eintraege += 1;
-          if (stunden !== null) {
-            if (m.stunden !== null) m.stunden += stunden * tage;
-            if (g.stunden !== null) g.stunden += stunden * tage;
-          } else {
-            m.stunden = null;
-            g.stunden = null;
-          }
-        }
-        if (stunden !== null && zeile.summeStunden !== null) {
-          zeile.summeStunden += stunden * verteilt.reduce((s, v) => s + v.tage, 0);
         }
       }
-
-      if (gesamtOhneZeiten) for (const m of gesamt) m.stunden = null;
 
       return {
         schluessel: projekt.internKey as AuswertbarerSchluessel,

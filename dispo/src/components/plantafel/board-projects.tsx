@@ -69,41 +69,49 @@ export function BoardProjects({
           dense={dense}
         />
         <tbody>
-          {board.projects.map((project) => (
-            <tr key={project.id} className="group/row">
-              <ProjectRowHeader project={project} onOpen={() => onOpenProject(project.id)} />
-              {board.days.map((day) => {
-                const items = nachUhrzeit(byProjectDay.get(`${project.id}|${day}`) ?? []);
-                return (
-                  <BoardCell
-                    key={day}
-                    id={`project:${project.id}:${day}`}
-                    date={day}
-                    dense={dense}
-                    onQuickAdd={() => onQuickPlan(project.id, day)}
-                  >
-                    {items.map((a) => (
-                      <AssignmentChip
-                        key={a.id}
-                        assignment={a}
-                        primaryLabel={dense ? a.resourceShort : a.resourceLabel}
-                        secondaryLabel={null}
-                        project={project}
-                        date={day}
-                        compact={dense}
-                        // Bauleiter sind ohnehin in der Zeilenüberschrift
-                        // sichtbar – hier zurückgenommen, damit Mitarbeiter
-                        // und SUBs ins Auge springen.
-                        muted={a.resourceType === 'BAULEITER'}
-                        conflict={Boolean(board.conflicts[`${a.resourceKey}|${day}`])}
-                        actions={actions}
-                      />
-                    ))}
-                  </BoardCell>
-                );
-              })}
-            </tr>
-          ))}
+          {/*
+            „Besorgungsfahrten" ist hier keine Zeile: Eine Besorgungsfahrt
+            geht immer FUER eine Baustelle, nicht statt einer. Auf der
+            Baustelle waehlt man sie als Einsatzart; die eigene Zeile gibt es
+            nur in der Ressourcenansicht, wo man sieht, wer unterwegs ist.
+          */}
+          {board.projects
+            .filter((p) => p.internKey !== 'BESORGUNG')
+            .map((project) => (
+              <tr key={project.id} className="group/row">
+                <ProjectRowHeader project={project} onOpen={() => onOpenProject(project.id)} />
+                {board.days.map((day) => {
+                  const items = nachUhrzeit(byProjectDay.get(`${project.id}|${day}`) ?? []);
+                  return (
+                    <BoardCell
+                      key={day}
+                      id={`project:${project.id}:${day}`}
+                      date={day}
+                      dense={dense}
+                      onQuickAdd={() => onQuickPlan(project.id, day)}
+                    >
+                      {items.map((a) => (
+                        <AssignmentChip
+                          key={a.id}
+                          assignment={a}
+                          primaryLabel={dense ? a.resourceShort : a.resourceLabel}
+                          secondaryLabel={null}
+                          project={project}
+                          date={day}
+                          compact={dense}
+                          // Bauleiter sind ohnehin in der Zeilenüberschrift
+                          // sichtbar – hier zurückgenommen, damit Mitarbeiter
+                          // und SUBs ins Auge springen.
+                          muted={a.resourceType === 'BAULEITER'}
+                          conflict={Boolean(board.conflicts[`${a.resourceKey}|${day}`])}
+                          actions={actions}
+                        />
+                      ))}
+                    </BoardCell>
+                  );
+                })}
+              </tr>
+            ))}
         </tbody>
       </table>
     </div>

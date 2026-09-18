@@ -7,7 +7,8 @@
  * aussehen und nicht stimmen – die schlimmste Sorte.
  */
 import { describe, expect, it } from 'vitest';
-import { stundenJeTag, tageJeMonat } from '@/server/auswertung';
+import { tageJeMonat } from '@/server/auswertung';
+import { ASSIGNMENT_KIND_LABEL } from '@/lib/labels';
 
 describe('Tage auf Monate verteilen', () => {
   it('zählt einen Eintagseintrag als einen Tag', () => {
@@ -43,19 +44,15 @@ describe('Tage auf Monate verteilen', () => {
   });
 });
 
-describe('Stunden je Tag', () => {
-  it('rechnet eine gewöhnliche Schicht', () => {
-    expect(stundenJeTag('07:30', '16:00')).toBe(8.5);
-  });
 
-  it('sagt nichts, wenn eine Uhrzeit fehlt', () => {
-    // Lieber keine Stundenzahl als eine erfundene.
-    expect(stundenJeTag(null, '16:00')).toBeNull();
-    expect(stundenJeTag('07:30', null)).toBeNull();
-  });
-
-  it('weist Unsinn ab, statt negative Stunden zu liefern', () => {
-    expect(stundenJeTag('16:00', '07:30')).toBeNull();
-    expect(stundenJeTag('halb acht', '16:00')).toBeNull();
+/**
+ * Besorgungsfahrten stehen an zwei Stellen: als eigene Zeile in der
+ * Ressourcenansicht und als Einsatzart auf einer echten Baustelle. Die
+ * Auswertung darf nicht davon abhängen, wo jemand geklickt hat.
+ */
+describe('Besorgungsfahrten aus beiden Quellen', () => {
+  it('zählt die Einsatzart als gültigen Wert', () => {
+    // Fällt auf, wenn jemand den Enum-Wert wieder entfernt.
+    expect(ASSIGNMENT_KIND_LABEL.BESORGUNGSFAHRT).toBe('Besorgungsfahrt');
   });
 });
