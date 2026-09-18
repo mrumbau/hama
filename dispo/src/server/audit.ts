@@ -19,6 +19,7 @@ export interface AuditInput {
     | 'subcontractor'
     | 'communication'
     | 'change_request'
+    | 'trade'
     | 'integration';
   entityId: string;
   projectId?: string | null;

@@ -36,7 +36,9 @@ export function OpenPointsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['warnings', showDone],
     queryFn: () =>
-      api.get<{ warnings: WarningDTO[] }>(`/api/warnings${showDone ? '?erledigte=1' : ''}`),
+      api.get<{ warnings: WarningDTO[]; hinweis?: string | null }>(
+        `/api/warnings${showDone ? '?erledigte=1' : ''}`,
+      ),
   });
 
   const dismiss = useMutation({
@@ -61,11 +63,13 @@ export function OpenPointsPage() {
     items: warnings.filter((w) => w.bucket === bucket),
   })).filter((g) => g.items.length > 0);
 
+  const hinweis = data?.hinweis;
+
   return (
     <div className="flex h-full flex-col">
       <PageHeader
         title="Offene Punkte"
-        description="Alles, was heute Aufmerksamkeit braucht – automatisch aus dem Datenstand berechnet."
+        description="Ihre eigenen Baustellen – automatisch aus dem Datenstand berechnet."
         actions={
           <Button
             variant={showDone ? 'secondary' : 'outline'}
@@ -106,6 +110,17 @@ export function OpenPointsPage() {
       </PageHeader>
 
       <div className="min-h-0 flex-1 overflow-auto p-4">
+        {/*
+          Ohne verknuepften Bauleiter gibt es keine „eigenen" Baustellen.
+          Dann lieber sagen, was fehlt, als eine leere Liste zu zeigen, die
+          nach „alles erledigt" aussieht.
+        */}
+        {hinweis ? (
+          <p className="mb-3 rounded-md border border-dashed p-2 text-xs text-muted-foreground">
+            {hinweis}
+          </p>
+        ) : null}
+
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Wird geladen …</p>
         ) : grouped.length === 0 ? (

@@ -172,6 +172,12 @@ export const RECHTE = {
    * Knopf kommt.
    */
   sync: ['ADMIN', 'LEITUNG', 'BAULEITER'],
+  /**
+   * Offene Punkte ueber alle Baustellen. Bauleiter sehen ausdruecklich nur
+   * ihre eigenen - „dass jeder nur seine offenen Punkte bekommt zu seinen
+   * Baustellen". Leitung und Geschaeftsfuehrung schauen ueber alle.
+   */
+  alleOffenenPunkte: ['ADMIN', 'LEITUNG'],
 } as const satisfies Record<string, readonly Rolle[]>;
 
 export type Recht = keyof typeof RECHTE;

@@ -7,7 +7,11 @@
  * nicht wieder – deshalb wird hier beides gegeneinander geprüft.
  */
 import { describe, expect, it } from 'vitest';
-import { baueKommentar, trenneHausnummer } from '@/server/integrations/sub-anlegen';
+import {
+  baueKommentar,
+  erlaubtLieferanten,
+  trenneHausnummer,
+} from '@/server/integrations/sub-anlegen';
 import { istSubunternehmer, leseGewerke } from '@/server/integrations/mapping';
 
 describe('Kommentar für Das Programm', () => {
@@ -56,5 +60,28 @@ describe('Hausnummer von der Straße trennen', () => {
   it('verliert nichts bei leerer Eingabe', () => {
     expect(trenneHausnummer(null)).toEqual({ strasse: null, hausnummer: null });
     expect(trenneHausnummer('  ')).toEqual({ strasse: null, hausnummer: null });
+  });
+});
+
+/**
+ * „Das Programm" kennt keinen Schreibbefehl für Lieferanten – das hat die
+ * Abfrage seines Schemas ergeben. Es trotzdem zu versuchen, brächte dem
+ * Anwender nur eine unverständliche Fehlermeldung aus der Schnittstelle.
+ */
+describe('Übertrag nach Das Programm', () => {
+  const auskunft = (liste: string[] | null) => JSON.stringify({ stand: '2026-09-18', liste });
+
+  it('versucht es nicht, wenn die Schnittstelle den Befehl nicht kennt', () => {
+    expect(erlaubtLieferanten(auskunft(['updateProject', 'createCustomer']))).toBe(false);
+  });
+
+  it('versucht es, wenn der Befehl da ist', () => {
+    expect(erlaubtLieferanten(auskunft(['createSupplier', 'updateProject']))).toBe(true);
+  });
+
+  it('versucht es im Zweifel – lieber einmal vergeblich als einen Weg verbauen', () => {
+    expect(erlaubtLieferanten(null)).toBe(true);
+    expect(erlaubtLieferanten(auskunft(null))).toBe(true);
+    expect(erlaubtLieferanten('kein json')).toBe(true);
   });
 });
