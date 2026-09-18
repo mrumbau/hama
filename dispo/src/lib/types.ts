@@ -45,10 +45,15 @@ export interface AssignmentDTO {
  * Feste Eintraege der Dispo, die es in „Das Programm" nicht gibt.
  *
  * Das Lager ist ein Arbeitsort, die Besorgungsfahrten sind ein Sammelposten
- * fuer „wer holt was". Beides ist keine Baustelle, beides braucht aber eine
- * Zeile auf der Tafel - sonst sieht niemand, wer wirklich frei ist.
+ * fuer „wer holt was", Urlaub und Krank sind Abwesenheiten. Nichts davon
+ * ist eine Baustelle, alles braucht aber eine Zeile auf der Tafel - sonst
+ * sieht niemand, wer wirklich frei ist.
+ *
+ * Abwesenheit als Einsatz zu fuehren ist Absicht: Wer im Urlaub ist, ist
+ * belegt, und die App soll ihn beim Doppelbelegen genauso anmeckern wie bei
+ * zwei Baustellen.
  */
-export type InternerEintrag = 'LAGER' | 'BESORGUNG';
+export type InternerEintrag = 'LAGER' | 'BESORGUNG' | 'URLAUB' | 'KRANK';
 
 export interface ProjectSummaryDTO {
   id: string;

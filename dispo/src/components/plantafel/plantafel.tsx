@@ -311,6 +311,28 @@ export function Plantafel() {
     }
   };
 
+  /*
+   * Subunternehmer auf die Tafel holen und wieder herunternehmen.
+   *
+   * Das ist derselbe Stern, der in der Subunternehmerliste steht - nur von
+   * dort aus bedienbar, wo er auffaellt: beim Planen. Ein zweiter, eigener
+   * Merker waere eine zweite Wahrheit ueber dieselbe Frage.
+   */
+  const setzeAufTafel = async (subcontractorId: string, aufTafel: boolean, name?: string) => {
+    try {
+      await api.patch(`/api/subcontractors/${subcontractorId}`, { preferred: aufTafel });
+      refresh();
+      toast({
+        title: aufTafel
+          ? `${name ?? 'Subunternehmer'} steht jetzt auf der Plantafel.`
+          : `${name ?? 'Subunternehmer'} wurde von der Plantafel genommen.`,
+        tone: 'success',
+      });
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : 'Fehler', tone: 'error' });
+    }
+  };
+
   const actions: ChipActions = React.useMemo(
     () => ({
       onEdit: setEditing,
@@ -443,6 +465,8 @@ export function Plantafel() {
               board={board}
               actions={actions}
               showInactive={showInactive}
+              onSubAufTafel={(id) => setzeAufTafel(id, true)}
+              onSubVonTafel={(r) => setzeAufTafel(r.id, false, r.label)}
               onQuickPlan={(resource: ResourceDTO, date) =>
                 setQuickPlan({
                   date,

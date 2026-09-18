@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, Building2, Plus, TriangleAlert } from 'lucide-react';
+import { Archive, Building2, Plus, Search, TriangleAlert } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { useSiteManagers } from '@/lib/queries';
 import { formatDateShort } from '@/lib/dates';
@@ -26,6 +26,7 @@ import { AmpelDot, AmpelErklaerung } from '@/components/ui/ampel';
 import { EmptyState } from '@/components/ui/misc';
 import { useToast } from '@/components/ui/toast';
 import { PageHeader } from '@/components/page-header';
+import { ProjektFindenDialog } from './projekt-finden';
 import { ProjectPanel } from './project-panel';
 
 export function ProjectsPage() {
@@ -42,6 +43,9 @@ export function ProjectsPage() {
   // Auftrag geworden sind, gehören nicht in die tägliche Liste.
   const [showClosed, setShowClosed] = React.useState(false);
   const [create, setCreate] = React.useState(false);
+  // „Finden" statt „anlegen": Fast jedes Projekt ist laengst uebernommen,
+  // es steht nur nicht auf der Tafel. Wer dann anlegt, hat es zweimal.
+  const [finden, setFinden] = React.useState(false);
 
   const { data: managers } = useSiteManagers();
 
@@ -73,8 +77,8 @@ export function ProjectsPage() {
         title="Projekte"
         description="Stammdaten kommen aus „Das Programm“. Disposition, Ampel und Historie pflegt diese App."
         actions={
-          <Button size="sm" onClick={() => setCreate(true)}>
-            <Plus /> Projekt anlegen
+          <Button size="sm" onClick={() => setFinden(true)}>
+            <Search /> Projekt finden
           </Button>
         }
       >
@@ -253,6 +257,12 @@ export function ProjectsPage() {
         )}
       </div>
 
+      <ProjektFindenDialog
+        offen={finden}
+        onOffen={setFinden}
+        onAnlegen={() => setCreate(true)}
+        onOeffnen={open}
+      />
       <CreateProjectDialog open={create} onClose={() => setCreate(false)} onCreated={open} />
       {openId ? <ProjectPanel projectId={openId} onClose={() => open(null)} /> : null}
     </div>

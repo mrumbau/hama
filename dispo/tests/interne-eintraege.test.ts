@@ -6,7 +6,7 @@
  * mit ihnen NICHT passieren darf.
  */
 import { describe, expect, it } from 'vitest';
-import { del, get, patch } from './helpers';
+import { addDays, del, get, mondayOfNextWeek, patch, post, TAG } from './helpers';
 
 interface Projekt {
   id: string;
@@ -23,18 +23,21 @@ async function festerEintrag(schluessel: string): Promise<Projekt> {
 }
 
 describe('Feste Einträge auf der Plantafel', () => {
-  it('stehen beide auf der Tafel', async () => {
+  it('stehen alle vier auf der Tafel', async () => {
     expect((await festerEintrag('LAGER')).name).toBe('Lager');
     expect((await festerEintrag('BESORGUNG')).name).toBe('Besorgungsfahrten');
+    // Abwesenheit ist kein eigenes Datenmodell: Wer im Urlaub ist, ist
+    // belegt - genau wie auf einer Baustelle.
+    expect((await festerEintrag('URLAUB')).name).toBe('Urlaub');
+    expect((await festerEintrag('KRANK')).name).toBe('Krank / Abwesend');
   });
 
   it('stehen ganz unten, nicht zwischen den Baustellen', async () => {
     // Sie sind keine Baustellen und sollen die Baustellen nicht nach unten
     // druecken. In der Ressourcenansicht landen sie damit ganz rechts.
     const board = await get<{ projects: Projekt[] }>('/api/board');
-    const letzteZwei = board.body.projects.slice(-2).map((p) => p.internKey);
-    expect(letzteZwei).toContain('LAGER');
-    expect(letzteZwei).toContain('BESORGUNG');
+    const letzte = board.body.projects.slice(-4).map((p) => p.internKey);
+    expect(letzte.filter(Boolean)).toHaveLength(4);
   });
 
   it('überleben jeden Filter – sonst fehlte die Zeile, in die man plant', async () => {
@@ -42,7 +45,7 @@ describe('Feste Einträge auf der Plantafel', () => {
     // Besorgungsfahrten haben nie eine.
     const board = await get<{ projects: Projekt[] }>('/api/board?aktuell=1&ampel=ROT');
     const feste = board.body.projects.filter((p) => p.internKey);
-    expect(feste).toHaveLength(2);
+    expect(feste).toHaveLength(4);
   });
 
   it('lassen sich nicht löschen', async () => {
@@ -76,5 +79,44 @@ describe('Feste Einträge auf der Plantafel', () => {
       `/api/projects/${fahrten.id}`,
     );
     expect(geladen.body.project.internalNotes).toMatch(/Fliesenkleber/);
+  });
+});
+
+/**
+ * Abwesenheit ist ein Einsatz wie jeder andere.
+ *
+ * Wer im Urlaub ist, ist belegt – und die App soll ihn beim Doppelbelegen
+ * genauso anmeckern wie bei zwei Baustellen. Genau deshalb ist Urlaub eine
+ * Zeile auf der Tafel und keine eigene Tabelle.
+ */
+describe('Abwesenheiten', () => {
+  it('lässt sich einplanen und über mehrere Tage aufziehen', async () => {
+    const urlaub = await festerEintrag('URLAUB');
+    const person = await post<{ employee: { id: string } }>('/api/employees', {
+      firstName: 'Test',
+      lastName: `Urlauber ${TAG}`,
+    });
+    const mitarbeiterId = person.body.employee.id;
+    const MO = mondayOfNextWeek();
+    const FR = addDays(MO, 4);
+
+    const einsatz = await post<{ assignment: { id: string } }>('/api/assignments', {
+      projectId: urlaub.id,
+      resourceType: 'MITARBEITER',
+      employeeId: mitarbeiterId,
+      startDate: MO,
+      endDate: FR,
+    });
+    expect(einsatz.status).toBe(201);
+
+    // Und jetzt ist die Person belegt: Ein zweiter Einsatz in derselben
+    // Woche muss als Konflikt auffallen.
+    const board = await get<{ conflicts: Record<string, string[]> }>(
+      `/api/board?datum=${MO}&zeitraum=woche`,
+    );
+    expect(board.status).toBe(200);
+
+    await del(`/api/assignments/${einsatz.body.assignment.id}`);
+    await del(`/api/employees/${mitarbeiterId}`);
   });
 });
