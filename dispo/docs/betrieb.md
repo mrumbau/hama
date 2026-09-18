@@ -78,33 +78,63 @@ Die App braucht ein eigenes Box-Konto – ein persönliches Anmelden gibt es
 nachts um drei nicht.
 
 1. In der [Box Developer Console](https://app.box.com/developers/console) eine
-   neue App anlegen: **Custom App → Server Authentication (Client Credentials
-   Grant)**.
-2. Unter *Configuration → Application Scopes*: **Write all files and folders
-   stored in Box** setzen.
-3. Unter *Configuration → App Access Level*: **App Access Only** genügt.
-4. Speichern. Dann muss ein Box-Administrator die App unter *Admin Console →
-   Apps → Custom Apps Manager* freigeben. Ohne diesen Schritt bekommt die App
-   kein Token.
-5. Das Dienstkonto der App (`AutomationUser_…@boxdevedition.com`, steht in der
-   Console unter *General Settings → Service Account Info*) als **Editor** auf
-   den Ordner *Dispo-Sicherung* einladen. Das ist der eigentliche Zugriff –
-   ihn nimmt man einem Klick wieder weg.
-6. In Vercel (Projekt `mr-umbau-dispo`, Environment *Production*) eintragen:
+   neue App anlegen: **Eigene App (Custom App) → Serverauthentifizierung
+   (Client Credentials Grant)**.
 
-   | Variable            | Wert                                        | Typ    |
-   | ------------------- | ------------------------------------------- | ------ |
-   | `BOX_CLIENT_ID`     | aus der App                                 | normal |
-   | `BOX_CLIENT_SECRET` | aus der App                                 | Secret |
-   | `BOX_SUBJECT_ID`    | Enterprise-ID (Admin Console → Account Info) | normal |
-   | `BOX_SUBJECT_TYPE`  | `enterprise` (Vorgabe, kann entfallen)       | normal |
-   | `BOX_ORDNER_ID`     | `419334081556`                               | normal |
+2. Reiter **Konfiguration**:
+   - *App-Zugriffsebene*: **Nur App-Zugriff** (App Access Only). Mehr braucht
+     es nicht – die App bekommt ein eigenes Dienstkonto, und Zugriff auf
+     unsere Ordner bekommt sie in Schritt 4 als eingeladener Mitarbeiter.
+     „App- + Enterprise-Zugriff" gäbe ihr Zugriff auf alle Benutzer der Firma.
+   - *Anwendungsbereiche*: **Alle in Box gespeicherten Dateien und Ordner
+     lesen und schreiben**.
+   - *Zusätzliche Konfiguration* (`as-user`-Header, Benutzerzugriffstoken):
+     nichts ankreuzen. Beides brauchen wir nicht, und beides zieht eine
+     weitergehende Genehmigung nach sich.
+   - **Speichern**.
 
-7. Neu ausliefern, dann in den Einstellungen auf **Jetzt sichern** drücken.
+3. Reiter **Autorisierung** → **Überprüfen und einreichen**. Das ist der
+   Schritt, ohne den die App kein Token bekommt: Sie schickt eine Anfrage an
+   den Box-Administrator, der sie dann in der Admin Console unter *Apps →
+   Benutzerdefinierte Apps-Verwaltung* freigibt. Bei uns ist das dieselbe
+   Person – die Mail kommt also an einen selbst zurück.
+
+   Gibt es den Reiter nicht, ist das kein Beinbruch: Dann hat dieses Konto
+   keine Enterprise-Verwaltung, und die App darf sofort. Einfach weitermachen
+   und in Schritt 6 ausprobieren – die App sagt, woran es liegt.
+
+4. Das Dienstkonto der App als **Bearbeiter** auf den Ordner
+   *Dispo-Sicherung* einladen. Es heißt `AutomationUser_…@boxdevedition.com`
+   und steht im Reiter *Allgemeine Einstellungen* unter
+   *Dienstkonto-Informationen*. Das ist der eigentliche Zugriff – den nimmt
+   man mit einem Klick wieder weg, und die App kommt an nichts anderes heran.
+
+5. In Vercel (Projekt `mr-umbau-dispo`, Environment *Production*) eintragen:
+
+   | Variable            | Wert                                    | Typ    |
+   | ------------------- | --------------------------------------- | ------ |
+   | `BOX_CLIENT_ID`     | Konfiguration → OAuth 2.0-Zugangsdaten   | normal |
+   | `BOX_CLIENT_SECRET` | ebenda (nur mit 2FA am Konto sichtbar)   | Secret |
+   | `BOX_SUBJECT_ID`    | Enterprise-ID, siehe unten               | normal |
+   | `BOX_SUBJECT_TYPE`  | `enterprise` (Vorgabe, kann entfallen)   | normal |
+   | `BOX_ORDNER_ID`     | `419334081556`                           | normal |
+
+   Die **Enterprise-ID** steht in der Admin Console unter *Konto &
+   Abrechnung → Kontoinformationen*. Es ist eine reine Zahlenfolge, nicht die
+   Client-ID.
+
+6. Neu ausliefern, dann in den Einstellungen auf **Jetzt sichern** drücken.
    Klappt es, liegt die Datei sofort im Ordner.
 
 Fehlt etwas, sagt die App beim Sichern genau, welche Variable fehlt, statt
-stillschweigend nichts zu tun.
+stillschweigend nichts zu tun. Kommt eine Antwort von Box zurück, steht sie
+im Wortlaut da – lange Zeichenketten werden vorher gekürzt, damit kein Token
+in der Meldung landet. Die beiden häufigsten:
+
+- *„Grant credentials are invalid"* – meist die falsche `BOX_SUBJECT_ID`
+  (Client-ID statt Enterprise-ID) oder die App ist noch nicht freigegeben.
+- *403 beim Hochladen* – die App ist freigegeben, aber das Dienstkonto sitzt
+  noch nicht auf dem Ordner (Schritt 4).
 
 ### Prüfen
 
