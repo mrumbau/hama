@@ -66,6 +66,18 @@ export async function middleware(request: NextRequest) {
   // --- Riegel 2: Anmeldung ---
   if (OFFEN.includes(pfad)) return NextResponse.next();
 
+  /*
+   * Der Zeitplan weckt den Abgleich alle zehn Minuten und hat keine Sitzung.
+   * Ob sein Ausweis stimmt, entscheidet die Route selbst - hier in der
+   * Edge-Laufzeit kommen wir an die Datenbank nicht heran. Durchgelassen
+   * wird deshalb nur, wer ueberhaupt einen Ausweis mitbringt; geprueft wird
+   * er dahinter. Ohne gueltigen Ausweis verlangt die Route eine Anmeldung
+   * wie jede andere.
+   */
+  if (pfad === '/api/integrations/das-programm/sync' && request.headers.get('x-dispo-cron')) {
+    return NextResponse.next();
+  }
+
   const cookie = request.cookies.get(SESSION_COOKIE)?.value;
   if (cookie) return NextResponse.next();
 
