@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight,
   Check,
+  ChevronLeft,
   Clock,
   Pencil,
   Phone,
@@ -121,6 +122,14 @@ export function CommunicationPage() {
   const selected = communications.find((c) => c.id === selectedId) ?? communications[0] ?? null;
 
   const select = (id: string) => router.replace(`/kommunikation?eintrag=${id}`, { scroll: false });
+  const zurueckZurListe = () => router.replace('/kommunikation', { scroll: false });
+  /*
+   * Auf dem Rechner steht immer das erste Gespraech offen, damit die rechte
+   * Haelfte nicht leer bleibt. Auf dem Handy waere das die falsche Antwort:
+   * Dort ersetzt die Einzelansicht die Liste, und man landete sofort in
+   * einem Gespraech, das man nicht ausgewaehlt hat.
+   */
+  const ausgewaehlt = Boolean(selectedId);
 
   return (
     <div className="flex h-full flex-col">
@@ -148,7 +157,18 @@ export function CommunicationPage() {
       </PageHeader>
 
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[22rem_1fr]">
-        <div className="min-h-0 overflow-auto border-r">
+        {/*
+          Auf dem Handy ist nur eines von beiden zu sehen: erst die Liste,
+          nach dem Antippen das Gespraech. Nebeneinander passt es nicht, und
+          untereinander scrollt man an einem leeren Kasten „Kein Telefonat
+          ausgewaehlt" vorbei, um zur Liste zu kommen.
+        */}
+        <div
+          className={cn(
+            'min-h-0 overflow-auto border-r',
+            ausgewaehlt ? 'hidden lg:block' : 'block',
+          )}
+        >
           {isLoading ? (
             <p className="p-4 text-sm text-muted-foreground">Wird geladen …</p>
           ) : communications.length === 0 ? (
@@ -212,12 +232,24 @@ export function CommunicationPage() {
           )}
         </div>
 
-        <div className="min-h-0 overflow-auto p-4">
+        <div
+          className={cn('min-h-0 overflow-auto p-4', ausgewaehlt ? 'block' : 'hidden lg:block')}
+        >
           {selected ? (
-            <CommunicationDetail
-              communication={selected}
-              candidates={data?.candidates ?? []}
-            />
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mb-2 lg:hidden"
+                onClick={zurueckZurListe}
+              >
+                <ChevronLeft /> Alle Telefonate
+              </Button>
+              <CommunicationDetail
+                communication={selected}
+                candidates={data?.candidates ?? []}
+              />
+            </>
           ) : (
             <EmptyState title="Kein Telefonat ausgewählt" />
           )}

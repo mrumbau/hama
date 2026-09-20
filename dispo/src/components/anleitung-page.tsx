@@ -22,6 +22,7 @@ import {
   MessageSquare,
   RefreshCw,
   Settings,
+  Smartphone,
   Truck,
   Users,
 } from 'lucide-react';
@@ -151,6 +152,39 @@ export function AnleitungPage() {
               Ein Beispiel: Luigi in den Montag ziehen, dann seine rechte Kante bis Freitag
               aufziehen – schon steht er die ganze Woche. Du musst ihn nicht fünfmal einzeln
               hineinziehen.
+            </p>
+          </Abschnitt>
+
+          <Abschnitt icon={Smartphone} titel="Am Handy">
+            <p>
+              Dieselbe Adresse, dasselbe Passwort – die Dispo merkt selbst, dass sie auf einem
+              kleinen Bildschirm steht, und zeigt die Plantafel anders:{' '}
+              <span className="font-medium text-foreground">einen Tag</span>, die Baustellen
+              untereinander, darunter wer dort ist. Mit den Pfeilen links und rechts vom Datum
+              blätterst du einen Tag weiter.
+            </p>
+            <Schritt
+              was="Auf eine Zeile tippen"
+              dann="öffnet den Einsatz – dort stehen Datum, Uhrzeit, Tätigkeiten und Notiz."
+            />
+            <Schritt
+              was="„Jemanden einplanen“ unter der Baustelle"
+              dann="plant direkt auf diese Baustelle und diesen Tag."
+            />
+            <Schritt
+              was="Oben auf „Ressourcen“ wechseln"
+              dann="zeigt die Leute statt der Baustellen – mit „frei“ an allen, die an diesem Tag noch nichts haben."
+            />
+            <p className="rounded-md bg-muted/60 p-2">
+              Am Handy wird nichts gezogen. Das Verschieben über mehrere Tage braucht die ganze
+              Woche nebeneinander, und die passt auf kein Telefon. Wenn du einen Einsatz verlegen
+              willst: antippen und das Datum im Einsatz ändern. Dasselbe Ergebnis, ein Fingertipp
+              mehr.
+            </p>
+            <p>
+              Auf dem Bildschirm im Büro bleibt alles wie gehabt – das Raster, das Ziehen, die
+              ganze Woche auf einmal. Beides ist dieselbe Dispo mit denselben Daten; wenn Gerhard
+              auf der Baustelle etwas einträgt, steht es sofort auch am Rechner.
             </p>
           </Abschnitt>
 

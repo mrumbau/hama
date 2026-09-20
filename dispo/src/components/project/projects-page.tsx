@@ -155,7 +155,82 @@ export function ProjectsPage() {
             className="m-4"
           />
         ) : (
-          <table className="w-full text-sm">
+          <>
+          {/*
+            Sieben Spalten passen auf kein Handy. Dieselben Angaben stehen
+            dort untereinander auf einer Karte - nicht weniger, nur anders
+            angeordnet.
+          */}
+          <ul className="divide-y md:hidden">
+            {projects.map((p) => (
+              <li key={p.id}>
+                <button
+                  onClick={() => open(p.id)}
+                  className="flex w-full items-start gap-2 px-3 py-3 text-left active:bg-accent/60"
+                >
+                  <span className="mt-1">
+                    <AmpelDot light={p.trafficLight} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">
+                      {p.customerName} – {p.name}
+                    </span>
+                    <span className="block truncate text-2xs text-muted-foreground">
+                      {[p.orderNumber, p.projectNumber, p.city].filter(Boolean).join(' · ')}
+                    </span>
+                    <span className="mt-1 block text-xs">
+                      {p.primarySiteManagerName ?? (
+                        <span className="text-destructive">Kein Bauleiter</span>
+                      )}
+                      {p.plannedStart ? (
+                        <span className="text-muted-foreground">
+                          {' · '}
+                          {formatDateShort(p.plannedStart)}
+                          {p.plannedEnd && p.plannedEnd !== p.plannedStart
+                            ? `–${formatDateShort(p.plannedEnd)}`
+                            : ''}
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="mt-1 flex flex-wrap items-center gap-1">
+                      <Badge variant="grau">{PROJECT_STATUS_LABEL[p.status]}</Badge>
+                      <Badge
+                        variant={
+                          p.materialStatus === 'VOLLSTAENDIG'
+                            ? 'gruen'
+                            : p.materialStatus === 'OFFEN'
+                              ? 'rot'
+                              : p.materialStatus === 'TEILWEISE'
+                                ? 'gelb'
+                                : 'grau'
+                        }
+                      >
+                        Material: {MATERIAL_STATUS_LABEL[p.materialStatus]}
+                      </Badge>
+                      <Badge
+                        variant={
+                          p.customerConfirmed === 'BESTAETIGT'
+                            ? 'gruen'
+                            : p.customerConfirmed === 'ABGELEHNT'
+                              ? 'rot'
+                              : 'gelb'
+                        }
+                      >
+                        Kunde: {CONFIRMATION_LABEL[p.customerConfirmed]}
+                      </Badge>
+                      {p.priority === 'KRITISCH' || p.priority === 'HOCH' ? (
+                        <Badge variant={p.priority === 'KRITISCH' ? 'rot' : 'gelb'}>
+                          {PRIORITY_LABEL[p.priority]}
+                        </Badge>
+                      ) : null}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <table className="hidden w-full text-sm md:table">
             <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b text-left text-2xs uppercase tracking-wide text-muted-foreground">
                 <th className="px-3 py-2 font-semibold">Baustelle</th>
@@ -254,6 +329,7 @@ export function ProjectsPage() {
               ))}
             </tbody>
           </table>
+          </>
         )}
       </div>
 

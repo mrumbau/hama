@@ -17,7 +17,14 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-card p-4 shadow-xl data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
+        'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-card p-4 shadow-xl data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
+        /*
+         * Auf dem Handy war der Dialog vorher genau so breit wie der
+         * Bildschirm - randlos bis an beide Kanten - und lange Formulare
+         * liefen unten heraus, ohne dass man scrollen konnte. Beides ist auf
+         * dem Rechner nie aufgefallen, weil dort immer Platz war.
+         */
+        'max-h-[90dvh] w-[calc(100vw-1.5rem)] max-w-lg overflow-y-auto overscroll-contain',
         className,
       )}
       {...props}

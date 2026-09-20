@@ -498,7 +498,7 @@ function OverviewTab({ project }: { project: ProjectDetail }) {
         <h3 className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
           Ansprechpartner
         </h3>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Field label="Name">
             <Input
               value={form.contactName ?? ''}

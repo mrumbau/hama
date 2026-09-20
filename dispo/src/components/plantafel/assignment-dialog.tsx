@@ -160,7 +160,7 @@ export function AssignmentDialog({
             </Field>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Field label="Beginn">
               <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
             </Field>
