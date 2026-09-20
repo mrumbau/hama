@@ -20,6 +20,7 @@ import {
 import { Loader2, Plus, TriangleAlert } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { useIch } from '@/lib/ich';
+import { useIstSchmal } from '@/lib/schmal';
 import type { AssignmentDTO, ResourceDTO } from '@/lib/types';
 import { formatDateShort, type IsoDate } from '@/lib/dates';
 import { verschobenerBeginn } from '@/lib/board-range';
@@ -39,6 +40,7 @@ import { QuickPlanDialog, type QuickPlanSeed } from './quick-plan-dialog';
 import { AssignmentDialog } from './assignment-dialog';
 import { useBoardQuery, useBoardState } from './use-board';
 import { Palette, type PaletteItem } from './palette';
+import { Tagesliste } from './tagesliste';
 import type { ChipActions } from './assignment-chip';
 
 interface PendingMove {
@@ -51,6 +53,11 @@ interface PendingMove {
 export function Plantafel() {
   const state = useBoardState();
   const { data: board, isLoading, isFetching, error } = useBoardQuery(state.queryString);
+  /*
+   * Auf dem Handy ist die Tafel eine Tagesliste. Nicht dasselbe kleiner,
+   * sondern etwas anderes - siehe tagesliste.tsx.
+   */
+  const schmal = useIstSchmal();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -59,6 +66,7 @@ export function Plantafel() {
   const [dragging, setDragging] = React.useState<AssignmentDTO | null>(null);
   // Wer ist angemeldet? Davon haengt ab, ob der Haken zum Annehmen erscheint.
   const { data: ich } = useIch();
+  const darfFreigeben = Boolean(ich?.rechte?.planungFreigeben);
   const [draggingPalette, setDraggingPalette] = React.useState<PaletteItem | null>(null);
   const [quickPlan, setQuickPlan] = React.useState<QuickPlanSeed | null>(null);
   const [editing, setEditing] = React.useState<AssignmentDTO | null>(null);
@@ -344,7 +352,7 @@ export function Plantafel() {
        * Recht nicht hat, bekommt den Haken gar nicht erst zu sehen; ein
        * Knopf, der nichts tut, ist schlimmer als keiner.
        */
-      onAnnehmen: ich?.rechte?.planungFreigeben
+      onAnnehmen: darfFreigeben
         ? async (a: AssignmentDTO) => {
             try {
               await api.post('/api/planvorschlaege', { ids: [a.id], annehmen: true });
@@ -420,12 +428,23 @@ export function Plantafel() {
         router.replace(`/plantafel?${next.toString()}`, { scroll: false });
       },
     }),
-    [openProject, params, refresh, router, toast],
+    /*
+     * Das Recht zum Freigeben gehoert in diese Liste: Es steht beim ersten
+     * Rendern noch nicht fest, sondern kommt mit der Antwort von
+     * /api/auth/ich nach. Fehlt es hier, bleibt der Haken zum Annehmen
+     * verschwunden, bis sich zufaellig etwas anderes aendert.
+     */
+    [openProject, params, refresh, router, toast, darfFreigeben],
   );
 
   return (
     <div className="flex h-full flex-col">
-      {board ? <KpiHeader kpis={board.kpis} /> : <div className="h-[4.5rem]" />}
+      {/*
+        Die Kennzahlen kosten auf dem Handy ein Drittel des Bildschirms,
+        bevor die erste Baustelle kommt. Sie beantworten eine Frage, die man
+        am Schreibtisch stellt, nicht auf der Baustelle.
+      */}
+      {schmal ? null : board ? <KpiHeader kpis={board.kpis} /> : <div className="h-[4.5rem]" />}
 
       <BoardToolbar
         view={state.view}
@@ -461,6 +480,24 @@ export function Plantafel() {
             <Button size="sm" variant="outline" onClick={() => refresh()}>
               Erneut versuchen
             </Button>
+          }
+        />
+      ) : board && schmal ? (
+        <Tagesliste
+          board={board}
+          view={state.view}
+          tag={state.anchor}
+          actions={actions}
+          onTag={(datum) => state.setParams({ datum })}
+          onQuickPlanProjekt={(projectId, date) => setQuickPlan({ projectId, date })}
+          onQuickPlanRessource={(resource, date) =>
+            setQuickPlan({
+              date,
+              resourceType: resource.type as QuickPlanSeed['resourceType'],
+              employeeId: resource.type === 'MITARBEITER' ? resource.id : undefined,
+              siteManagerId: resource.type === 'BAULEITER' ? resource.id : undefined,
+              subcontractorId: resource.type === 'SUBUNTERNEHMER' ? resource.id : undefined,
+            })
           }
         />
       ) : board ? (
@@ -519,7 +556,7 @@ export function Plantafel() {
 
       {/* Schnellplanung immer erreichbar */}
       <Button
-        className="fixed bottom-5 right-5 z-30 shadow-lg"
+        className="fixed bottom-4 right-4 z-30 shadow-lg sm:bottom-5 sm:right-5"
         size="lg"
         onClick={() => setQuickPlan({ date: state.anchor })}
       >

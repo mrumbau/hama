@@ -16,13 +16,19 @@ const buttonVariants = cva(
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
       },
+      /*
+       * Die kleinen Groessen sind fuer den Mauszeiger gemacht: dicht an
+       * dicht, genau treffbar. Mit dem Daumen trifft man 28 Pixel nicht.
+       * `pointer: coarse` fragt genau das ab - ein Finger statt eines
+       * Zeigers - und vergroessert nur dort. Am Rechner bleibt alles dicht.
+       */
       size: {
         default: 'h-9 px-3 py-2 [&_svg]:size-4',
-        sm: 'h-8 rounded-md px-2.5 text-xs [&_svg]:size-3.5',
-        xs: 'h-7 rounded px-2 text-xs [&_svg]:size-3.5',
+        sm: 'h-8 rounded-md px-2.5 text-xs [&_svg]:size-3.5 [@media(pointer:coarse)]:h-9',
+        xs: 'h-7 rounded px-2 text-xs [&_svg]:size-3.5 [@media(pointer:coarse)]:h-8',
         lg: 'h-10 rounded-md px-5 [&_svg]:size-4',
-        icon: 'h-9 w-9 [&_svg]:size-4',
-        'icon-sm': 'h-7 w-7 [&_svg]:size-3.5',
+        icon: 'h-9 w-9 [&_svg]:size-4 [@media(pointer:coarse)]:size-10',
+        'icon-sm': 'h-7 w-7 [&_svg]:size-3.5 [@media(pointer:coarse)]:size-9',
       },
     },
     defaultVariants: { variant: 'default', size: 'default' },

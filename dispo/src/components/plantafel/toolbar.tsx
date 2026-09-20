@@ -114,10 +114,14 @@ export function BoardToolbar({
         </TabsList>
       </Tabs>
 
-      <span className="mx-1 h-5 w-px bg-border" />
+      <span className="mx-1 hidden h-5 w-px bg-border md:block" />
 
-      {/* Zeitraum-Navigation */}
-      <div className="flex items-center gap-0.5" data-tour="zeitraum">
+      {/*
+        Zeitraum-Navigation. Auf dem Handy blaettert die Tagesliste selbst -
+        Tag fuer Tag, mit dem Datum gross darueber. Zwei Navigationen
+        uebereinander waeren nur die Frage, welche gerade gilt.
+      */}
+      <div className="hidden items-center gap-0.5 md:flex" data-tour="zeitraum">
         <Button variant="outline" size="icon-sm" onClick={() => onShift(-1)} aria-label="Zurück">
           <ChevronLeft />
         </Button>
@@ -132,7 +136,7 @@ export function BoardToolbar({
       <Select
         value={range}
         onChange={(e) => onRange(e.target.value as BoardRange)}
-        className="h-8 w-auto text-xs"
+        className="hidden h-8 w-auto text-xs md:block"
         aria-label="Zeitraum"
       >
         {(Object.keys(RANGE_LABEL) as BoardRange[]).map((r) => (
@@ -142,13 +146,15 @@ export function BoardToolbar({
         ))}
       </Select>
 
-      <MonatsSprung anchor={anchor} onAnchor={onAnchor} />
+      <span className="hidden md:contents">
+        <MonatsSprung anchor={anchor} onAnchor={onAnchor} />
+      </span>
 
       <span className="hidden min-w-0 px-1 text-xs text-muted-foreground sm:block">
         {rangeCaption(range, from, to)}
       </span>
 
-      <span className="mx-1 h-5 w-px bg-border" />
+      <span className="mx-1 hidden h-5 w-px bg-border md:block" />
 
       {/* „Nur Probleme“ – der wichtigste Filter */}
       <Button
@@ -167,6 +173,7 @@ export function BoardToolbar({
       <Button
         variant={filters.aktuell ? 'secondary' : 'outline'}
         size="sm"
+        className="hidden md:inline-flex"
         onClick={() => onFilters({ aktuell: !filters.aktuell })}
         title="Nur Baustellen, die ab dieser Woche noch laufen"
       >
@@ -274,6 +281,15 @@ export function BoardToolbar({
           </FilterKachel>
 
           <DropdownMenuSeparator />
+          {/* Auf dem Handy steht „Aktuell" nicht in der Leiste - hier schon. */}
+          <DropdownMenuCheckboxItem
+            className="md:hidden"
+            checked={filters.aktuell}
+            onCheckedChange={() => onFilters({ aktuell: !filters.aktuell })}
+            onSelect={(e) => e.preventDefault()}
+          >
+            Nur was ab dieser Woche läuft
+          </DropdownMenuCheckboxItem>
           <DropdownMenuCheckboxItem
             checked={filters.abgeschlossen}
             onCheckedChange={() => onFilters({ abgeschlossen: !filters.abgeschlossen })}

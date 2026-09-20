@@ -11,7 +11,17 @@ const TabsList = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.List
     ref={ref}
-    className={cn('inline-flex items-center gap-0.5 rounded-md bg-muted p-0.5', className)}
+    /*
+     * Auf dem Handy passen fuenf Reiter nicht nebeneinander. Statt sie
+     * abzuschneiden - man saehe nicht, dass es weitergeht - laesst sich die
+     * Leiste seitlich schieben. Die Leiste selbst bleibt so breit wie der
+     * Bildschirm, damit sie nicht die ganze Seite mitzieht.
+     */
+    className={cn(
+      'inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-md bg-muted p-0.5',
+      '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+      className,
+    )}
     {...props}
   />
 ));

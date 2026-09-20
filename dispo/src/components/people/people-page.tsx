@@ -323,7 +323,7 @@ function EmployeeDialog({
             save.mutate();
           }}
         >
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Field label="Vorname *">
               <Input
                 value={form.firstName}
@@ -343,7 +343,7 @@ function EmployeeDialog({
               />
             </Field>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Field label="Beruf / Qualifikation">
               <Input
                 value={form.profession}
@@ -552,7 +552,7 @@ function ManagerDialog({
             save.mutate();
           }}
         >
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Field label="Vorname *">
               <Input
                 value={form.firstName}
@@ -572,7 +572,7 @@ function ManagerDialog({
               />
             </Field>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Field label="Telefon">
               <Input
                 value={form.phone}
