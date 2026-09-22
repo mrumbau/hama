@@ -21,6 +21,7 @@ import {
   RESOURCE_TYPE_LABEL,
 } from '@/lib/labels';
 import { fullName } from '@/lib/utils';
+import { zeitenUeberschneidenSich } from '@/lib/zeitfenster';
 import { ApiError } from './api';
 import { writeAudit } from './audit';
 
@@ -484,30 +485,3 @@ export async function deleteAssignment(id: string) {
 }
 
 /** Minuten seit Mitternacht, oder null ohne Uhrzeit. */
-function minuten(zeit: string | null | undefined): number | null {
-  if (!zeit) return null;
-  const treffer = /^(\d{1,2}):(\d{2})/.exec(zeit.trim());
-  return treffer ? Number(treffer[1]) * 60 + Number(treffer[2]) : null;
-}
-
-/**
- * Ueberschneiden sich zwei Zeitfenster am selben Tag?
- *
- * Fehlt auch nur eine Grenze, gilt der Einsatz als ganztaegig. Das ist die
- * vorsichtige Auslegung: lieber einmal zu viel nachfragen als jemanden
- * doppelt verplanen, weil niemand eine Uhrzeit eingetragen hat.
- */
-export function zeitenUeberschneidenSich(
-  aStart: string | null | undefined,
-  aEnde: string | null | undefined,
-  bStart: string | null | undefined,
-  bEnde: string | null | undefined,
-): boolean {
-  const aVon = minuten(aStart);
-  const aBis = minuten(aEnde);
-  const bVon = minuten(bStart);
-  const bBis = minuten(bEnde);
-
-  if (aVon === null || aBis === null || bVon === null || bBis === null) return true;
-  return aVon < bBis && bVon < aBis;
-}

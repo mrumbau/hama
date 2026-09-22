@@ -19,6 +19,7 @@ import {
 import { CLOSED_PROJECT_STATUS } from '@/lib/labels';
 import { colorFromString, fullName, initials } from '@/lib/utils';
 import type { AssignmentDTO, BoardResponse, ProjectSummaryDTO, ResourceDTO } from '@/lib/types';
+import { zeitenUeberschneidenSich } from '@/lib/zeitfenster';
 import { computeAmpel } from './ampel';
 
 export interface BoardFilters {
@@ -422,20 +423,15 @@ function hatFaehigkeit(trades: { trade: { name: string } }[], gesucht: string): 
   return trades.some((t) => t.trade.name.trim().toLowerCase() === gesucht);
 }
 
-/** Minuten seit Mitternacht, oder null wenn keine Uhrzeit hinterlegt ist. */
-function minuten(zeit: string | null): number | null {
-  if (!zeit) return null;
-  const treffer = /^(\d{1,2}):(\d{2})/.exec(zeit.trim());
-  return treffer ? Number(treffer[1]) * 60 + Number(treffer[2]) : null;
-}
 
 /**
  * Welche Baustellen kollidieren an diesem Tag wirklich?
  *
- * Zwei Einsätze derselben Person überschneiden sich, wenn ihre Zeitfenster
- * sich überlappen. Fehlt bei einem von beiden die Uhrzeit, gilt er als
- * ganztägig – dann ist jede weitere Baustelle am selben Tag eine Kollision,
- * weil sich sonst niemand darauf verlassen kann.
+ * Die Regel steht in `@/lib/zeitfenster` - dieselbe, nach der auch das
+ * Anlegen eines Einsatzes warnt. Vorher stand sie hier ein zweites Mal und
+ * war strenger: Sie hielt „ab 11 Uhr" fuer ganztaegig und malte deshalb
+ * einen roten Rahmen um zwei Einsaetze, die sich gar nicht in die Quere
+ * kamen.
  */
 function ueberschneidendeProjekte(list: AssignmentDTO[]): Set<string> {
   const betroffen = new Set<string>();
@@ -446,14 +442,7 @@ function ueberschneidendeProjekte(list: AssignmentDTO[]): Set<string> {
       const b = list[j];
       if (a.projectId === b.projectId) continue;
 
-      const aVon = minuten(a.startTime);
-      const aBis = minuten(a.endTime);
-      const bVon = minuten(b.startTime);
-      const bBis = minuten(b.endTime);
-
-      // Ganztägig, sobald eine der beiden Grenzen fehlt.
-      const ganztags = aVon === null || aBis === null || bVon === null || bBis === null;
-      if (ganztags || (aVon! < bBis! && bVon! < aBis!)) {
+      if (zeitenUeberschneidenSich(a.startTime, a.endTime, b.startTime, b.endTime)) {
         betroffen.add(a.projectId);
         betroffen.add(b.projectId);
       }
