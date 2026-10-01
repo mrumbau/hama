@@ -13,7 +13,9 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  AlertTriangle,
   CalendarRange,
+  CalendarPlus,
   GripVertical,
   Pencil,
   Plus,
@@ -25,7 +27,7 @@ import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { useIch } from '@/lib/ich';
 import { useIstSchmal } from '@/lib/schmal';
-import { useTrades } from '@/lib/queries';
+import { BOARD_KEYS, useTrades } from '@/lib/queries';
 import { formatDateShort, todayIso, type IsoDate } from '@/lib/dates';
 import {
   balken,
@@ -62,6 +64,9 @@ interface PhaseDTO {
   endDate: IsoDate;
   note: string | null;
   sortOrder: number;
+  besetzung: 'ok' | 'firmaFehlt' | 'niemand';
+  /** Wer im Zeitraum auf der Tafel steht – für den Mauszeiger. */
+  wer: string[];
 }
 
 interface PlanDTO {
@@ -99,6 +104,8 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
    * weg, und niemand weiss hinterher, was dort stand.
    */
   const [weg, setWeg] = React.useState<PhaseDTO | null>(null);
+  /** Welche Zeile soll auf die Plantafel? */
+  const [aufDieTafel, setAufDieTafel] = React.useState<PhaseDTO | null>(null);
   /** Was gerade am Finger hängt: Zeile, Art und um wie viele Spalten. */
   const [zug, setZug] = React.useState<{
     id: string;
@@ -280,6 +287,22 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
                             <StickyNote className="size-3" />
                           </span>
                         ) : null}
+                        {/*
+                          Der Balken steht im Plan - und auf der Plantafel
+                          steht niemand. Das faellt sonst erst am Montag auf.
+                        */}
+                        {p.besetzung !== 'ok' ? (
+                          <span
+                            className={cn(
+                              'shrink-0',
+                              p.besetzung === 'niemand' ? 'text-destructive' : 'text-amber-600',
+                            )}
+                            title={besetzungText(p)}
+                            aria-label={besetzungText(p)}
+                          >
+                            <AlertTriangle className="size-3" />
+                          </span>
+                        ) : null}
                       </span>
                       <span className="mt-0.5 block truncate text-2xs text-muted-foreground">
                         {untertitel(p)}
@@ -386,6 +409,9 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
                         <ContextMenuItem onSelect={() => setBearbeiten(p)}>
                           <Pencil className="size-3.5" /> Bearbeiten
                         </ContextMenuItem>
+                        <ContextMenuItem onSelect={() => setAufDieTafel(p)}>
+                          <CalendarPlus className="size-3.5" /> Auf die Plantafel eintragen
+                        </ContextMenuItem>
                         <ContextMenuItem
                           onSelect={() => setWeg(p)}
                           className="text-destructive focus:text-destructive"
@@ -477,6 +503,13 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
           </div>
         </DialogContent>
       </Dialog>
+      <AufDieTafelDialog
+        phase={aufDieTafel}
+        projectId={projectId}
+        onClose={() => setAufDieTafel(null)}
+        onFertig={aktualisieren}
+      />
+
       <ZeileBearbeitenDialog
         phase={bearbeiten}
         projectId={projectId}
@@ -940,6 +973,137 @@ function ZeileBearbeitenDialog({
               Speichern
             </Button>
           </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Warum leuchtet das Warnzeichen?
+ *
+ * Zwei verschiedene Probleme, und das zweite ist das gemeinere: Beim ersten
+ * ist offensichtlich nichts geplant, beim zweiten sieht der Plan vollständig
+ * aus und am Montag steht die falsche Mannschaft auf der Baustelle.
+ */
+function besetzungText(p: PhaseDTO): string {
+  if (p.besetzung === 'niemand') {
+    return `Für ${p.titel} steht im Zeitraum niemand auf der Plantafel.`;
+  }
+  const da = p.wer.length ? p.wer.join(', ') : 'jemand';
+  return `${p.firma ?? 'Die hinterlegte Firma'} steht nicht auf der Plantafel – eingeplant ist ${da}.`;
+}
+
+/**
+ * Eine Planzeile auf die Plantafel schreiben.
+ *
+ * Der Bauzeitenplan sagt, wann ein Gewerk dran ist; die Plantafel sagt, wer
+ * kommt. Das doppelt eintragen zu müssen ist die häufigste Art, wie beide
+ * auseinanderlaufen.
+ *
+ * Mit Rückfrage, nicht stillschweigend: Der Einsatz steht danach auf der Tafel
+ * und belegt dort jemanden. Ein Einsatz deckt den ganzen Zeitraum ab - die
+ * Plantafel kann das, es braucht keine fünfzehn Tageseinträge.
+ *
+ * Ist keine Firma hinterlegt, wird ein unbesetzter Platzhalter daraus. Das ist
+ * ehrlicher als nichts einzutragen: "hier fehlt jemand" steht dann an der
+ * richtigen Woche und nicht in jemandes Kopf.
+ */
+function AufDieTafelDialog({
+  phase,
+  projectId,
+  onClose,
+  onFertig,
+}: {
+  phase: PhaseDTO | null;
+  projectId: string;
+  onClose: () => void;
+  onFertig: () => void;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const eintragen = useMutation({
+    mutationFn: () =>
+      api.post<{ message: string }>('/api/assignments', {
+        projectId,
+        ...(phase!.subcontractorId
+          ? { resourceType: 'SUBUNTERNEHMER', subcontractorId: phase!.subcontractorId }
+          : { resourceType: 'UNBESETZT', placeholderLabel: phase!.titel.slice(0, 120) }),
+        startDate: phase!.startDate,
+        endDate: phase!.endDate,
+        note: phase!.note || null,
+      }),
+    onSuccess: (res) => {
+      // Die Tafel, die Warnungen und der Plan selbst zeigen das Ergebnis.
+      for (const key of BOARD_KEYS) queryClient.invalidateQueries({ queryKey: key });
+      onFertig();
+      onClose();
+      toast({ title: res.message, tone: 'success' });
+    },
+    onError: (e: Error) => toast({ title: e.message, tone: 'error' }),
+  });
+
+  const tage = phase
+    ? Math.round(
+        (new Date(`${phase.endDate}T12:00:00`).getTime() -
+          new Date(`${phase.startDate}T12:00:00`).getTime()) /
+          86_400_000,
+      ) + 1
+    : 0;
+
+  return (
+    <Dialog open={Boolean(phase)} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogTitle>Auf die Plantafel eintragen</DialogTitle>
+
+        {phase ? (
+          <>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {phase.subcontractorId ? (
+                <>
+                  <span className="font-medium text-foreground">{phase.firma}</span> wird für{' '}
+                  {phase.titel} eingeplant.
+                </>
+              ) : (
+                <>
+                  Für {phase.titel} ist noch keine Firma hinterlegt. Es wird ein unbesetzter
+                  Platzhalter „{phase.titel}“ eingetragen – damit steht „hier fehlt jemand“ an der
+                  richtigen Woche.
+                </>
+              )}
+            </p>
+
+            <dl className="mt-3 space-y-1 rounded-md border bg-muted/30 p-2 text-xs">
+              <div className="flex gap-2">
+                <dt className="w-16 shrink-0 text-muted-foreground">Zeitraum</dt>
+                <dd className="tabular-nums">
+                  {formatDateShort(phase.startDate)} – {formatDateShort(phase.endDate)} ({tage}{' '}
+                  {tage === 1 ? 'Tag' : 'Tage'})
+                </dd>
+              </div>
+              {phase.wer.length ? (
+                <div className="flex gap-2">
+                  <dt className="w-16 shrink-0 text-muted-foreground">Schon da</dt>
+                  <dd>{phase.wer.join(', ')}</dd>
+                </div>
+              ) : null}
+            </dl>
+
+            <p className="mt-2 text-2xs text-muted-foreground">
+              Ein Einsatz über den ganzen Zeitraum, kein Eintrag je Tag. Verschieben, kürzen und
+              Zeiten setzen geht danach auf der Plantafel wie bei jedem anderen Einsatz.
+            </p>
+          </>
+        ) : null}
+
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={onClose}>
+            Abbrechen
+          </Button>
+          <Button size="sm" disabled={eintragen.isPending} onClick={() => eintragen.mutate()}>
+            <CalendarPlus /> Eintragen
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
