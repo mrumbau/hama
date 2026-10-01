@@ -2,7 +2,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { AlertTriangle, BarChart3, CalendarRange, ClipboardCheck, HelpCircle, LayoutGrid, LogOut, Menu, MessageSquare, Settings, Truck, Users, X } from 'lucide-react';
+import { AlertTriangle, BarChart3, CalendarRange, ClipboardCheck, GanttChart, HelpCircle, LayoutGrid, LogOut, Menu, MessageSquare, Settings, Truck, Users, X } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { ROLLE_LABEL, useIch } from '@/lib/ich';
 import { cn } from '@/lib/utils';
@@ -13,6 +13,7 @@ import { Firmenlogo } from '@/components/ui/firmenlogo';
 
 const NAV = [
   { href: '/plantafel', label: 'Plantafel', icon: CalendarRange },
+  { href: '/bauzeitenplan', label: 'Bauzeitenplan', icon: GanttChart },
   { href: '/projekte', label: 'Projekte', icon: LayoutGrid },
   { href: '/mitarbeiter', label: 'Mitarbeiter', icon: Users },
   { href: '/subunternehmer', label: 'Subunternehmer', icon: Truck },
@@ -39,6 +40,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
    * Die Druckansicht des Bauzeitenplans steht ebenfalls fuer sich. Sie geht
    * aus dem Haus - auf Papier oder als PDF zum Kunden -, und darauf hat
    * weder eine Seitenleiste noch eine Suchzeile etwas verloren.
+   *
+   * Der Schraegstrich am Ende ist wichtig: `/bauzeitenplan` ist die
+   * Uebersicht aller Baustellen und gehoert in die App, mit Seitenleiste.
+   * Nur `/bauzeitenplan/<id>` ist das Druckblatt. Wer das hier zu
+   * `startsWith('/bauzeitenplan')` vereinfacht, nimmt der Uebersichtsseite
+   * stillschweigend die Navigation.
    */
   if (pathname.startsWith('/bauzeitenplan/')) return <>{children}</>;
 

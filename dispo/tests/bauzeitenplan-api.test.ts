@@ -255,3 +255,60 @@ describe('Zeile ändern', () => {
     expect(res.status).toBe(422);
   });
 });
+
+describe('Übersicht aller Bauzeitenpläne', () => {
+  interface Uebersicht {
+    baustellen: {
+      id: string;
+      customerName: string;
+      raster: 'WOCHE' | 'TAG';
+      phasen: { titel: string; farbe: string; startDate: string }[];
+    }[];
+  }
+
+  const uebersicht = () => get<Uebersicht>('/api/bauzeitenplaene');
+
+  it('führt die Baustelle mit ihren Zeilen auf', async () => {
+    await leeren();
+    await zeile('Abbruch');
+    await zeile('Estrich', 2);
+
+    const { status, body } = await uebersicht();
+    expect(status).toBe(200);
+
+    const meine = body.baustellen.find((b) => b.id === projektId);
+    expect(meine, 'Die Testbaustelle fehlt in der Übersicht').toBeTruthy();
+    expect(meine!.phasen.map((p) => p.titel)).toEqual(['Abbruch', 'Estrich']);
+    expect(meine!.raster).toBe('WOCHE');
+
+    // Die Farbe kommt aus derselben Rechnung wie im Einzelplan - sonst hat
+    // dasselbe Gewerk auf zwei Seiten zwei Farben.
+    const einzeln = (await plan()).body.phasen;
+    for (const p of meine!.phasen) {
+      const gleich = einzeln.find((e) => e.titel === p.titel);
+      expect(gleich, `${p.titel} fehlt im Einzelplan`).toBeTruthy();
+      expect(p.farbe).toBe((gleich as unknown as { farbe: string }).farbe);
+    }
+  });
+
+  it('lässt abgeschlossene Baustellen draußen', async () => {
+    const res = await patch(`/api/projects/${projektId}`, { status: 'ERLEDIGT' });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    try {
+      const { body } = await uebersicht();
+      expect(body.baustellen.some((b) => b.id === projektId)).toBe(false);
+    } finally {
+      await patch(`/api/projects/${projektId}`, { status: 'IN_AUSFUEHRUNG' });
+    }
+  });
+
+  it('nennt keine Lager- und Besorgungszeilen', async () => {
+    const { body } = await uebersicht();
+    // Diese Zeilen haben keinen Bauablauf. Stünden sie hier, wäre die erste
+    // Zeile der Übersicht dauerhaft „Lager" mit leerer Achse.
+    for (const b of body.baustellen) {
+      expect(b.customerName).not.toBe('Lager');
+      expect(b.customerName).not.toBe('Besorgungsfahrt');
+    }
+  });
+});

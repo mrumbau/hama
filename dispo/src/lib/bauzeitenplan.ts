@@ -173,3 +173,43 @@ export function naechsterStart(phasen: Phase[], raster: Raster, heute: IsoDate):
 }
 
 export { toIso };
+
+/**
+ * Die Monatsleiste über den Wochen.
+ *
+ * Auf einem Plan über ein halbes Jahr sagt „KW 7" niemandem etwas; „Februar"
+ * schon. Gibt Gruppen zurück, die sich über mehrere Spalten spannen – der
+ * Monat einer Woche ist der, in dem ihr Montag liegt. Eine Woche, die über
+ * den Monatswechsel läuft, gehört damit zum früheren Monat; das ist beim
+ * Ablesen die harmlosere Hälfte des Problems, weil die Spalte dort anfängt,
+ * wo sie beschriftet ist.
+ */
+export function monatsSpannen(
+  spalten: IsoDate[],
+): { titel: string; kurz: string; spalten: number }[] {
+  const MONATE = [
+    'Januar',
+    'Februar',
+    'März',
+    'April',
+    'Mai',
+    'Juni',
+    'Juli',
+    'August',
+    'September',
+    'Oktober',
+    'November',
+    'Dezember',
+  ];
+
+  const gruppen: { titel: string; kurz: string; spalten: number }[] = [];
+  for (const tag of spalten) {
+    const monat = Number(tag.slice(5, 7)) - 1;
+    const jahr = tag.slice(0, 4);
+    const titel = `${MONATE[monat]} ${jahr}`;
+    const letzte = gruppen[gruppen.length - 1];
+    if (letzte && letzte.titel === titel) letzte.spalten += 1;
+    else gruppen.push({ titel, kurz: `${MONATE[monat].slice(0, 3)} ${jahr.slice(2)}`, spalten: 1 });
+  }
+  return gruppen;
+}
