@@ -6,7 +6,16 @@
  * den Sanitärer eine Woche nach rechts zieht, verschiebt den ganzen Plan ab
  * dort. Der Plan behält seine Form.
  */
-import { addDays, diffDays, fromIso, isoWeek, toIso, type IsoDate } from './dates';
+import {
+  addDays,
+  diffDays,
+  fromIso,
+  isoWeek,
+  MONTH_LONG,
+  toIso,
+  WEEKDAY_SHORT,
+  type IsoDate,
+} from './dates';
 
 export type Raster = 'WOCHE' | 'TAG';
 
@@ -123,7 +132,7 @@ export function spalten(
 export function spaltenTitel(datum: IsoDate, raster: Raster): string {
   if (raster === 'WOCHE') return `KW ${isoWeek(datum)}`;
   const d = fromIso(datum);
-  const kurz = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][d.getDay()];
+  const kurz = WEEKDAY_SHORT[d.getDay()];
   return `${kurz} ${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.`;
 }
 
@@ -187,29 +196,14 @@ export { toIso };
 export function monatsSpannen(
   spalten: IsoDate[],
 ): { titel: string; kurz: string; spalten: number }[] {
-  const MONATE = [
-    'Januar',
-    'Februar',
-    'März',
-    'April',
-    'Mai',
-    'Juni',
-    'Juli',
-    'August',
-    'September',
-    'Oktober',
-    'November',
-    'Dezember',
-  ];
-
   const gruppen: { titel: string; kurz: string; spalten: number }[] = [];
   for (const tag of spalten) {
     const monat = Number(tag.slice(5, 7)) - 1;
     const jahr = tag.slice(0, 4);
-    const titel = `${MONATE[monat]} ${jahr}`;
+    const titel = `${MONTH_LONG[monat]} ${jahr}`;
     const letzte = gruppen[gruppen.length - 1];
     if (letzte && letzte.titel === titel) letzte.spalten += 1;
-    else gruppen.push({ titel, kurz: `${MONATE[monat].slice(0, 3)} ${jahr.slice(2)}`, spalten: 1 });
+    else gruppen.push({ titel, kurz: `${MONTH_LONG[monat].slice(0, 3)} ${jahr.slice(2)}`, spalten: 1 });
   }
   return gruppen;
 }

@@ -534,3 +534,73 @@ describe('Firmen zum Gewerk', () => {
     expect(meine!.tradeIds).toEqual([]);
   });
 });
+
+describe('Was der Review gefunden hat, bleibt repariert', () => {
+  const route = () => `/api/projects/${projektId}/bauzeitenplan`;
+
+  it('weist ein Ende vor dem gespeicherten Beginn ab - auch wenn nur das Ende kommt', async () => {
+    await leeren();
+    const id = await zeile('Abbruch', 2);
+    const vorher = (await plan()).body.phasen[0];
+
+    // Genau das schickt das Ziehen der rechten Kante: nur das Ende.
+    const res = await patch(route(), {
+      was: 'zeile',
+      phaseId: id,
+      endDate: '2020-01-05',
+    });
+    expect(res.status).toBe(422);
+
+    const nachher = (await plan()).body.phasen[0];
+    expect(nachher.endDate).toBe(vorher.endDate);
+  });
+
+  it('weist einen Beginn nach dem gespeicherten Ende ab', async () => {
+    await leeren();
+    const id = await zeile('Abbruch');
+    const res = await patch(route(), { was: 'zeile', phaseId: id, startDate: '2099-01-04' });
+    expect(res.status).toBe(422);
+  });
+
+  it('laesst eine Zeile nicht namenlos werden', async () => {
+    await leeren();
+    const id = await zeile('Abbruch');
+    const res = await patch(route(), { was: 'zeile', phaseId: id, tradeId: null, label: null });
+    expect(res.status).toBe(422);
+    expect((await plan()).body.phasen[0].titel).toBe('Abbruch');
+  });
+
+  it('liefert die eigene Bezeichnung getrennt vom Titel', async () => {
+    await leeren();
+    await zeile('Rohinstallation');
+    const mitLabel = (await plan()).body.phasen[0] as unknown as { label: string | null };
+    expect(mitLabel.label).toBe('Rohinstallation');
+
+    // Ohne eigene Bezeichnung ist label leer, auch wenn der Titel das Gewerk ist.
+    await leeren();
+    await post(route(), { tradeId: gewerkId, dauer: 1 });
+    const ohne = (await plan()).body.phasen[0] as unknown as { label: string | null; titel: string };
+    expect(ohne.label).toBeNull();
+    expect(ohne.titel.length).toBeGreaterThan(0);
+  });
+
+  it('kennt den 31. Februar nicht', async () => {
+    await leeren();
+    const res = await post(route(), { tradeId: gewerkId, startDate: '2026-02-31', dauer: 1 });
+    // Vorher rutschte das stillschweigend auf den 3. Maerz.
+    expect([400, 422]).toContain(res.status);
+    expect((await plan()).body.phasen).toHaveLength(0);
+  });
+
+  it('meldet ein unbekanntes Gewerk sauber statt mit Datenbankfehler', async () => {
+    await leeren();
+    const res = await post<{ error?: string }>(route(), { tradeId: 'gibtsnicht', dauer: 1 });
+    expect(res.status).toBe(422);
+    expect(JSON.stringify(res.body)).not.toMatch(/Foreign key|constraint|prisma/i);
+  });
+
+  it('meldet eine unbekannte Baustelle mit 404', async () => {
+    const res = await get('/api/projects/gibtsnicht/bauzeitenplan');
+    expect(res.status).toBe(404);
+  });
+});

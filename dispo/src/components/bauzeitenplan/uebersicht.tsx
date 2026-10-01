@@ -37,12 +37,10 @@ import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { useIstSchmal } from '@/lib/schmal';
 import { formatDateShort, isoWeek, todayIso, type IsoDate } from '@/lib/dates';
-import type { ProjectStatusKey } from '@/lib/labels';
 import {
   balken,
   monatsSpannen,
   spalten as fensterFuer,
-  type Phase,
   type Raster,
 } from '@/lib/bauzeitenplan';
 import { PageHeader } from '@/components/page-header';
@@ -50,26 +48,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/ui/misc';
 import { BauzeitenplanPlan } from '@/components/bauzeitenplan/plan';
+import type { BaustellePlanDTO } from '@/server/bauzeitenplan';
 
-interface PhaseDTO extends Phase {
-  titel: string;
-  gewerk: string | null;
-  farbe: string;
-  firma: string | null;
-  note: string | null;
-  besetzung: 'ok' | 'firmaFehlt' | 'niemand';
-  wer: string[];
-}
-
-interface BaustelleDTO {
-  id: string;
-  customerName: string;
-  name: string;
-  status: ProjectStatusKey;
-  bauleiter: string | null;
-  raster: Raster;
-  phasen: PhaseDTO[];
-}
+type BaustelleDTO = BaustellePlanDTO;
 
 /**
  * Die Übersicht rechnet immer in Wochen.
@@ -104,7 +85,10 @@ export function BauzeitenplanUebersicht() {
     queryFn: () => api.get<{ baustellen: BaustelleDTO[] }>('/api/bauzeitenplaene'),
   });
 
-  const alle = data?.baustellen ?? [];
+  // Als Memo, nicht als `?? []`: Ein frisches leeres Feld bei jedem Render
+  // wuerde die Filterung und das Fenster darunter bei jedem Render neu
+  // rechnen - fuer nichts.
+  const alle = React.useMemo(() => data?.baustellen ?? [], [data]);
 
   const baustellen = React.useMemo(() => {
     const begriff = suche.trim().toLowerCase();
@@ -131,7 +115,9 @@ export function BauzeitenplanUebersicht() {
   );
 
   const oeffnen = (id: string | null) =>
-    router.replace(id ? `/bauzeitenplan?baustelle=${id}` : '/bauzeitenplan', { scroll: false });
+    // push, nicht replace: Die Zurueck-Taste des Browsers fuehrt dann zur
+    // Liste statt aus der Seite heraus.
+    router.push(id ? `/bauzeitenplan?baustelle=${id}` : '/bauzeitenplan', { scroll: false });
 
   const umklappen = (id: string) =>
     setAufgeklappt((vorher) => {
@@ -301,8 +287,6 @@ export function BauzeitenplanUebersicht() {
           </p>
         ) : null}
       </div>
-
-
     </div>
   );
 }

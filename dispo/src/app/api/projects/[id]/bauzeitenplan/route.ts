@@ -3,19 +3,59 @@ import { handler, ok, parseBody, ApiError } from '@/server/api';
 import { prisma } from '@/lib/db';
 import { verlange } from '@/server/auth';
 import { writeAudit } from '@/server/audit';
-import { isoToDbDate, todayIso } from '@/lib/dates';
-import { aufRaster, naechsterStart, schrittweite, type Raster } from '@/lib/bauzeitenplan';
+import { addDays, fromIso, isoToDbDate, todayIso, toIso } from '@/lib/dates';
+import { aufRaster, naechsterStart, schrittweite } from '@/lib/bauzeitenplan';
 import { ladeBauzeitenplan, protokollZeile, verschiebePhase } from '@/server/bauzeitenplan';
 
 export const dynamic = 'force-dynamic';
 
 type Ctx = { params: Promise<{ id: string }> };
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Datum muss YYYY-MM-DD sein.');
+/*
+ * Form und Existenz. Die Form allein liess den 31. Februar durch: Im
+ * Wochenraster rutschte er stillschweigend auf den 3. Maerz, im Tagesraster
+ * stuerzte die Datenbank darueber. Ein Datum, das nach dem Hin- und
+ * Zurueckrechnen nicht mehr dasselbe ist, gab es nie.
+ */
+const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Datum muss YYYY-MM-DD sein.')
+  .refine((d) => toIso(fromIso(d)) === d, 'Dieses Datum gibt es nicht.');
+
+/**
+ * Gibt es diese Baustelle? Sonst 404 - und nicht die Prisma-Meldung als 500,
+ * die der Oberflaeche woertlich im Toast erschien.
+ */
+async function verlangeProjekt(id: string): Promise<void> {
+  const projekt = await prisma.project.findUnique({ where: { id }, select: { id: true } });
+  if (!projekt) throw new ApiError('Diese Baustelle gibt es nicht (mehr).', 404);
+}
+
+/**
+ * Gewerk und Firma muessen existieren. Ein in einem anderen Fenster
+ * geloeschtes Gewerk lief sonst in den Fremdschluessel und kam als 500 mit
+ * roher Datenbankmeldung zurueck.
+ */
+async function verlangeBezuege(tradeIds: (string | null | undefined)[], subIds: (string | null | undefined)[]) {
+  const gewerke = [...new Set(tradeIds.filter((x): x is string => Boolean(x)))];
+  const firmen = [...new Set(subIds.filter((x): x is string => Boolean(x)))];
+  const [g, f] = await Promise.all([
+    gewerke.length
+      ? prisma.trade.findMany({ where: { id: { in: gewerke } }, select: { id: true, name: true } })
+      : Promise.resolve([]),
+    firmen.length
+      ? prisma.subcontractor.findMany({ where: { id: { in: firmen } }, select: { id: true } })
+      : Promise.resolve([]),
+  ]);
+  if (g.length !== gewerke.length) throw new ApiError('Dieses Gewerk gibt es nicht (mehr).', 422);
+  if (f.length !== firmen.length) throw new ApiError('Diese Firma gibt es nicht (mehr).', 422);
+  return new Map(g.map((x) => [x.id, x.name]));
+}
 
 /** Der Plan, wie ihn die Ansicht braucht. Lesen darf jeder Angemeldete. */
 export const GET = handler(async (_request: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
+  await verlangeProjekt(id);
   return ok(await ladeBauzeitenplan(id));
 });
 
@@ -64,15 +104,13 @@ export const POST = handler(async (request: Request, ctx: Ctx) => {
     }
   }
 
+  await verlangeProjekt(id);
+  const nameVon = await verlangeBezuege(
+    zeilen.map((z) => z.tradeId),
+    zeilen.map((z) => z.subcontractorId),
+  );
   const plan = await ladeBauzeitenplan(id);
   const raster = plan.raster;
-
-  const gewerkIds = zeilen.map((z) => z.tradeId).filter((x): x is string => Boolean(x));
-  const gewerke = await prisma.trade.findMany({
-    where: { id: { in: gewerkIds } },
-    select: { id: true, name: true },
-  });
-  const nameVon = new Map(gewerke.map((g) => [g.id, g.name]));
 
   /*
    * Die vorhandenen Zeilen plus die, die in diesem Durchgang dazukommen -
@@ -91,7 +129,7 @@ export const POST = handler(async (request: Request, ctx: Ctx) => {
       'anfang',
     );
     const ende = aufRaster(
-      addTage(start, (zeile.dauer ?? 1) * schrittweite(raster) - 1),
+      addDays(start, (zeile.dauer ?? 1) * schrittweite(raster) - 1),
       raster,
       'ende',
     );
@@ -170,6 +208,7 @@ export const PATCH = handler(async (request: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   await verlange('bauzeitenplan');
   const input = await parseBody(request, aenderung);
+  await verlangeProjekt(id);
 
   if (input.was === 'raster') {
     await prisma.project.update({ where: { id }, data: { scheduleUnit: input.raster } });
@@ -195,7 +234,7 @@ export const PATCH = handler(async (request: Request, ctx: Ctx) => {
       label: `Bauzeitenplan verschoben: ${protokollZeile(
         phase.titel,
         phase.startDate,
-        addTage(phase.startDate, tage),
+        addDays(phase.startDate, tage),
       )}`,
       newValue: { tage, modus: input.modus, betroffen: anzahl },
     });
@@ -213,9 +252,23 @@ export const PATCH = handler(async (request: Request, ctx: Ctx) => {
   // Datum tippt, meint genau diese Zeile.
   const start = input.startDate ? aufRaster(input.startDate, plan.raster, 'anfang') : undefined;
   const ende = input.endDate ? aufRaster(input.endDate, plan.raster, 'ende') : undefined;
-  if (start && ende && ende < start) {
+  /*
+   * Gegen den Stand pruefen, der nachher gilt - nicht nur gegen das, was
+   * mitkam. Vorher griff die Pruefung nur, wenn beide Daten im Aufruf standen;
+   * das Ziehen der rechten Kante schickt aber nur das Ende, und so landete ein
+   * Ende vor dem Beginn in der Datenbank.
+   */
+  if ((ende ?? phase.endDate) < (start ?? phase.startDate)) {
     throw new ApiError('Das Ende liegt vor dem Beginn.', 422);
   }
+
+  // Dieselbe Regel wie beim Anlegen: ohne Gewerk braucht es eine Bezeichnung.
+  const tradeNachher = input.tradeId === undefined ? phase.tradeId : input.tradeId;
+  const labelNachher = input.label === undefined ? phase.label : input.label?.trim() || null;
+  if (!tradeNachher && !labelNachher) {
+    throw new ApiError('Bitte ein Gewerk wählen oder eine Bezeichnung eintragen.', 422);
+  }
+  await verlangeBezuege([input.tradeId], [input.subcontractorId]);
 
   await prisma.schedulePhase.update({
     where: { id: input.phaseId },
@@ -271,10 +324,3 @@ export const DELETE = handler(async (request: Request, ctx: Ctx) => {
 
   return ok({ message: `${titel} entfernt.` });
 });
-
-/** Tage auf ein ISO-Datum addieren, ohne über Zeitzonen zu stolpern. */
-function addTage(iso: string, tage: number): string {
-  const d = new Date(`${iso}T12:00:00`);
-  d.setDate(d.getDate() + tage);
-  return d.toISOString().slice(0, 10);
-}

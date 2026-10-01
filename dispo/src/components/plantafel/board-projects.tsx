@@ -1,7 +1,7 @@
 'use client';
 /** Ansicht A – Zeilen sind Baustellen, Spalten sind Tage. */
 import * as React from 'react';
-import { MapPin, Palmtree, Plus, Thermometer, Truck, Warehouse } from 'lucide-react';
+import { MapPin, Palmtree, Thermometer, Truck, Warehouse } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBoardMasse } from './masse';
 import type { AssignmentDTO, BoardResponse, ProjectSummaryDTO } from '@/lib/types';
