@@ -20,4 +20,4 @@ export const GET = handler(async () => {
       alleOffenenPunkte: darf(user, 'alleOffenenPunkte'),
     },
   });
-});
+}, { offen: true } /* Antwortet ohne Sitzung schlicht mit null */);

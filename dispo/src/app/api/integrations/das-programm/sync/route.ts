@@ -65,7 +65,7 @@ export const POST = handler(async (request: Request) => {
   await merkeMutationen();
 
   return ok({ ...result, ausloeser: vomZeitplan ? 'zeitplan' : 'benutzer' });
-});
+}, { offen: true } /* Zeitplan weist sich per Token aus, sonst verlange(sync) */);
 
 async function merkeMutationen() {
   try {

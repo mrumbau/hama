@@ -44,4 +44,4 @@ export const POST = handler(async (request: Request) => {
     user: { firstName: user.firstName, lastName: user.lastName, role: user.role },
     message: `Willkommen, ${user.firstName}.`,
   });
-});
+}, { offen: true } /* Die Anmeldung selbst */);

@@ -41,7 +41,7 @@ export const POST = handler(async (request: Request) => {
 
   const result = await ingestThreeCxEvent(parsed.data);
   return ok(result, { status: result.duplicate ? 200 : 201 });
-});
+}, { offen: true } /* Webhook, weist sich per Signatur aus */);
 
 function isValidSignature(body: string, secret: string, provided: string): boolean {
   const expected = createHmac('sha256', secret).update(body).digest('hex');

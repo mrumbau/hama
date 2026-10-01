@@ -87,4 +87,4 @@ export const POST = handler(async (request: Request) => {
   });
 
   return ok(ergebnis);
-});
+}, { offen: true } /* Zeitplan weist sich per Token aus, sonst verlange(system) */);
