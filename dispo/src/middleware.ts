@@ -92,5 +92,14 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon.svg).*)'],
+  /*
+   * Was hier nicht ausgenommen ist, laeuft durch die Anmeldepruefung - auch
+   * Dateien aus `public`. Genau daran ist das Firmenlogo auf der
+   * Anmeldeseite gescheitert: Der Browser bekam statt des Bildes die
+   * Anmeldeseite zurueck, weil er ja noch nicht angemeldet war.
+   *
+   * Wer hier eine Datei ablegt, die vor der Anmeldung sichtbar sein soll,
+   * muss sie in diese Liste aufnehmen.
+   */
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon.svg|logo.png).*)'],
 };

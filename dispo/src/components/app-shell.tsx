@@ -2,13 +2,14 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { AlertTriangle, BarChart3, CalendarRange, ClipboardCheck, HardHat, HelpCircle, LayoutGrid, LogOut, Menu, MessageSquare, Settings, Truck, Users, X } from 'lucide-react';
+import { AlertTriangle, BarChart3, CalendarRange, ClipboardCheck, HelpCircle, LayoutGrid, LogOut, Menu, MessageSquare, Settings, Truck, Users, X } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { ROLLE_LABEL, useIch } from '@/lib/ich';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { GlobalSearch } from '@/components/global-search';
 import { OpenPointsBadge } from '@/components/open-points-badge';
+import { Firmenlogo } from '@/components/ui/firmenlogo';
 
 const NAV = [
   { href: '/plantafel', label: 'Plantafel', icon: CalendarRange },
@@ -51,9 +52,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       >
         <div className="flex h-14 shrink-0 items-center gap-2 border-b px-3">
-          <div className="flex size-7 items-center justify-center rounded bg-primary text-xs font-bold text-primary-foreground">
-            <HardHat className="size-4" />
-          </div>
+          <Firmenlogo className="h-8 shrink-0" ersatzGroesse="text-xs" />
           <div className="min-w-0 leading-tight">
             <p className="truncate text-sm font-semibold">MR Umbau</p>
             <p className="truncate text-2xs text-muted-foreground">Dispo &amp; Einsatzplanung</p>
