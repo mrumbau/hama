@@ -36,6 +36,7 @@ describe('Ein erfundener Sitzungskeks kommt nicht hinein', () => {
     '/api/warnings',
     '/api/communications',
     '/api/planvorschlaege',
+    '/api/bauzeitenplaene',
     '/api/audit',
     '/api/search?q=test',
   ];

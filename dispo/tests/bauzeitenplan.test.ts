@@ -12,6 +12,7 @@ import {
   balken,
   dauerAendern,
   dauerText,
+  monatsSpannen,
   naechsterStart,
   spalten,
   spaltenTitel,
@@ -174,5 +175,38 @@ describe('Beschriftung und neue Zeilen', () => {
 
   it('beginnt bei leerem Plan in der Woche von heute', () => {
     expect(naechsterStart([], 'WOCHE', '2026-10-14')).toBe('2026-10-12');
+  });
+});
+
+describe('Monatsleiste', () => {
+  it('fasst die Wochen eines Monats zu einer Spanne zusammen', () => {
+    // Montage vom 28.09. bis zum 02.11.2026.
+    const wochen = [
+      '2026-09-28',
+      '2026-10-05',
+      '2026-10-12',
+      '2026-10-19',
+      '2026-10-26',
+      '2026-11-02',
+    ];
+    const spannen = monatsSpannen(wochen);
+    expect(spannen.map((m) => [m.titel, m.spalten])).toEqual([
+      ['September 2026', 1],
+      ['Oktober 2026', 4],
+      ['November 2026', 1],
+    ]);
+  });
+
+  it('deckt genau so viele Spalten ab, wie es Wochen gibt', () => {
+    const wochen = ['2026-12-28', '2027-01-04', '2027-01-11'];
+    const spannen = monatsSpannen(wochen);
+    // Der Jahreswechsel darf keine Spalte verschlucken und keine erfinden -
+    // sonst rutscht die ganze Leiste gegen die Wochen darunter.
+    expect(spannen.reduce((n, m) => n + m.spalten, 0)).toBe(wochen.length);
+    expect(spannen.map((m) => m.titel)).toEqual(['Dezember 2026', 'Januar 2027']);
+  });
+
+  it('kommt mit einer leeren Achse zurecht', () => {
+    expect(monatsSpannen([])).toEqual([]);
   });
 });

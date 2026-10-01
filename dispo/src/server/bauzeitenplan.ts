@@ -6,8 +6,10 @@
  * Ergebnis in einem Rutsch zu speichern: Ein halb verschobener Plan wäre
  * schlimmer als ein gar nicht verschobener.
  */
+import type { ProjectStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { colorFromString } from '@/lib/utils';
+import { CLOSED_PROJECT_STATUS } from '@/lib/labels';
 import { dbDateToIso, isoToDbDate, type IsoDate } from '@/lib/dates';
 import {
   verschiebeAbHier,
@@ -73,19 +75,40 @@ export async function ladeBauzeitenplan(projectId: string): Promise<Bauzeitenpla
   return {
     projectId,
     raster: (projekt.scheduleUnit === 'TAG' ? 'TAG' : 'WOCHE') as Raster,
-    phasen: rows.map((p) => ({
-      id: p.id,
-      tradeId: p.tradeId,
-      titel: p.label?.trim() || p.trade?.name || OHNE_NAMEN,
-      gewerk: p.trade?.name ?? null,
-      farbe: balkenfarbe(p.trade?.name, p.trade?.color),
-      subcontractorId: p.subcontractorId,
-      firma: p.subcontractor?.companyName ?? null,
-      startDate: dbDateToIso(p.startDate),
-      endDate: dbDateToIso(p.endDate),
-      note: p.note,
-      sortOrder: p.sortOrder,
-    })),
+    phasen: rows.map(phaseDTO),
+  };
+}
+
+/**
+ * Eine Zeile, wie die Oberfläche sie braucht.
+ *
+ * Eine Stelle für beide Wege – Einzelplan und Übersicht. Zwei Abschriften
+ * derselben Umwandlung laufen auseinander, und zwar immer an der Farbe.
+ */
+function phaseDTO(p: {
+  id: string;
+  tradeId: string | null;
+  label: string | null;
+  subcontractorId: string | null;
+  note: string | null;
+  sortOrder: number;
+  startDate: Date;
+  endDate: Date;
+  trade: { name: string; color: string } | null;
+  subcontractor: { companyName: string } | null;
+}): PhaseDTO {
+  return {
+    id: p.id,
+    tradeId: p.tradeId,
+    titel: p.label?.trim() || p.trade?.name || OHNE_NAMEN,
+    gewerk: p.trade?.name ?? null,
+    farbe: balkenfarbe(p.trade?.name, p.trade?.color),
+    subcontractorId: p.subcontractorId,
+    firma: p.subcontractor?.companyName ?? null,
+    startDate: dbDateToIso(p.startDate),
+    endDate: dbDateToIso(p.endDate),
+    note: p.note,
+    sortOrder: p.sortOrder,
   };
 }
 
@@ -139,4 +162,67 @@ export async function verschiebePhase(
 export function protokollZeile(titel: string, von: IsoDate, nach: IsoDate): string {
   const kurz = (d: IsoDate) => `${d.slice(8, 10)}.${d.slice(5, 7)}.`;
   return `${titel}: ${kurz(von)} → ${kurz(nach)}`;
+}
+
+// ---------------------------------------------------------------------------
+// Alle Baustellen auf einer Zeitachse
+// ---------------------------------------------------------------------------
+
+export interface BaustellePlanDTO {
+  id: string;
+  customerName: string;
+  name: string;
+  status: string;
+  bauleiter: string | null;
+  /** Das Raster, in dem diese Baustelle gerechnet wird. */
+  raster: Raster;
+  phasen: PhaseDTO[];
+}
+
+/**
+ * Die Übersicht: jede Baustelle mit ihrem Plan, auf einer gemeinsamen
+ * Zeitachse lesbar.
+ *
+ * Der Grund für die eigene Seite ist derselbe wie bei der Plantafel: Ein Plan
+ * je Baustelle beantwortet „läuft diese Baustelle rund?". Die Frage, die
+ * wehtut, ist eine andere – „wo stehen diese Woche drei Gewerke gleichzeitig,
+ * und haben wir dafür überhaupt Leute?". Die sieht man nur, wenn alle
+ * Baustellen untereinanderstehen.
+ *
+ * Abgeschlossenes bleibt draußen. Ein Bauzeitenplan ist ein Blick nach vorn;
+ * fertige Baustellen machen die Achse nur lang.
+ */
+export async function ladeAlleBauzeitenplaene(): Promise<BaustellePlanDTO[]> {
+  const projekte = await prisma.project.findMany({
+    where: {
+      // Lager, Besorgungsfahrten, Urlaub und Krank haben keinen Bauablauf.
+      internKey: null,
+      status: { notIn: CLOSED_PROJECT_STATUS as ProjectStatus[] },
+    },
+    select: {
+      id: true,
+      customerName: true,
+      name: true,
+      status: true,
+      scheduleUnit: true,
+      primarySiteManager: { select: { firstName: true, lastName: true } },
+      schedulePhases: {
+        include: { trade: true, subcontractor: true },
+        orderBy: [{ startDate: 'asc' }, { sortOrder: 'asc' }],
+      },
+    },
+    orderBy: [{ customerName: 'asc' }, { name: 'asc' }],
+  });
+
+  return projekte.map((p) => ({
+    id: p.id,
+    customerName: p.customerName,
+    name: p.name,
+    status: p.status,
+    bauleiter: p.primarySiteManager
+      ? `${p.primarySiteManager.firstName} ${p.primarySiteManager.lastName}`.trim()
+      : null,
+    raster: (p.scheduleUnit === 'TAG' ? 'TAG' : 'WOCHE') as Raster,
+    phasen: p.schedulePhases.map(phaseDTO),
+  }));
 }
