@@ -9,9 +9,10 @@
  */
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Building2, HardHat, LogIn } from 'lucide-react';
+import { Building2, LogIn } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
+import { Firmenlogo } from '@/components/ui/firmenlogo';
 import { Field, Input } from '@/components/ui/input';
 
 export function AnmeldeFormular() {
@@ -42,12 +43,10 @@ export function AnmeldeFormular() {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-muted/30 p-4">
       <div className="w-full max-w-sm rounded-lg border bg-card p-6 shadow-sm">
-        <div className="mb-5 flex items-center gap-2">
-          <HardHat className="size-5 text-primary" />
-          <div>
-            <h1 className="text-sm font-semibold leading-tight">MR Umbau Disposition</h1>
-            <p className="text-2xs text-muted-foreground">Bitte anmelden.</p>
-          </div>
+        <div className="mb-5 flex flex-col items-center text-center">
+          <Firmenlogo className="h-20" ersatzGroesse="text-xl" />
+          <h1 className="mt-3 text-sm font-semibold leading-tight">MR Umbau Disposition</h1>
+          <p className="text-2xs text-muted-foreground">Bitte anmelden.</p>
         </div>
 
         {/*
