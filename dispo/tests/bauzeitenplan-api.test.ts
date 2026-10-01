@@ -15,6 +15,8 @@ interface Phase {
   startDate: string;
   endDate: string;
   firma: string | null;
+  besetzung: 'ok' | 'firmaFehlt' | 'niemand';
+  wer: string[];
 }
 interface Plan {
   raster: 'WOCHE' | 'TAG';
@@ -310,5 +312,140 @@ describe('Übersicht aller Bauzeitenpläne', () => {
       expect(b.customerName).not.toBe('Lager');
       expect(b.customerName).not.toBe('Besorgungsfahrt');
     }
+  });
+});
+
+describe('Steht jemand auf der Plantafel?', () => {
+  /** Alle Einsätze dieser Baustelle wieder wegräumen. */
+  async function einsaetzeWeg() {
+    const res = await get<{ id: string }[]>(
+      `/api/assignments?projekt=${projektId}&von=2020-01-01&bis=2099-12-31`,
+    );
+    for (const a of res.body) await del(`/api/assignments/${a.id}`);
+  }
+
+  async function erstePhase(): Promise<Phase> {
+    const { body } = await plan();
+    return body.phasen[0];
+  }
+
+  it('meldet „niemand", solange die Tafel leer ist', async () => {
+    await leeren();
+    await einsaetzeWeg();
+    await zeile('Abbruch');
+    const p = await erstePhase();
+    expect(p.besetzung).toBe('niemand');
+    expect(p.wer).toEqual([]);
+  });
+
+  it('ist zufrieden, sobald im Zeitraum jemand steht', async () => {
+    await leeren();
+    await einsaetzeWeg();
+    await zeile('Abbruch');
+    const p = await erstePhase();
+
+    const res = await post(`/api/assignments`, {
+      projectId: projektId,
+      resourceType: 'UNBESETZT',
+      placeholderLabel: 'Platzhalter',
+      startDate: p.startDate,
+      endDate: p.endDate,
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+
+    const nachher = await erstePhase();
+    expect(nachher.besetzung).toBe('ok');
+    expect(nachher.wer).toContain('Platzhalter');
+    await einsaetzeWeg();
+  });
+
+  it('lässt einen Einsatz daneben nicht zählen', async () => {
+    await leeren();
+    await einsaetzeWeg();
+    await zeile('Abbruch');
+    const p = await erstePhase();
+
+    // Ein Einsatz, der einen Tag nach dem Gewerk anfängt und aufhört.
+    const danach = (iso: string, tage: number) => {
+      const d = new Date(`${iso}T12:00:00`);
+      d.setDate(d.getDate() + tage);
+      return d.toISOString().slice(0, 10);
+    };
+    await post(`/api/assignments`, {
+      projectId: projektId,
+      resourceType: 'UNBESETZT',
+      placeholderLabel: 'Danach',
+      startDate: danach(p.endDate, 1),
+      endDate: danach(p.endDate, 3),
+    });
+
+    expect((await erstePhase()).besetzung).toBe('niemand');
+    await einsaetzeWeg();
+  });
+
+  it('warnt, wenn die hinterlegte Firma nicht die eingeplante ist', async () => {
+    await leeren();
+    await einsaetzeWeg();
+    const id = await zeile('Sanitär');
+
+    const sub = await post<{ subcontractor: { id: string } }>('/api/subcontractors', {
+      companyName: `Firma ${TAG}`,
+    });
+    expect(sub.status, JSON.stringify(sub.body)).toBe(201);
+
+    await patch(`/api/projects/${projektId}/bauzeitenplan`, {
+      was: 'zeile',
+      phaseId: id,
+      subcontractorId: sub.body.subcontractor.id,
+    });
+
+    const p = await erstePhase();
+    // Jemand anderes steht im Zeitraum auf der Tafel.
+    await post(`/api/assignments`, {
+      projectId: projektId,
+      resourceType: 'UNBESETZT',
+      placeholderLabel: 'Jemand anderes',
+      startDate: p.startDate,
+      endDate: p.endDate,
+    });
+
+    const nachher = await erstePhase();
+    expect(nachher.besetzung).toBe('firmaFehlt');
+    expect(nachher.wer).toContain('Jemand anderes');
+
+    // Und mit der richtigen Firma ist Ruhe.
+    await post(`/api/assignments`, {
+      projectId: projektId,
+      resourceType: 'SUBUNTERNEHMER',
+      subcontractorId: sub.body.subcontractor.id,
+      startDate: p.startDate,
+      endDate: p.endDate,
+      force: true,
+    });
+    expect((await erstePhase()).besetzung).toBe('ok');
+
+    await einsaetzeWeg();
+  });
+
+  it('zählt einen abgesagten Einsatz nicht', async () => {
+    await leeren();
+    await einsaetzeWeg();
+    await zeile('Abbruch');
+    const p = await erstePhase();
+
+    const res = await post<{ assignment: { id: string } }>(`/api/assignments`, {
+      projectId: projektId,
+      resourceType: 'UNBESETZT',
+      placeholderLabel: 'Fällt aus',
+      startDate: p.startDate,
+      endDate: p.endDate,
+    });
+    expect((await erstePhase()).besetzung).toBe('ok');
+
+    await patch(`/api/assignments/${res.body.assignment.id}`, { status: 'ABGESAGT' });
+    // Ein abgesagter Einsatz ist das Gegenteil einer Besetzung.
+    expect((await erstePhase()).besetzung).toBe('niemand');
+
+    await einsaetzeWeg();
   });
 });

@@ -16,7 +16,7 @@
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarRange, ChevronDown, ChevronRight, Search } from 'lucide-react';
+import { AlertTriangle, CalendarRange, ChevronDown, ChevronRight, Search } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { useIstSchmal } from '@/lib/schmal';
@@ -41,6 +41,8 @@ interface PhaseDTO extends Phase {
   farbe: string;
   firma: string | null;
   note: string | null;
+  besetzung: 'ok' | 'firmaFehlt' | 'niemand';
+  wer: string[];
 }
 
 interface BaustelleDTO {
@@ -230,7 +232,8 @@ export function BauzeitenplanUebersicht() {
           <p className="mt-2 text-2xs text-muted-foreground">
             Der Pfeil links klappt die Gewerke auf. Ein Klick auf die Baustelle öffnet ihren Plan –
             dort wird geschoben, hinzugefügt und entfernt. Die Übersicht rechnet in Wochen; tagesgenau
-            stellt man je Baustelle ein.
+            stellt man je Baustelle ein. Das rote Zeichen heißt: Dieses Gewerk steht im Plan, aber
+            auf der Plantafel steht dafür niemand.
           </p>
         ) : null}
       </div>
@@ -260,6 +263,7 @@ function BaustellenZeile({
 }) {
   const spaltenZahl = fenster.spalten.length;
   const raster = `var(--name) repeat(${spaltenZahl}, var(--spalte))`;
+  const ohneMannschaft = b.phasen.filter((p) => p.besetzung === 'niemand').length;
 
   return (
     <>
@@ -275,7 +279,26 @@ function BaustellenZeile({
             {offen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
           </button>
           <button onClick={onOeffnen} className="min-w-0 flex-1 py-1.5 text-left">
-            <span className="block truncate text-xs font-semibold">{b.customerName}</span>
+            <span className="flex items-center gap-1">
+              <span className="min-w-0 flex-1 truncate text-xs font-semibold">
+                {b.customerName}
+              </span>
+              {/*
+                Der eigentliche Zweck der Uebersicht: Man sieht auf einen
+                Blick, welche Baustelle im Plan steht und auf der Tafel nicht.
+              */}
+              {ohneMannschaft > 0 ? (
+                <span
+                  className="flex shrink-0 items-center gap-0.5 text-2xs font-semibold text-destructive"
+                  title={`${ohneMannschaft} ${
+                    ohneMannschaft === 1 ? 'Gewerk' : 'Gewerke'
+                  } ohne Einsatz auf der Plantafel`}
+                >
+                  <AlertTriangle className="size-3" />
+                  {ohneMannschaft}
+                </span>
+              ) : null}
+            </span>
             <span className="block truncate text-2xs text-muted-foreground">
               {b.name}
               {b.bauleiter ? ` · ${b.bauleiter}` : ''}
@@ -350,6 +373,23 @@ function BaustellenZeile({
                     aria-hidden
                   />
                   <span className="min-w-0 flex-1 truncate text-2xs">{p.titel}</span>
+                  {p.besetzung !== 'ok' ? (
+                    <span
+                      className={cn(
+                        'shrink-0',
+                        p.besetzung === 'niemand' ? 'text-destructive' : 'text-amber-600',
+                      )}
+                      title={
+                        p.besetzung === 'niemand'
+                          ? `Für ${p.titel} steht im Zeitraum niemand auf der Plantafel.`
+                          : `${p.firma ?? 'Die hinterlegte Firma'} steht nicht auf der Plantafel – eingeplant ist ${
+                              p.wer.join(', ') || 'jemand'
+                            }.`
+                      }
+                    >
+                      <AlertTriangle className="size-3" />
+                    </span>
+                  ) : null}
                 </div>
                 {fenster.spalten.map((s, i) => (
                   <div
