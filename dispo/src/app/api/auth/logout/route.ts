@@ -8,4 +8,4 @@ export const POST = handler(async () => {
   const store = await cookies();
   store.delete(SESSION_COOKIE);
   return ok({ message: 'Abgemeldet.' });
-});
+}, { offen: true } /* Abmelden muss auch mit abgelaufener Sitzung gehen */);

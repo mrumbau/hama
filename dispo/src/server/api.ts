@@ -45,10 +45,44 @@ export class ApiError extends Error {
   }
 }
 
-/** Umschliesst einen Route-Handler und uebersetzt Fehler in saubere Antworten. */
-export function handler<A extends unknown[]>(fn: (...args: A) => Promise<Response>) {
+export interface HandlerOptionen {
+  /**
+   * Diese Route darf ohne gueltige Sitzung antworten.
+   *
+   * Nur fuer die wenigen, die es muessen: die Anmeldung selbst, die Frage
+   * "wer bin ich", die Versionsauskunft und die beiden Wege, die sich mit
+   * einem eigenen Ausweis melden (Zeitplan, 3CX-Webhook). Jede andere Route
+   * verlangt eine Sitzung - ohne dass jemand daran denken muss.
+   */
+  offen?: boolean;
+}
+
+/**
+ * Umschliesst einen Route-Handler: einheitliche Fehlerform - und der
+ * Riegel vor der Tuer.
+ *
+ * Die Middleware kann den Riegel nicht stellen. Sie laeuft in der
+ * Edge-Laufzeit, kommt dort weder an die Datenbank noch an die Unterschrift
+ * der Sitzung und konnte deshalb nur pruefen, OB ein Cookie mitkommt - nicht,
+ * ob er echt ist. Ein frei erfundener Wert kam damit durch, und jede Route,
+ * die nicht von sich aus nachfragte, hat geantwortet.
+ *
+ * Deshalb steht die Pruefung hier: an der einen Stelle, durch die jede
+ * API-Route ohnehin laeuft. Wer eine neue Route baut, bekommt den Riegel
+ * geschenkt, statt ihn vergessen zu koennen.
+ */
+export function handler<A extends unknown[]>(
+  fn: (...args: A) => Promise<Response>,
+  optionen: HandlerOptionen = {},
+) {
   return async (...args: A): Promise<Response> => {
     try {
+      if (!optionen.offen) {
+        // Erst hier laden, sonst zoege api.ts die halbe Serverwelt in die
+        // Edge-Laufzeit der Middleware.
+        const { aktuellerBenutzer } = await import('./auth');
+        if (!(await aktuellerBenutzer())) return fail('Nicht angemeldet.', 401);
+      }
       return await fn(...args);
     } catch (e) {
       if (e instanceof ApiError) return fail(e.message, e.status, e.extra);

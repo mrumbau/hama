@@ -46,6 +46,7 @@ import { AmpelDot } from '@/components/ui/ampel';
 import { EmptyState, Separator } from '@/components/ui/misc';
 import { useToast } from '@/components/ui/toast';
 import type { AssignmentDTO } from '@/lib/types';
+import { BauzeitenplanTab } from './bauzeitenplan-tab';
 
 interface ProjectDetail {
   id: string;
@@ -99,6 +100,7 @@ interface ProjectDetail {
 
 const TABS = [
   { value: 'uebersicht', label: 'Übersicht' },
+  { value: 'bauzeitenplan', label: 'Bauzeitenplan' },
   { value: 'planung', label: 'Planung' },
   { value: 'team', label: 'Team' },
   { value: 'subs', label: 'SUBs' },
@@ -128,7 +130,15 @@ export function ProjectPanel({ projectId, onClose }: { projectId: string; onClos
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full sm:max-w-2xl">
+      {/*
+        Der Bauzeitenplan braucht Breite: elf Kalenderwochen nebeneinander
+        passen nicht in ein Seitenpanel, das fuer Formulare gemacht ist. Die
+        uebrigen Reiter bleiben schmal - dort stehen Felder untereinander,
+        und ein breites Panel macht aus einem Formular eine Wueste.
+      */}
+      <SheetContent
+        className={tab === 'bauzeitenplan' ? 'w-full sm:max-w-5xl' : 'w-full sm:max-w-2xl'}
+      >
         {isLoading || !project ? (
           <div className="flex flex-1 items-center justify-center text-muted-foreground">
             <Loader2 className="mr-2 size-4 animate-spin" /> Projekt wird geladen …
@@ -229,6 +239,9 @@ export function ProjectPanel({ projectId, onClose }: { projectId: string; onClos
                   ) : (
                     <OverviewTab project={project} />
                   )}
+                </TabsContent>
+                <TabsContent value="bauzeitenplan">
+                  <BauzeitenplanTab projectId={projectId} />
                 </TabsContent>
                 <TabsContent value="planung">
                   <AssignmentsTab

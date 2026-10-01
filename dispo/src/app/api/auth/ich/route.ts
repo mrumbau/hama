@@ -18,6 +18,7 @@ export const GET = handler(async () => {
       // Davon haengt ab, ob auf der Karte der Haken zum Annehmen erscheint.
       planungFreigeben: darf(user, 'planungFreigeben'),
       alleOffenenPunkte: darf(user, 'alleOffenenPunkte'),
+      bauzeitenplan: darf(user, 'bauzeitenplan'),
     },
   });
-});
+}, { offen: true } /* Antwortet ohne Sitzung schlicht mit null */);
