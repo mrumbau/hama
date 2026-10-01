@@ -34,11 +34,15 @@ import { cn } from '@/lib/utils';
 import { useIch } from '@/lib/ich';
 import { useIstSchmal } from '@/lib/schmal';
 import { BOARD_KEYS, useTrades } from '@/lib/queries';
-import { formatDateShort, todayIso, type IsoDate } from '@/lib/dates';
+import { addDays, diffDays, formatDateShort, todayIso, type IsoDate } from '@/lib/dates';
+import type { PhaseDTO as ServerPhaseDTO } from '@/server/bauzeitenplan';
 import {
   balken,
+  dauerAendern,
+  dauerInSpalten,
   dauerText,
   spalten as fensterFuer,
+  spaltenInTage,
   spaltenTitel,
   type Raster,
 } from '@/lib/bauzeitenplan';
@@ -58,22 +62,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 
-interface PhaseDTO {
-  id: string;
-  tradeId: string | null;
-  titel: string;
-  gewerk: string | null;
-  farbe: string;
-  subcontractorId: string | null;
-  firma: string | null;
-  startDate: IsoDate;
-  endDate: IsoDate;
-  note: string | null;
-  sortOrder: number;
-  besetzung: 'ok' | 'firmaFehlt' | 'niemand';
-  /** Wer im Zeitraum auf der Tafel steht – für den Mauszeiger. */
-  wer: string[];
-}
+type PhaseDTO = ServerPhaseDTO;
 
 interface PlanDTO {
   projectId: string;
@@ -132,6 +121,9 @@ export function BauzeitenplanPlan({ projectId }: { projectId: string }) {
   const aktualisieren = React.useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['bauzeitenplan', projectId] });
     queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+    // Die Liste aller Baustellen bleibt im Hintergrund eingehaengt. Ohne das
+    // zeigte sie nach "Alle Baustellen" den Stand von vor der Aenderung.
+    queryClient.invalidateQueries({ queryKey: ['bauzeitenplaene'] });
   }, [queryClient, projectId]);
 
   const aendern = useMutation({
@@ -435,10 +427,13 @@ export function BauzeitenplanPlan({ projectId }: { projectId: string }) {
                             modus: nurDiese ? 'nurDiese' : 'abHier',
                           });
                         } else {
+                          // dauerAendern haelt mindestens eine Spalte: Wer
+                          // die Kante ueber den Anfang hinaus zieht, bekommt
+                          // den kuerzesten Balken, kein Ende vor dem Beginn.
                           aendern.mutate({
                             was: 'zeile',
                             phaseId: p.id,
-                            endDate: tageSpaeter(p.endDate, spaltenZahl, raster),
+                            endDate: dauerAendern(p, spaltenInTage(spaltenZahl, raster), raster),
                           });
                         }
                       }}
@@ -966,7 +961,7 @@ function ZeileBearbeitenDialog({
     if (!phase) return;
     setForm({
       tradeId: phase.tradeId ?? '',
-      label: phase.titel === phase.gewerk ? '' : phase.titel,
+      label: phase.label ?? '',
       subcontractorId: phase.subcontractorId ?? '',
       startDate: phase.startDate,
       endDate: phase.endDate,
@@ -995,20 +990,16 @@ function ZeileBearbeitenDialog({
 
   /** Dauer in Spalten – so denkt man („drei Wochen"), nicht in Enddaten. */
   const dauer = React.useMemo(() => {
-    if (!form.startDate || !form.endDate) return 1;
-    const tage =
-      (new Date(`${form.endDate}T12:00:00`).getTime() -
-        new Date(`${form.startDate}T12:00:00`).getTime()) /
-        86_400_000 +
-      1;
-    return Math.max(1, Math.round(tage / (raster === 'WOCHE' ? 7 : 1)));
+    if (!form.startDate || !form.endDate || form.endDate < form.startDate) return 1;
+    return dauerInSpalten({ id: '', startDate: form.startDate, endDate: form.endDate }, raster);
   }, [form.startDate, form.endDate, raster]);
 
   const dauerSetzen = (n: number) => {
+    // Ohne Beginn gibt es kein Ende. Vorher warf das ein "Invalid time value"
+    // mitten im Tippen und riss den Dialog mit.
+    if (!form.startDate) return;
     const spalten = Math.max(1, Math.min(260, n));
-    const d = new Date(`${form.startDate}T12:00:00`);
-    d.setDate(d.getDate() + spalten * (raster === 'WOCHE' ? 7 : 1) - 1);
-    setForm({ ...form, endDate: d.toISOString().slice(0, 10) });
+    setForm({ ...form, endDate: addDays(form.startDate, spaltenInTage(spalten, raster) - 1) });
   };
 
   const speichern = useMutation({
@@ -1313,6 +1304,9 @@ function GewerkLeiste({
               setZieht({ ...zieht, x: e.clientX, y: e.clientY });
             }}
             onPointerUp={(e) => {
+              // Rechts- oder Mittelklick hat beim Druecken nichts begonnen und
+              // darf beim Loslassen auch nichts auslösen.
+              if (e.pointerType === 'mouse' && e.button !== 0) return;
               const angefasst = start.current;
               start.current = null;
               setZieht(null);
@@ -1440,8 +1434,9 @@ function AufDieTafelDialog({
         note: phase!.note || null,
       }),
     onSuccess: (res) => {
-      // Die Tafel, die Warnungen und der Plan selbst zeigen das Ergebnis.
+      // Die Tafel, die Warnungen, der Plan und die Liste zeigen das Ergebnis.
       for (const key of BOARD_KEYS) queryClient.invalidateQueries({ queryKey: key });
+      queryClient.invalidateQueries({ queryKey: ['bauzeitenplaene'] });
       onFertig();
       onClose();
       toast({ title: res.message, tone: 'success' });
@@ -1449,13 +1444,7 @@ function AufDieTafelDialog({
     onError: (e: Error) => toast({ title: e.message, tone: 'error' }),
   });
 
-  const tage = phase
-    ? Math.round(
-        (new Date(`${phase.endDate}T12:00:00`).getTime() -
-          new Date(`${phase.startDate}T12:00:00`).getTime()) /
-          86_400_000,
-      ) + 1
-    : 0;
+  const tage = phase ? diffDays(phase.startDate, phase.endDate) + 1 : 0;
 
   return (
     <Dialog open={Boolean(phase)} onOpenChange={(o) => !o && onClose()}>
@@ -1528,11 +1517,3 @@ function untertitel(p: PhaseDTO): string {
   const wer = p.firma ?? (p.gewerk && p.gewerk !== p.titel ? p.gewerk : null);
   return wer ? `${wer} · ${zeitraum}` : zeitraum;
 }
-
-/** Enddatum um N Spalten verschieben – für das Ziehen an der rechten Kante. */
-function tageSpaeter(iso: IsoDate, spalten: number, raster: Raster): IsoDate {
-  const d = new Date(`${iso}T12:00:00`);
-  d.setDate(d.getDate() + spalten * (raster === 'WOCHE' ? 7 : 1));
-  return d.toISOString().slice(0, 10) as IsoDate;
-}
-

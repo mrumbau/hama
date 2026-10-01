@@ -10,7 +10,7 @@
     "dev": "next dev -p 3000",
     "build": "prisma generate && next build",
     "start": "next start -p 3000",
-    "lint": "next lint",
+    "lint": "eslint src tests scripts --ext .ts,.tsx,.mjs",
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",

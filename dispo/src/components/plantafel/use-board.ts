@@ -3,7 +3,7 @@ import * as React from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api-client';
-import { addDays, todayIso, type IsoDate } from '@/lib/dates';
+import { addDays, todayIso } from '@/lib/dates';
 import { resolveRange, type BoardRange } from '@/lib/board-range';
 import type { BoardResponse } from '@/lib/types';
 

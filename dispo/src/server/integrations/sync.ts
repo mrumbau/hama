@@ -13,7 +13,6 @@
  */
 import { prisma } from '@/lib/db';
 import { isoToDbDate, dbDateToIso } from '@/lib/dates';
-import { fullName } from '@/lib/utils';
 import { erpStatusName, type ProjectStatusKey } from '@/lib/labels';
 import { writeAudit } from '@/server/audit';
 import { gleicheBauleitungAb } from '@/server/bauleitung';

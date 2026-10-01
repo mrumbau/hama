@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, Building2, Plus, Search, TriangleAlert } from 'lucide-react';
+import { Archive, Building2, Search, TriangleAlert } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { useSiteManagers } from '@/lib/queries';
 import { formatDateShort } from '@/lib/dates';

@@ -82,9 +82,9 @@ export function PlanvorschlaegePage() {
     onError: (e: Error) => toast({ title: e.message, tone: 'error' }),
   });
 
-  const vorschlaege = data?.vorschlaege ?? [];
+  const vorschlaege = React.useMemo(() => data?.vorschlaege ?? [], [data]);
   const darfFreigeben = data?.darfFreigeben ?? false;
-  const doppelt = data?.doppelt ?? [];
+  const doppelt = React.useMemo(() => data?.doppelt ?? [], [data]);
   const betroffen = React.useMemo(
     () => new Set(doppelt.flatMap((d) => d.beteiligte.map((b) => b.id))),
     [doppelt],

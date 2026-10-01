@@ -36,6 +36,12 @@ export interface PhaseDTO {
   tradeId: string | null;
   /** Was auf dem Balken steht: eigene Bezeichnung, sonst der Gewerkename. */
   titel: string;
+  /**
+   * Die eigene Bezeichnung selbst, roh. Die Oberflaeche braucht sie getrennt
+   * vom Titel: Sonst hielt sie den Ersatztext "Ohne Bezeichnung" fuer eine
+   * eingetippte Bezeichnung und speicherte ihn beim naechsten Mal als solche.
+   */
+  label: string | null;
   gewerk: string | null;
   farbe: string;
   subcontractorId: string | null;
@@ -93,9 +99,17 @@ interface Einsatz {
 
 const ZAEHLT_NICHT: AssignmentStatus[] = ['ABGESAGT'];
 
+/**
+ * Je Baustelle gebuendelt. Einmal gruppiert statt je Zeile gefiltert: Bei
+ * dreissig Baustellen mit je fuenfzehn Zeilen und dreitausend Einsaetzen
+ * waren das sonst ueber eine Million Vergleiche fuer eine Seite.
+ */
+type EinsaetzeJeBaustelle = Map<string, Einsatz[]>;
+
 /** Einsaetze der genannten Baustellen, auf das Noetige eingekocht. */
-async function einsaetzeFuer(projectIds: string[]): Promise<Einsatz[]> {
-  if (!projectIds.length) return [];
+async function einsaetzeFuer(projectIds: string[]): Promise<EinsaetzeJeBaustelle> {
+  const jeBaustelle: EinsaetzeJeBaustelle = new Map();
+  if (!projectIds.length) return jeBaustelle;
   const rows = await prisma.assignment.findMany({
     where: { projectId: { in: projectIds }, status: { notIn: ZAEHLT_NICHT } },
     select: {
@@ -110,18 +124,24 @@ async function einsaetzeFuer(projectIds: string[]): Promise<Einsatz[]> {
     },
   });
 
-  return rows.map((a) => ({
-    projectId: a.projectId,
-    subcontractorId: a.subcontractorId,
-    von: dbDateToIso(a.startDate),
-    bis: dbDateToIso(a.endDate),
-    wer:
-      a.subcontractor?.companyName ??
-      (a.employee ? `${a.employee.firstName} ${a.employee.lastName}`.trim() : null) ??
-      (a.siteManager ? `${a.siteManager.firstName} ${a.siteManager.lastName}`.trim() : null) ??
-      a.placeholderLabel ??
-      'Unbesetzt',
-  }));
+  for (const a of rows) {
+    const einsatz: Einsatz = {
+      projectId: a.projectId,
+      subcontractorId: a.subcontractorId,
+      von: dbDateToIso(a.startDate),
+      bis: dbDateToIso(a.endDate),
+      wer:
+        a.subcontractor?.companyName ??
+        (a.employee ? `${a.employee.firstName} ${a.employee.lastName}`.trim() : null) ??
+        (a.siteManager ? `${a.siteManager.firstName} ${a.siteManager.lastName}`.trim() : null) ??
+        a.placeholderLabel ??
+        'Unbesetzt',
+    };
+    const liste = jeBaustelle.get(a.projectId);
+    if (liste) liste.push(einsatz);
+    else jeBaustelle.set(a.projectId, [einsatz]);
+  }
+  return jeBaustelle;
 }
 
 /**
@@ -189,19 +209,20 @@ function phaseDTO(
     trade: { name: string; color: string } | null;
     subcontractor: { companyName: string } | null;
   },
-  einsaetze: Einsatz[],
+  einsaetze: EinsaetzeJeBaustelle,
 ): PhaseDTO {
   const startDate = dbDateToIso(p.startDate);
   const endDate = dbDateToIso(p.endDate);
   const besetzung = besetzungFuer(
     { startDate, endDate, subcontractorId: p.subcontractorId },
-    einsaetze.filter((e) => e.projectId === p.projectId),
+    einsaetze.get(p.projectId) ?? [],
   );
 
   return {
     id: p.id,
     tradeId: p.tradeId,
     titel: p.label?.trim() || p.trade?.name || OHNE_NAMEN,
+    label: p.label?.trim() || null,
     gewerk: p.trade?.name ?? null,
     farbe: balkenfarbe(p.trade?.name, p.trade?.color),
     subcontractorId: p.subcontractorId,

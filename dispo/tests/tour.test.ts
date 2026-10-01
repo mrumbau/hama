@@ -6,7 +6,8 @@
  * weil sie trotzdem läuft. Deshalb hier geprüft, dass jede Auswahl im Code
  * auch wirklich vorkommt.
  */
-import { readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { TOUR } from '@/components/tour/schritte';
@@ -15,7 +16,6 @@ const SRC = join(process.cwd(), 'src');
 
 /** Alle Quelldateien als ein Text – einmal, nicht je Test. */
 function quelltext(): string {
-  const { execSync } = require('node:child_process') as typeof import('node:child_process');
   const dateien = execSync(`find ${SRC} -name '*.tsx' -o -name '*.ts'`, { encoding: 'utf8' })
     .split('\n')
     .filter(Boolean);
@@ -47,7 +47,6 @@ describe('Tourschritte', () => {
   });
 
   it('führt nur auf Seiten, die es gibt', () => {
-    const { existsSync } = require('node:fs') as typeof import('node:fs');
     for (const s of TOUR) {
       const seite = join(SRC, 'app', s.pfad, 'page.tsx');
       expect(existsSync(seite), `Seite ${s.pfad} fehlt`).toBe(true);

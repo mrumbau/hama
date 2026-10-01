@@ -37,11 +37,9 @@ try {
   await page.goto(`${BASE}/plantafel`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
 
-  const personal = page.locator('[id^="palette-resource"], button[aria-roledescription="draggable"]').first();
   const chips = page.locator('button', { hasText: 'frei' });
   check((await chips.count()) > 0, 'Ablageleiste zeigt Personal mit Verfügbarkeit');
 
-  const vorher = (await page.locator('[aria-roledescription="draggable"]').count());
   const quelle = chips.first();
   const ziel = page.locator('td').nth(3);
   await ziehen(quelle, ziel);

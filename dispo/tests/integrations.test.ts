@@ -1,7 +1,6 @@
 /**
  * Tests für die Integrationen: Das Programm (Sync) und 3CX (Eingang, AI).
  */
-import { createHmac } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   addDays,
