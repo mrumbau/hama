@@ -8,15 +8,31 @@
  * Leute?". Die sieht man nur, wenn alle Baustellen untereinanderstehen und
  * dieselbe Woche überall dieselbe Spalte ist.
  *
- * Eine Baustelle anklicken öffnet ihren Plan – dasselbe Panel wie auf der
- * Plantafel, auf dem Reiter Bauzeitenplan. Dort wird geändert; hier wird
- * verglichen. Der Pfeil links klappt die Gewerke an Ort und Stelle auf, wenn
- * man nur hinsehen und nicht die Seite verlassen will.
+ * Zwei Ebenen, eine Seite. Oben die Liste aller Baustellen zum Vergleichen;
+ * eine Baustelle anklicken öffnet ihren vollen Plan an derselben Stelle – mit
+ * Gewerkleiste, Wochen- oder Tagesraster, Ziehen, Ändern und Entfernen. Kein
+ * Panel, das sich darüberlegt: Was man ändert, ändert man dort, wo man es
+ * sieht.
+ *
+ * Das Raster gehört zur einzelnen Baustelle, nicht zur Übersicht. Deshalb
+ * steht der Schalter Wochen/Tage erst in der zweiten Ebene: Auf einer
+ * gemeinsamen Achse können nicht zwei Baustellen verschieden rechnen.
+ *
+ * Der Pfeil links klappt die Gewerke in der Liste auf, wenn man nur hinsehen
+ * und nicht umschalten will.
  */
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, CalendarRange, ChevronDown, ChevronRight, Search } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CalendarRange,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  Search,
+} from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { useIstSchmal } from '@/lib/schmal';
@@ -33,7 +49,7 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/ui/misc';
-import { ProjectPanel } from '@/components/project/project-panel';
+import { BauzeitenplanPlan } from '@/components/bauzeitenplan/plan';
 
 interface PhaseDTO extends Phase {
   titel: string;
@@ -63,13 +79,21 @@ interface BaustelleDTO {
  * eine Woche lang nach rechts, um den Februar zu sehen.
  */
 const RASTER: Raster = 'WOCHE';
-const SPALTE = 56;
+/**
+ * Spaltenbreite der Übersicht.
+ *
+ * Breit genug für „KW 37" – die nackte Zahl liest sich schneller, sagt aber
+ * nicht, was sie ist, und auf einem Plan, den man jemandem über die Schulter
+ * zeigt, ist das der Unterschied zwischen Verstehen und Nachfragen.
+ */
+const SPALTE = 76;
 const NAMENSSPALTE = { breit: 230, schmal: 150 };
 
 export function BauzeitenplanUebersicht() {
   const router = useRouter();
   const params = useSearchParams();
-  const offenesProjekt = params.get('projekt');
+  /** Welche Baustelle ist aufgeschlagen? Leer = die Liste aller Baustellen. */
+  const offeneBaustelle = params.get('baustelle');
   const schmal = useIstSchmal();
 
   const [suche, setSuche] = React.useState('');
@@ -107,9 +131,7 @@ export function BauzeitenplanUebersicht() {
   );
 
   const oeffnen = (id: string | null) =>
-    router.replace(id ? `/bauzeitenplan?projekt=${id}&tab=bauzeitenplan` : '/bauzeitenplan', {
-      scroll: false,
-    });
+    router.replace(id ? `/bauzeitenplan?baustelle=${id}` : '/bauzeitenplan', { scroll: false });
 
   const umklappen = (id: string) =>
     setAufgeklappt((vorher) => {
@@ -121,11 +143,52 @@ export function BauzeitenplanUebersicht() {
 
   const mitPlan = baustellen.filter((b) => b.phasen.length > 0).length;
 
+  const aufgeschlagen = alle.find((b) => b.id === offeneBaustelle);
+
+  /*
+   * Zweite Ebene: der ganze Plan dieser einen Baustelle. Bewusst anstelle der
+   * Liste und nicht darueber - ein Bauzeitenplan braucht die Breite, und zwei
+   * waagerecht scrollende Raster uebereinander liest niemand.
+   */
+  if (offeneBaustelle) {
+    return (
+      <div className="flex h-full flex-col">
+        <PageHeader
+          title={aufgeschlagen ? aufgeschlagen.customerName : 'Bauzeitenplan'}
+          description={
+            aufgeschlagen
+              ? [aufgeschlagen.name, aufgeschlagen.bauleiter].filter(Boolean).join(' · ')
+              : undefined
+          }
+          actions={
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" asChild>
+                <a href={`/projekte?projekt=${offeneBaustelle}`}>
+                  <ExternalLink /> Baustelle
+                </a>
+              </Button>
+            </div>
+          }
+        >
+          <div className="mt-2">
+            <Button size="sm" variant="ghost" onClick={() => oeffnen(null)}>
+              <ArrowLeft /> Alle Baustellen
+            </Button>
+          </div>
+        </PageHeader>
+
+        <div className="min-h-0 flex-1 overflow-auto p-4">
+          <BauzeitenplanPlan projectId={offeneBaustelle} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col">
       <PageHeader
         title="Bauzeitenpläne"
-        description="Alle Baustellen auf einer Zeitachse. Eine Baustelle anklicken öffnet ihren Plan."
+        description="Alle Baustellen auf einer Zeitachse. Eine Baustelle anklicken schlägt ihren Plan auf."
       >
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <div className="relative min-w-0 flex-1 sm:max-w-xs">
@@ -207,7 +270,7 @@ export function BauzeitenplanUebersicht() {
                     )}
                     title={`Woche ab ${formatDateShort(s)}`}
                   >
-                    {isoWeek(s)}
+                    KW {isoWeek(s)}
                   </div>
                 ))}
               </div>
@@ -230,17 +293,16 @@ export function BauzeitenplanUebersicht() {
 
         {baustellen.length > 0 ? (
           <p className="mt-2 text-2xs text-muted-foreground">
-            Der Pfeil links klappt die Gewerke auf. Ein Klick auf die Baustelle öffnet ihren Plan –
-            dort wird geschoben, hinzugefügt und entfernt. Die Übersicht rechnet in Wochen; tagesgenau
-            stellt man je Baustelle ein. Das rote Zeichen heißt: Dieses Gewerk steht im Plan, aber
-            auf der Plantafel steht dafür niemand.
+            Der Pfeil links klappt die Gewerke auf. Ein Klick auf die Baustelle schlägt ihren Plan
+            auf – dort wird gezogen, hinzugefügt, geändert und entfernt, und dort steht auch der
+            Schalter Wochen/Tage. Diese Liste rechnet in Wochen, weil auf einer gemeinsamen Achse
+            nicht zwei Baustellen verschieden rechnen können. Das rote Zeichen heißt: Dieses Gewerk
+            steht im Plan, aber auf der Plantafel steht dafür niemand.
           </p>
         ) : null}
       </div>
 
-      {offenesProjekt ? (
-        <ProjectPanel projectId={offenesProjekt} onClose={() => oeffnen(null)} />
-      ) : null}
+
     </div>
   );
 }

@@ -494,3 +494,43 @@ describe('Gewerk in eine bestimmte Woche legen', () => {
     expect(davor!.startDate).toBe('2026-01-05');
   });
 });
+
+describe('Firmen zum Gewerk', () => {
+  /*
+   * Der Infodialog im Bauzeitenplan zeigt bei Elektro nur Elektrofirmen. Er
+   * filtert auf `tradeIds` aus der Firmenliste - kommt die Zuordnung dort
+   * nicht an, steht die gerade angelegte Firma nicht in ihrer eigenen Liste,
+   * und das sieht aus wie ein verlorener Datensatz.
+   */
+  interface Firma {
+    id: string;
+    companyName: string;
+    tradeIds: string[];
+  }
+
+  it('nennt das Gewerk, mit dem die Firma angelegt wurde', async () => {
+    const name = `Mit Gewerk ${TAG}`;
+    const res = await post<{ subcontractor: { id: string } }>('/api/subcontractors', {
+      companyName: name,
+      tradeIds: [gewerkId],
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+
+    const liste = await get<Firma[]>('/api/subcontractors');
+    const meine = liste.body.find((f) => f.id === res.body.subcontractor.id);
+    expect(meine, 'Die angelegte Firma fehlt in der Liste').toBeTruthy();
+    expect(meine!.tradeIds).toContain(gewerkId);
+  });
+
+  it('nennt kein Gewerk, wenn keines mitkam', async () => {
+    const res = await post<{ subcontractor: { id: string } }>('/api/subcontractors', {
+      companyName: `Ohne Gewerk ${TAG}`,
+    });
+    expect(res.status).toBe(201);
+
+    const liste = await get<Firma[]>('/api/subcontractors');
+    const meine = liste.body.find((f) => f.id === res.body.subcontractor.id);
+    // Sonst taucht sie bei jedem Gewerk auf und der Filter waere wirkungslos.
+    expect(meine!.tradeIds).toEqual([]);
+  });
+});
