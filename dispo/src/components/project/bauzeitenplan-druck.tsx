@@ -12,7 +12,6 @@
  * exakt so aus wie auf dem Bildschirm, Umlaute und Schriften stimmen, und es
  * funktioniert auch auf dem Handy.
  */
-import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Printer } from 'lucide-react';
 import { api } from '@/lib/api-client';
@@ -25,6 +24,7 @@ import {
   type Raster,
 } from '@/lib/bauzeitenplan';
 import { Button } from '@/components/ui/button';
+import { Firmenlogo, FIRMENROT } from '@/components/ui/firmenlogo';
 
 interface PhaseDTO {
   id: string;
@@ -90,16 +90,21 @@ export function BauzeitenplanDruck({ projectId }: { projectId: string }) {
       </div>
 
       {/* --- Kopf --- */}
-      <header className="flex items-start justify-between gap-6 border-b-2 border-black pb-3">
+      <header
+        className="flex items-start justify-between gap-6 border-b-2 pb-3"
+        style={{ borderColor: FIRMENROT }}
+      >
         <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-tight">Bauzeitenplan</h1>
+          <h1 className="text-xl font-bold tracking-tight" style={{ color: FIRMENROT }}>
+            Bauzeitenplan
+          </h1>
           <p className="mt-1 text-base font-semibold">{p.customerName}</p>
           <p className="text-sm">{p.name}</p>
           {anschrift ? <p className="text-xs text-neutral-600">{anschrift}</p> : null}
         </div>
 
         <div className="shrink-0 text-right">
-          <Logo />
+          <Firmenlogo className="ml-auto h-16" ersatzGroesse="text-lg" />
           <dl className="mt-2 space-y-0.5 text-2xs text-neutral-600">
             {p.orderNumber ? (
               <div>
@@ -252,34 +257,3 @@ function kurzesDatum(iso: string): string {
   return `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(2, 4)}`;
 }
 
-/**
- * Das Firmenlogo.
- *
- * Liegt `public/logo.png` im Projekt, wird es genommen. Fehlt es, steht
- * stattdessen der Schriftzug da – ein Plan ohne Logo ist besser als einer
- * mit einem kaputten Bildsymbol an der Stelle, an der das Logo sein sollte.
- */
-function Logo() {
-  const [fehlt, setFehlt] = React.useState(false);
-
-  if (fehlt) {
-    return (
-      <div className="text-right leading-none">
-        <span className="block text-lg font-black tracking-tight">MR UMBAU</span>
-        <span className="block text-[7pt] font-medium uppercase tracking-[0.2em] text-neutral-500">
-          GmbH
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src="/logo.png"
-      alt="MR Umbau GmbH"
-      className="ml-auto h-10 w-auto object-contain"
-      onError={() => setFehlt(true)}
-    />
-  );
-}
