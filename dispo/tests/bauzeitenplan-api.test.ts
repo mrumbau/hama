@@ -449,3 +449,48 @@ describe('Steht jemand auf der Plantafel?', () => {
     await einsaetzeWeg();
   });
 });
+
+describe('Gewerk in eine bestimmte Woche legen', () => {
+  /*
+   * Darauf sitzt die Gewerkleiste auf: Beim Ablegen schickt sie das Datum der
+   * Spalte, über der der Zeiger war. Stimmt das Einrasten nicht, landet das
+   * Gewerk eine Woche daneben - und zwar unauffaellig.
+   */
+  it('rastet auf den Montag der getroffenen Woche ein', async () => {
+    await leeren();
+    // Ein Mittwoch.
+    const mittwoch = '2026-11-18';
+    const res = await post<{ phasen: { id: string }[] }>(
+      `/api/projects/${projektId}/bauzeitenplan`,
+      { tradeId: gewerkId, startDate: mittwoch, dauer: 1 },
+    );
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+
+    const { body } = await plan();
+    expect(body.phasen).toHaveLength(1);
+    // Montag der Woche vom 18.11.2026 ist der 16.11., Sonntag der 22.11.
+    expect(body.phasen[0].startDate).toBe('2026-11-16');
+    expect(body.phasen[0].endDate).toBe('2026-11-22');
+  });
+
+  it('haengt sich nicht hinten an, wenn ein Datum mitkommt', async () => {
+    await leeren();
+    await zeile('Erstens', 2);
+    const { body: vorher } = await plan();
+    const spaeter = vorher.phasen[0].endDate;
+
+    // Bewusst vor die vorhandene Zeile gelegt.
+    await post(`/api/projects/${projektId}/bauzeitenplan`, {
+      tradeId: gewerkId,
+      label: 'Davor',
+      startDate: '2026-01-07',
+      dauer: 1,
+    });
+
+    const { body } = await plan();
+    const davor = body.phasen.find((p) => p.titel === 'Davor');
+    expect(davor, 'Die davor gelegte Zeile fehlt').toBeTruthy();
+    expect(davor!.startDate < spaeter).toBe(true);
+    expect(davor!.startDate).toBe('2026-01-05');
+  });
+});

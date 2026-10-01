@@ -97,6 +97,8 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
   });
 
   const [neueZeile, setNeueZeile] = React.useState(false);
+  /** Welches Gewerk ist im Auswahldialog schon angehakt? */
+  const [vorauswahl, setVorauswahl] = React.useState<string | null>(null);
   const [bearbeiten, setBearbeiten] = React.useState<PhaseDTO | null>(null);
   /**
    * Welche Zeile soll weg? Mit Rueckfrage, weil ein Bauzeitenplan kein
@@ -136,6 +138,20 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
       ),
     onSuccess: (res) => {
       setWeg(null);
+      aktualisieren();
+      toast({ title: res.message, tone: 'success' });
+    },
+    onError: (e: Error) => toast({ title: e.message, tone: 'error' }),
+  });
+
+  const ablegen = useMutation({
+    mutationFn: (was: { tradeId: string; woche: IsoDate }) =>
+      api.post<{ message: string }>(`/api/projects/${projectId}/bauzeitenplan`, {
+        tradeId: was.tradeId,
+        startDate: was.woche,
+        dauer: 1,
+      }),
+    onSuccess: (res) => {
       aktualisieren();
       toast({ title: res.message, tone: 'success' });
     },
@@ -185,7 +201,13 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
         </Tabs>
 
         {darfAendern ? (
-          <Button size="sm" onClick={() => setNeueZeile(true)}>
+          <Button
+            size="sm"
+            onClick={() => {
+              setVorauswahl(null);
+              setNeueZeile(true);
+            }}
+          >
             <Plus /> Gewerk
           </Button>
         ) : null}
@@ -197,22 +219,34 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
         </Button>
       </div>
 
-      {phasen.length === 0 ? (
+      {darfAendern ? (
+        <GewerkLeiste
+          onAblegen={(tradeId, woche) => ablegen.mutate({ tradeId, woche })}
+          onAntippen={(tradeId) => {
+            setVorauswahl(tradeId);
+            setNeueZeile(true);
+          }}
+        />
+      ) : null}
+
+      {/*
+        Ein leerer Plan zeigt trotzdem das Raster, sobald jemand aendern darf.
+        Eine Hinweiskarte mit Knopf erklaert das Hineinziehen nicht - das leere
+        Raster mit der Zeile "hierher ziehen" erklaert es von selbst. Wer nicht
+        aendern darf, bekommt weiter die Karte: Fuer ihn gibt es nichts zu tun.
+      */}
+      {phasen.length === 0 && darfAendern ? (
+        <p className="text-xs text-muted-foreground">
+          Noch kein Bauzeitenplan. Ein Gewerk oben antippen – oder mit der Maus in die Woche
+          ziehen, in der es beginnt.
+        </p>
+      ) : null}
+
+      {phasen.length === 0 && !darfAendern ? (
         <EmptyState
           icon={CalendarRange}
           title="Noch kein Bauzeitenplan"
-          description={
-            darfAendern
-              ? 'Mit „+ Gewerk“ die erste Zeile anlegen – Abbruch, Rohinstallation, Estrich, was auch immer ansteht.'
-              : 'Für diese Baustelle wurde noch kein Bauzeitenplan angelegt.'
-          }
-          action={
-            darfAendern ? (
-              <Button size="sm" onClick={() => setNeueZeile(true)}>
-                <Plus /> Erstes Gewerk
-              </Button>
-            ) : undefined
-          }
+          description="Für diese Baustelle wurde noch kein Bauzeitenplan angelegt."
         />
       ) : (
         <div className="overflow-x-auto rounded-lg border">
@@ -236,6 +270,7 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
               {fenster.spalten.map((s) => (
                 <div
                   key={s}
+                  data-woche={s}
                   className="border-r px-1 py-1.5 text-center text-2xs font-medium tabular-nums text-muted-foreground last:border-r-0"
                 >
                   {spaltenTitel(s, raster)}
@@ -345,10 +380,11 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
                     ) : null}
                   </div>
 
-                  {/* Hintergrundraster */}
+                  {/* Hintergrundraster – und Ablagefläche für die Gewerkleiste */}
                   {fenster.spalten.map((s, i) => (
                     <div
                       key={s}
+                      data-woche={s}
                       className={cn(
                         'h-full border-r last:border-r-0',
                         i % 2 === 1 && 'bg-muted/30',
@@ -426,6 +462,34 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
                 </ContextMenu>
               );
             })}
+
+            {/*
+              Eine Zeile zum Ablegen. Ohne sie haette ein Plan mit nur einer
+              Zeile genau eine Zeile Trefferflaeche, und ein leerer Plan gar
+              keine - man koennte das erste Gewerk nicht hineinziehen.
+            */}
+            {darfAendern ? (
+              <div
+                className="grid border-t bg-muted/5"
+                style={{
+                  gridTemplateColumns: `var(--name) repeat(${fenster.spalten.length}, var(--spalte))`,
+                }}
+              >
+                <div className="border-r px-2 py-2 text-2xs italic text-muted-foreground">
+                  hierher ziehen
+                </div>
+                {fenster.spalten.map((s, i) => (
+                  <div
+                    key={s}
+                    data-woche={s}
+                    className={cn(
+                      'h-full border-r last:border-r-0',
+                      i % 2 === 1 && 'bg-muted/30',
+                    )}
+                  />
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
       )}
@@ -434,13 +498,14 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
         <p className="text-2xs text-muted-foreground">
           {schmal ? (
             <>
-              Balken schieben verschiebt alles ab dort – der Plan behält seine Form.{' '}
-              <Pencil className="inline size-3 align-[-2px]" aria-hidden /> an der Zeile öffnet
-              Zeitraum, Firma und Notiz – dort steht auch „Entfernen“.
+              Gewerk in der Leiste oben antippen legt es an. Balken schieben verschiebt alles ab
+              dort – der Plan behält seine Form. <Pencil className="inline size-3 align-[-2px]" aria-hidden />{' '}
+              an der Zeile öffnet Zeitraum, Firma und Notiz – dort steht auch „Entfernen“.
             </>
           ) : (
             <>
-              Balken ziehen verschiebt alles ab dort – der Plan behält seine Form. Mit gedrückter{' '}
+              Gewerk aus der Leiste oben in eine Woche ziehen legt es dort an. Balken ziehen
+              verschiebt alles ab dort – der Plan behält seine Form. Mit gedrückter{' '}
               <kbd className="rounded border px-1">Alt</kbd>-Taste wandert nur diese eine Zeile. An
               der rechten Kante wird der Balken länger oder kürzer. Zum Ändern oder Entfernen eines
               Gewerks die Zeile anfahren – <Pencil className="inline size-3 align-[-2px]" aria-hidden />{' '}
@@ -453,9 +518,13 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
 
       <GewerkeDialog
         offen={neueZeile}
+        vorauswahl={vorauswahl}
         projectId={projectId}
         raster={raster}
-        onClose={() => setNeueZeile(false)}
+        onClose={() => {
+          setNeueZeile(false);
+          setVorauswahl(null);
+        }}
         onFertig={aktualisieren}
       />
 
@@ -648,12 +717,15 @@ function Balken({
  */
 function GewerkeDialog({
   offen,
+  vorauswahl,
   projectId,
   raster,
   onClose,
   onFertig,
 }: {
   offen: boolean;
+  /** Aus der Gewerkleiste angetippt – schon angehakt, wenn der Dialog aufgeht. */
+  vorauswahl?: string | null;
   projectId: string;
   raster: Raster;
   onClose: () => void;
@@ -669,12 +741,12 @@ function GewerkeDialog({
 
   React.useEffect(() => {
     if (offen) {
-      setGewaehlt([]);
+      setGewaehlt(vorauswahl ? [vorauswahl] : []);
       setSuche('');
       setDauer(1);
       setEigene('');
     }
-  }, [offen]);
+  }, [offen, vorauswahl]);
 
   const liste = React.useMemo(() => {
     const alle = gewerke ?? [];
@@ -977,6 +1049,134 @@ function ZeileBearbeitenDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/**
+ * Die Gewerkleiste über dem Plan.
+ *
+ * Ein Gewerk mit der Maus in die Woche ziehen, in der es beginnt. Das ist der
+ * Weg, den man einmal zeigt und danach nie wieder erklärt.
+ *
+ * Gezogen wird nur mit der Maus. Am Finger wäre es eine Geste über ein
+ * waagerecht scrollendes Raster auf 390 Pixeln - das sieht in einer Vorführung
+ * gut aus und geht auf der Baustelle schief. Dort tippt man das Gewerk an und
+ * bekommt die Auswahl, in der auch die Dauer steht.
+ *
+ * Bewusst auf Zeigerereignissen statt auf einer Bibliothek: Es gibt genau eine
+ * Geste, und das Ziel steht als `data-woche` im Raster. `elementsFromPoint`
+ * sagt beim Loslassen, über welcher Woche der Zeiger war - das braucht keine
+ * Registrierung von Ablageflächen und geht damit auch bei einer Zeile, die es
+ * beim Aufsetzen noch nicht gab.
+ */
+function GewerkLeiste({
+  onAblegen,
+  onAntippen,
+}: {
+  onAblegen: (tradeId: string, woche: IsoDate) => void;
+  onAntippen: (tradeId: string) => void;
+}) {
+  const { data: gewerke } = useTrades();
+  const [zieht, setZieht] = React.useState<{
+    id: string;
+    name: string;
+    farbe: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const start = React.useRef<{ x: number; y: number } | null>(null);
+
+  if (!gewerke?.length) return null;
+
+  return (
+    <div className="rounded-md border bg-muted/20 p-1.5">
+      <div className="flex flex-wrap items-center gap-1">
+        <span className="px-1 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Gewerke
+        </span>
+        {gewerke.map((g) => (
+          <button
+            key={g.id}
+            onPointerDown={(e) => {
+              // Nur die Maus zieht. Siehe oben.
+              if (e.pointerType !== 'mouse' || e.button !== 0) return;
+              e.currentTarget.setPointerCapture(e.pointerId);
+              start.current = { x: e.clientX, y: e.clientY };
+              setZieht({ id: g.id, name: g.name, farbe: g.color, x: e.clientX, y: e.clientY });
+            }}
+            onPointerMove={(e) => {
+              if (!zieht || zieht.id !== g.id) return;
+              setZieht({ ...zieht, x: e.clientX, y: e.clientY });
+            }}
+            onPointerUp={(e) => {
+              const angefasst = start.current;
+              start.current = null;
+              setZieht(null);
+              if (!angefasst) {
+                // Finger oder Stift: ein Antippen.
+                onAntippen(g.id);
+                return;
+              }
+              const bewegt = Math.hypot(e.clientX - angefasst.x, e.clientY - angefasst.y);
+              // Ein Klick ist kein Zug. Unter sechs Pixeln war es ein Klick,
+              // und dann ist die Auswahl gemeint, nicht eine zufaellige Woche.
+              if (bewegt < 6) {
+                onAntippen(g.id);
+                return;
+              }
+              const woche = wocheUnter(e.clientX, e.clientY);
+              if (woche) onAblegen(g.id, woche);
+              else onAntippen(g.id);
+            }}
+            onPointerCancel={() => {
+              start.current = null;
+              setZieht(null);
+            }}
+            title={`${g.name} – antippen oder in eine Woche ziehen`}
+            className={cn(
+              'flex items-center gap-1 rounded border bg-background px-1.5 py-1 text-2xs',
+              'hover:bg-accent [@media(pointer:coarse)]:py-1.5',
+              zieht?.id === g.id && 'opacity-40',
+            )}
+          >
+            <span
+              className="size-2 shrink-0 rounded-sm"
+              style={{ backgroundColor: g.color }}
+              aria-hidden
+            />
+            {g.name}
+          </button>
+        ))}
+      </div>
+
+      {/*
+        Das Schild am Zeiger. `pointer-events-none` ist nicht Kosmetik: Sonst
+        liegt es beim Loslassen unter dem Zeiger und `elementsFromPoint` findet
+        das Schild statt der Woche.
+      */}
+      {zieht ? (
+        <div
+          className="pointer-events-none fixed z-50 flex items-center gap-1 rounded border bg-background px-1.5 py-1 text-2xs shadow-lg"
+          style={{ left: zieht.x + 10, top: zieht.y + 10 }}
+        >
+          <span
+            className="size-2 rounded-sm"
+            style={{ backgroundColor: zieht.farbe }}
+            aria-hidden
+          />
+          {zieht.name}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Über welcher Woche hängt der Zeiger? */
+function wocheUnter(x: number, y: number): IsoDate | null {
+  for (const el of document.elementsFromPoint(x, y)) {
+    const woche = (el as HTMLElement).dataset?.woche;
+    if (woche) return woche as IsoDate;
+  }
+  return null;
 }
 
 /**
