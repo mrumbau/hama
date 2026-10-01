@@ -116,3 +116,24 @@
 [data-dnd-dragging='true'] {
   cursor: grabbing;
 }
+
+/*
+ * Druck: Der Bauzeitenplan geht als Blatt aus dem Haus.
+ *
+ * Querformat, schmale Ränder und Farben, die auch wirklich gedruckt werden –
+ * Browser lassen Hintergrundfarben sonst weg, und dann wären alle Balken
+ * weiß. Ein Bauzeitenplan ohne Balken ist eine leere Tabelle.
+ */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  html,
+  body {
+    background: #fff;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

@@ -26,6 +26,8 @@ export interface IchAntwort {
     /** Vorschlaege annehmen, fremde und bestaetigte Einsaetze aendern. */
     planungFreigeben: boolean;
     alleOffenenPunkte: boolean;
+    /** Den Bauzeitenplan einer Baustelle aendern. */
+    bauzeitenplan: boolean;
   } | null;
 }
 

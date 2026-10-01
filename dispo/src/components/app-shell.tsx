@@ -34,6 +34,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // waere nur eine Einladung zum Klicken.
   if (pathname === '/anmelden') return <>{children}</>;
 
+  /*
+   * Die Druckansicht des Bauzeitenplans steht ebenfalls fuer sich. Sie geht
+   * aus dem Haus - auf Papier oder als PDF zum Kunden -, und darauf hat
+   * weder eine Seitenleiste noch eine Suchzeile etwas verloren.
+   */
+  if (pathname.startsWith('/bauzeitenplan/')) return <>{children}</>;
+
   return (
     <div className="flex h-dvh w-full overflow-hidden">
       {/* --- Seitenleiste --- */}

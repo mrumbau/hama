@@ -188,6 +188,15 @@ export const RECHTE = {
    * sind begrenzt; wer sie verteilt, muss einer sein.
    */
   planungFreigeben: ['ADMIN', 'LEITUNG'],
+  /**
+   * Den Bauzeitenplan einer Baustelle aendern.
+   *
+   * Bewusst ohne den Vorschlag-Umweg der Plantafel: Er verteilt keine
+   * knappen Leute, sondern haelt fest, wann welches Gewerk drankommt. Das
+   * ist die taegliche Arbeit eines Bauleiters auf seiner Baustelle. Jede
+   * Aenderung steht trotzdem im Protokoll.
+   */
+  bauzeitenplan: ['ADMIN', 'LEITUNG', 'BAULEITER'],
 } as const satisfies Record<string, readonly Rolle[]>;
 
 export type Recht = keyof typeof RECHTE;

@@ -227,6 +227,7 @@ model Trade {
 
   employees      EmployeeTrade[]
   subcontractors SubcontractorTrade[]
+  schedulePhases SchedulePhase[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -331,8 +332,9 @@ model Subcontractor {
   /// Schreibweise aus dem ERP zurueck.
   manuelleFelder String[] @default([])
 
-  trades      SubcontractorTrade[]
-  assignments Assignment[]
+  trades         SubcontractorTrade[]
+  assignments    Assignment[]
+  schedulePhases SchedulePhase[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -397,11 +399,14 @@ model Project {
   /// Tafel, lassen sich nicht loeschen und nicht umbenennen. Null = ein
   /// gewoehnliches Projekt.
   internKey            String?            @unique
+  /// Raster des Bauzeitenplans: "WOCHE" (Vorgabe) oder "TAG".
+  scheduleUnit         String             @default("WOCHE")
 
   assignments    Assignment[]
   notes          ProjectNote[]
   communications Communication[]
   changeRequests ChangeRequest[]
+  schedulePhases SchedulePhase[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -410,6 +415,44 @@ model Project {
   @@index([plannedStart])
   @@index([primarySiteManagerId])
   @@map("projects")
+}
+
+/// Eine Zeile im Bauzeitenplan: ein Gewerk mit einem Zeitraum.
+///
+/// Bewusst getrennt von den Einsaetzen auf der Plantafel. Die Plantafel sagt,
+/// wer am Dienstag wo ist - der Bauzeitenplan sagt, wann welches Gewerk dran
+/// ist. Beides in eine Tabelle zu zwingen wuerde beide kaputtmachen: Das eine
+/// ist tagesgenau und personenbezogen, das andere wochenweise und ein
+/// Dokument, das nach aussen geht.
+model SchedulePhase {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// Welches Gewerk. Null nur, wenn jemand eine Zeile ohne Gewerk anlegt
+  /// (etwa "Geruest"), dann traegt `label` den Namen.
+  tradeId String?
+  trade   Trade?  @relation(fields: [tradeId], references: [id], onDelete: SetNull)
+
+  /// Eigene Bezeichnung, z. B. "Rohinstallation". Dasselbe Gewerk kommt in
+  /// einem Bauzeitenplan oft zweimal vor - Sanitaer rauh und Sanitaer fein.
+  label String?
+
+  /// Welche Firma es macht, sobald es feststeht. Spaeter die Bruecke zur
+  /// Plantafel ("fuer KW 42 Sanitaer Maier einplanen").
+  subcontractorId String?
+  subcontractor   Subcontractor? @relation(fields: [subcontractorId], references: [id], onDelete: SetNull)
+
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  note      String?
+  sortOrder Int      @default(100)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, startDate])
+  @@map("schedule_phases")
 }
 
 model ProjectNote {
@@ -489,6 +532,10 @@ model Assignment {
   @@index([employeeId, startDate])
   @@index([subcontractorId, startDate])
   @@index([siteManagerId, startDate])
+  /// Fuer die Vorschlagsliste. Stand bisher nur in der Migration
+  /// 20260918160000, nicht im Schema - deshalb hielt Prisma ihn fuer
+  /// ueberfluessig und wollte ihn beim naechsten Mal loeschen.
+  @@index([status, createdById])
   @@map("assignments")
 }
 
