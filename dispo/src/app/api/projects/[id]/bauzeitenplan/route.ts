@@ -30,63 +30,118 @@ const neueZeile = z.object({
 });
 
 /**
- * Eine Zeile hinzufügen.
+ * Eine Zeile - oder gleich mehrere.
  *
- * Ohne Datum hängt sie sich hinter die letzte – das ist beim Aufbauen eines
+ * Die Gewerkauswahl schickt mehrere: Wer einen Plan aufbaut, hakt Abbruch,
+ * Rohinstallation und Estrich auf einmal an und schiebt erst danach zurecht.
+ * Ein Formular pro Gewerk waere zehn Formulare fuer einen Plan.
+ */
+const neueZeilen = neueZeile.extend({
+  /** Gesetzt, wenn mehrere Gewerke auf einmal kommen. Sonst gilt die Zeile selbst. */
+  zeilen: z.array(neueZeile).min(1).max(40).optional(),
+});
+
+/**
+ * Zeilen hinzufügen.
+ *
+ * Ohne Datum hängt sich jede hinter die letzte – das ist beim Aufbauen eines
  * Plans der Normalfall: ein Gewerk nach dem anderen, und erst danach schiebt
- * man zurecht.
+ * man zurecht. Bei mehreren reihen sie sich in der Reihenfolge auf, in der
+ * sie angehakt wurden.
+ *
+ * Alles in einer Transaktion: Ein halb angelegter Plan wäre schlimmer als ein
+ * gar nicht angelegter, weil man ihm nicht ansieht, was fehlt.
  */
 export const POST = handler(async (request: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   await verlange('bauzeitenplan');
-  const input = await parseBody(request, neueZeile);
+  const input = await parseBody(request, neueZeilen);
+  const zeilen = input.zeilen ?? [input];
 
-  if (!input.tradeId && !input.label?.trim()) {
-    throw new ApiError('Bitte ein Gewerk wählen oder eine Bezeichnung eintragen.', 422);
+  for (const zeile of zeilen) {
+    if (!zeile.tradeId && !zeile.label?.trim()) {
+      throw new ApiError('Bitte ein Gewerk wählen oder eine Bezeichnung eintragen.', 422);
+    }
   }
 
   const plan = await ladeBauzeitenplan(id);
   const raster = plan.raster;
-  const start = aufRaster(
-    input.startDate ?? naechsterStart(plan.phasen, raster, todayIso()),
-    raster,
-    'anfang',
-  );
-  const dauer = input.dauer ?? 1;
-  const ende = aufRaster(
-    addTage(start, dauer * schrittweite(raster) - 1),
-    raster,
-    'ende',
-  );
 
-  const trade = input.tradeId
-    ? await prisma.trade.findUnique({ where: { id: input.tradeId } })
-    : null;
+  const gewerkIds = zeilen.map((z) => z.tradeId).filter((x): x is string => Boolean(x));
+  const gewerke = await prisma.trade.findMany({
+    where: { id: { in: gewerkIds } },
+    select: { id: true, name: true },
+  });
+  const nameVon = new Map(gewerke.map((g) => [g.id, g.name]));
 
-  const phase = await prisma.schedulePhase.create({
-    data: {
-      projectId: id,
-      tradeId: trade?.id ?? null,
-      label: input.label?.trim() || null,
-      subcontractorId: input.subcontractorId ?? null,
-      startDate: isoToDbDate(start),
-      endDate: isoToDbDate(ende),
-      note: input.note?.trim() || null,
-      sortOrder: plan.phasen.length * 10,
-    },
+  /*
+   * Die vorhandenen Zeilen plus die, die in diesem Durchgang dazukommen -
+   * sonst starten alle neuen am selben Tag.
+   */
+  const bisher = plan.phasen.map((p) => ({
+    id: p.id,
+    startDate: p.startDate,
+    endDate: p.endDate,
+  }));
+
+  const daten = zeilen.map((zeile, i) => {
+    const start = aufRaster(
+      zeile.startDate ?? naechsterStart(bisher, raster, todayIso()),
+      raster,
+      'anfang',
+    );
+    const ende = aufRaster(
+      addTage(start, (zeile.dauer ?? 1) * schrittweite(raster) - 1),
+      raster,
+      'ende',
+    );
+    bisher.push({ id: `neu-${i}`, startDate: start, endDate: ende });
+
+    return {
+      titel:
+        zeile.label?.trim() || (zeile.tradeId ? nameVon.get(zeile.tradeId) : null) || 'Zeile',
+      von: start,
+      bis: ende,
+      data: {
+        projectId: id,
+        tradeId: zeile.tradeId ?? null,
+        label: zeile.label?.trim() || null,
+        subcontractorId: zeile.subcontractorId ?? null,
+        startDate: isoToDbDate(start),
+        endDate: isoToDbDate(ende),
+        note: zeile.note?.trim() || null,
+        sortOrder: (plan.phasen.length + i) * 10,
+      },
+    };
   });
 
-  const titel = input.label?.trim() || trade?.name || 'Zeile';
+  const phasen = await prisma.$transaction(
+    daten.map((d) => prisma.schedulePhase.create({ data: d.data })),
+  );
+
+  const titel = daten.map((d) => d.titel);
   await writeAudit({
     entityType: 'project',
     entityId: id,
     projectId: id,
     action: 'bauzeitenplan_zeile',
-    label: `Bauzeitenplan: ${titel} hinzugefügt`,
-    newValue: { titel, von: start, bis: ende },
+    label:
+      daten.length === 1
+        ? `Bauzeitenplan: ${titel[0]} hinzugefügt`
+        : `Bauzeitenplan: ${daten.length} Gewerke hinzugefügt (${titel.join(', ')})`,
+    newValue: { zeilen: daten.map((d) => ({ titel: d.titel, von: d.von, bis: d.bis })) },
   });
 
-  return ok({ phase, message: `${titel} steht im Bauzeitenplan.` }, { status: 201 });
+  return ok(
+    {
+      phasen,
+      message:
+        daten.length === 1
+          ? `${titel[0]} steht im Bauzeitenplan.`
+          : `${daten.length} Gewerke stehen im Bauzeitenplan.`,
+    },
+    { status: 201 },
+  );
 });
 
 const aenderung = z.discriminatedUnion('was', [

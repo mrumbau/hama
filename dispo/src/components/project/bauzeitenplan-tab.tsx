@@ -12,7 +12,15 @@
  */
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarRange, GripVertical, Plus, Printer, Trash2 } from 'lucide-react';
+import {
+  CalendarRange,
+  GripVertical,
+  Pencil,
+  Plus,
+  Printer,
+  StickyNote,
+  Trash2,
+} from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { useIch } from '@/lib/ich';
@@ -33,6 +41,14 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/misc';
 import { useToast } from '@/components/ui/toast';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 
 interface PhaseDTO {
   id: string;
@@ -77,6 +93,12 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
 
   const [neueZeile, setNeueZeile] = React.useState(false);
   const [bearbeiten, setBearbeiten] = React.useState<PhaseDTO | null>(null);
+  /**
+   * Welche Zeile soll weg? Mit Rueckfrage, weil ein Bauzeitenplan kein
+   * Rueckgaengig hat: Eine geloeschte Zeile ist samt Zeitraum, Firma und Notiz
+   * weg, und niemand weiss hinterher, was dort stand.
+   */
+  const [weg, setWeg] = React.useState<PhaseDTO | null>(null);
   /** Was gerade am Finger hängt: Zeile, Art und um wie viele Spalten. */
   const [zug, setZug] = React.useState<{
     id: string;
@@ -94,6 +116,19 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
     mutationFn: (body: Record<string, unknown>) =>
       api.patch<{ message: string }>(`/api/projects/${projectId}/bauzeitenplan`, body),
     onSuccess: (res) => {
+      aktualisieren();
+      toast({ title: res.message, tone: 'success' });
+    },
+    onError: (e: Error) => toast({ title: e.message, tone: 'error' }),
+  });
+
+  const loeschen = useMutation({
+    mutationFn: (phaseId: string) =>
+      api.delete<{ message: string }>(
+        `/api/projects/${projectId}/bauzeitenplan?zeile=${phaseId}`,
+      ),
+    onSuccess: (res) => {
+      setWeg(null);
       aktualisieren();
       toast({ title: res.message, tone: 'success' });
     },
@@ -208,35 +243,84 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
               const extra = zug?.art === 'dauer' && zug.id === p.id ? zug.spalten : 0;
 
               return (
-                <div
-                  key={p.id}
-                  className="grid border-b last:border-b-0 hover:bg-accent/30"
-                  style={{
-                    gridTemplateColumns: `var(--name) repeat(${fenster.spalten.length}, var(--spalte))`,
-                  }}
-                >
-                  <button
-                    onClick={() => darfAendern && setBearbeiten(p)}
-                    className="min-w-0 border-r px-2 py-2 text-left"
-                    title={darfAendern ? 'Zeile bearbeiten' : undefined}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <span
-                        className="size-2.5 shrink-0 rounded-sm"
-                        style={{ backgroundColor: p.farbe }}
-                        aria-hidden
-                      />
-                      <span className="min-w-0 flex-1 truncate text-xs font-semibold">
-                        {p.titel}
+                <ContextMenu key={p.id}>
+                  <ContextMenuTrigger asChild>
+                    <div
+                      className="group grid border-b last:border-b-0 hover:bg-accent/30"
+                      style={{
+                        gridTemplateColumns: `var(--name) repeat(${fenster.spalten.length}, var(--spalte))`,
+                      }}
+                    >
+                  <div className="flex min-w-0 items-center border-r">
+                    <button
+                      onClick={() => darfAendern && setBearbeiten(p)}
+                      className="min-w-0 flex-1 px-2 py-2 text-left"
+                      title={darfAendern ? 'Zeile bearbeiten' : undefined}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <span
+                          className="size-2.5 shrink-0 rounded-sm"
+                          style={{ backgroundColor: p.farbe }}
+                          aria-hidden
+                        />
+                        <span className="min-w-0 flex-1 truncate text-xs font-semibold">
+                          {p.titel}
+                        </span>
+                        {/*
+                          Eine Notiz, die nur im Dialog steht, liest niemand.
+                          Das Zettelsymbol sagt, dass da etwas steht, und der
+                          Mauszeiger verraet was.
+                        */}
+                        {p.note ? (
+                          <span
+                            className="shrink-0 text-muted-foreground"
+                            title={p.note}
+                            aria-label={`Notiz: ${p.note}`}
+                          >
+                            <StickyNote className="size-3" />
+                          </span>
+                        ) : null}
                       </span>
-                    </span>
-                    <span className="mt-0.5 block truncate text-2xs text-muted-foreground">
-                      {p.firma ??
-                        (p.gewerk && p.gewerk !== p.titel
-                          ? p.gewerk
-                          : `${formatDateShort(p.startDate)}–${formatDateShort(p.endDate)}`)}
-                    </span>
-                  </button>
+                      <span className="mt-0.5 block truncate text-2xs text-muted-foreground">
+                        {untertitel(p)}
+                      </span>
+                    </button>
+
+                    {/*
+                      Bis hierhin war Bearbeiten und Loeschen nur ueber einen
+                      Klick auf den Namen zu erreichen, und nichts sagte das.
+                      Am Zeigegeraet erscheinen die Knoepfe beim Darueberfahren,
+                      am Finger stehen sie immer da - dort gibt es kein
+                      Darueberfahren.
+                    */}
+                    {darfAendern ? (
+                      <div className="flex shrink-0 items-center gap-0.5 pr-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
+                        <button
+                          onClick={() => setBearbeiten(p)}
+                          title={`${p.titel} bearbeiten`}
+                          aria-label={`${p.titel} bearbeiten`}
+                          className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground [@media(pointer:coarse)]:p-1.5"
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
+                        {/*
+                          Der Muelleimer nur an der Maus. Am Finger sind die
+                          Symbole dauerhaft sichtbar, und zwei davon fressen von
+                          128 Pixeln Namensspalte 45 - dann steht neben dem
+                          Farbpunkt noch „Rohinstall…". Auf dem Handy fuehrt der
+                          Stift in den Dialog, und dort steht „Entfernen".
+                        */}
+                        <button
+                          onClick={() => setWeg(p)}
+                          title={`${p.titel} entfernen`}
+                          aria-label={`${p.titel} entfernen`}
+                          className="hidden rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive [@media(pointer:fine)]:inline-flex"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
 
                   {/* Hintergrundraster */}
                   {fenster.spalten.map((s, i) => (
@@ -286,8 +370,34 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
                         }
                       }}
                     />
-                  </div>
-                </div>
+                      </div>
+                    </div>
+                  </ContextMenuTrigger>
+
+                  {/*
+                    Dasselbe wie die Knoepfe, nur fuer die, die rechtsklicken -
+                    auf der Plantafel ist das der gewohnte Weg, also hier auch.
+                  */}
+                  <ContextMenuContent>
+                    <ContextMenuLabel>{p.titel}</ContextMenuLabel>
+                    <ContextMenuSeparator />
+                    {darfAendern ? (
+                      <>
+                        <ContextMenuItem onSelect={() => setBearbeiten(p)}>
+                          <Pencil className="size-3.5" /> Bearbeiten
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() => setWeg(p)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="size-3.5" /> Aus dem Plan entfernen
+                        </ContextMenuItem>
+                      </>
+                    ) : (
+                      <ContextMenuItem disabled>Nur Bauleitung und Leitung</ContextMenuItem>
+                    )}
+                  </ContextMenuContent>
+                </ContextMenu>
               );
             })}
           </div>
@@ -298,31 +408,85 @@ export function BauzeitenplanTab({ projectId }: { projectId: string }) {
         <p className="text-2xs text-muted-foreground">
           {schmal ? (
             <>
-              Balken schieben verschiebt alles ab dort – der Plan behält seine Form. Auf den Namen
-              links tippen, um Zeitraum, Firma und Notiz zu ändern.
+              Balken schieben verschiebt alles ab dort – der Plan behält seine Form.{' '}
+              <Pencil className="inline size-3 align-[-2px]" aria-hidden /> an der Zeile öffnet
+              Zeitraum, Firma und Notiz – dort steht auch „Entfernen“.
             </>
           ) : (
             <>
               Balken ziehen verschiebt alles ab dort – der Plan behält seine Form. Mit gedrückter{' '}
               <kbd className="rounded border px-1">Alt</kbd>-Taste wandert nur diese eine Zeile. An
-              der rechten Kante wird der Balken länger oder kürzer.
+              der rechten Kante wird der Balken länger oder kürzer. Zum Ändern oder Entfernen eines
+              Gewerks die Zeile anfahren – <Pencil className="inline size-3 align-[-2px]" aria-hidden />{' '}
+              und <Trash2 className="inline size-3 align-[-2px]" aria-hidden /> erscheinen links;
+              Rechtsklick führt zum selben Menü.
             </>
           )}
         </p>
       ) : null}
 
-      <NeueZeileDialog
+      <GewerkeDialog
         offen={neueZeile}
         projectId={projectId}
+        raster={raster}
         onClose={() => setNeueZeile(false)}
         onFertig={aktualisieren}
       />
+
+      <Dialog open={Boolean(weg)} onOpenChange={(o) => !o && setWeg(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogTitle>{weg?.titel} aus dem Plan nehmen?</DialogTitle>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Die Zeile verschwindet mit Zeitraum, Firma und Notiz. Rückgängig gibt es nicht –
+            wieder hinzufügen schon.
+          </p>
+          {weg ? (
+            <dl className="mt-3 space-y-1 rounded-md border bg-muted/30 p-2 text-xs">
+              <div className="flex gap-2">
+                <dt className="w-16 shrink-0 text-muted-foreground">Zeitraum</dt>
+                <dd className="tabular-nums">
+                  {formatDateShort(weg.startDate)} – {formatDateShort(weg.endDate)}
+                </dd>
+              </div>
+              {weg.firma ? (
+                <div className="flex gap-2">
+                  <dt className="w-16 shrink-0 text-muted-foreground">Firma</dt>
+                  <dd>{weg.firma}</dd>
+                </div>
+              ) : null}
+              {weg.note ? (
+                <div className="flex gap-2">
+                  <dt className="w-16 shrink-0 text-muted-foreground">Notiz</dt>
+                  <dd>{weg.note}</dd>
+                </div>
+              ) : null}
+            </dl>
+          ) : null}
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setWeg(null)}>
+              Abbrechen
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={loeschen.isPending}
+              onClick={() => weg && loeschen.mutate(weg.id)}
+            >
+              <Trash2 /> Entfernen
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <ZeileBearbeitenDialog
         phase={bearbeiten}
         projectId={projectId}
         raster={raster}
         onClose={() => setBearbeiten(null)}
         onFertig={aktualisieren}
+        onWeg={(p) => {
+          setBearbeiten(null);
+          setWeg(p);
+        }}
       />
     </div>
   );
@@ -437,37 +601,71 @@ function Balken({
 // Dialoge
 // ---------------------------------------------------------------------------
 
-function NeueZeileDialog({
+/**
+ * Gewerke aussuchen.
+ *
+ * Ein Formular pro Gewerk waeren zehn Formulare fuer einen Plan. Hier hakt
+ * man an, was auf dieser Baustelle vorkommt, und bekommt die Zeilen in der
+ * Reihenfolge, in der man sie angehakt hat - das ist meistens schon die
+ * Reihenfolge des Bauablaufs. Zurechtschieben kommt danach.
+ *
+ * Die Zahl am angehakten Gewerk ist nicht Zierde: Sie sagt, an welcher Stelle
+ * die Zeile landet. Ohne sie waere die Reihenfolge ein Zufall, den man erst
+ * nach dem Hinzufuegen sieht.
+ */
+function GewerkeDialog({
   offen,
   projectId,
+  raster,
   onClose,
   onFertig,
 }: {
   offen: boolean;
   projectId: string;
+  raster: Raster;
   onClose: () => void;
   onFertig: () => void;
 }) {
   const { toast } = useToast();
   const { data: gewerke } = useTrades();
-  const [tradeId, setTradeId] = React.useState('');
-  const [label, setLabel] = React.useState('');
+  /** Angehakte Gewerke in der Reihenfolge des Anhakens. */
+  const [gewaehlt, setGewaehlt] = React.useState<string[]>([]);
+  const [suche, setSuche] = React.useState('');
   const [dauer, setDauer] = React.useState(1);
+  const [eigene, setEigene] = React.useState('');
 
   React.useEffect(() => {
     if (offen) {
-      setTradeId('');
-      setLabel('');
+      setGewaehlt([]);
+      setSuche('');
       setDauer(1);
+      setEigene('');
     }
   }, [offen]);
+
+  const liste = React.useMemo(() => {
+    const alle = gewerke ?? [];
+    const begriff = suche.trim().toLowerCase();
+    if (!begriff) return alle;
+    return alle.filter((g) => g.name.toLowerCase().includes(begriff));
+  }, [gewerke, suche]);
+
+  const umschalten = (id: string) =>
+    setGewaehlt((vorher) =>
+      vorher.includes(id) ? vorher.filter((x) => x !== id) : [...vorher, id],
+    );
 
   const anlegen = useMutation({
     mutationFn: () =>
       api.post<{ message: string }>(`/api/projects/${projectId}/bauzeitenplan`, {
-        tradeId: tradeId || null,
-        label: label.trim() || null,
-        dauer,
+        zeilen: gewaehlt.length
+          ? gewaehlt.map((tradeId) => ({
+              tradeId,
+              dauer,
+              // Eine eigene Bezeichnung passt nur, wenn es um ein Gewerk geht.
+              label: gewaehlt.length === 1 ? eigene.trim() || null : null,
+            }))
+          : [{ label: eigene.trim(), dauer }],
       }),
     onSuccess: (res) => {
       onFertig();
@@ -477,39 +675,74 @@ function NeueZeileDialog({
     onError: (e: Error) => toast({ title: e.message, tone: 'error' }),
   });
 
+  const kannAnlegen = gewaehlt.length > 0 || eigene.trim().length > 0;
+  const einheit = raster === 'WOCHE' ? 'Wochen' : 'Tage';
+
   return (
     <Dialog open={offen} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-sm">
-        <DialogTitle>Gewerk hinzufügen</DialogTitle>
+      <DialogContent className="flex max-h-[85vh] max-w-md flex-col">
+        <DialogTitle>Gewerke hinzufügen</DialogTitle>
         <p className="mt-1 text-xs text-muted-foreground">
-          Es müssen nicht alle Gewerke in den Plan – nur die, die auf dieser Baustelle wirklich
-          vorkommen.
+          Nur die, die auf dieser Baustelle wirklich vorkommen. Mehrere auf einmal sind der
+          Normalfall – sie reihen sich in der Reihenfolge auf, in der Sie sie anhaken.
         </p>
 
-        <div className="mt-3 space-y-3">
-          <Field label="Gewerk">
-            <Select value={tradeId} onChange={(e) => setTradeId(e.target.value)}>
-              <option value="">– wählen –</option>
-              {(gewerke ?? []).map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
+        <div className="mt-3 shrink-0">
+          <Input
+            value={suche}
+            onChange={(e) => setSuche(e.target.value)}
+            placeholder="Gewerk suchen …"
+          />
+        </div>
 
-          <Field
-            label="Eigene Bezeichnung"
-            hint="Optional. Dasselbe Gewerk kommt oft zweimal vor – „Sanitär Rohinstallation“ und „Sanitär Endmontage“."
-          >
-            <Input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="z. B. Rohinstallation"
-            />
-          </Field>
+        {/* Die Liste scrollt, der Rest des Dialogs bleibt stehen. */}
+        <div className="-mx-1 mt-2 min-h-0 flex-1 overflow-y-auto px-1">
+          {liste.length === 0 ? (
+            <p className="py-6 text-center text-xs text-muted-foreground">
+              {suche.trim()
+                ? `Kein Gewerk mit „${suche.trim()}“. Unten als eigene Bezeichnung eintragen.`
+                : 'Noch keine Gewerke angelegt – unter Einstellungen › Gewerke.'}
+            </p>
+          ) : (
+            <ul className="space-y-0.5">
+              {liste.map((g) => {
+                const stelle = gewaehlt.indexOf(g.id);
+                const an = stelle >= 0;
+                return (
+                  <li key={g.id}>
+                    <button
+                      type="button"
+                      onClick={() => umschalten(g.id)}
+                      aria-pressed={an}
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm',
+                        'min-h-9 [@media(pointer:coarse)]:min-h-11',
+                        an ? 'bg-primary/10 font-medium' : 'hover:bg-accent',
+                      )}
+                    >
+                      <span
+                        className="size-2.5 shrink-0 rounded-sm"
+                        style={{ backgroundColor: g.color }}
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1 truncate">{g.name}</span>
+                      {an ? (
+                        <Badge variant="default" className="shrink-0 tabular-nums">
+                          {stelle + 1}
+                        </Badge>
+                      ) : (
+                        <Plus className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
 
-          <Field label="Dauer">
+        <div className="mt-3 shrink-0 space-y-3 border-t pt-3">
+          <Field label={`Dauer je Gewerk (${einheit})`}>
             <Input
               type="number"
               min={1}
@@ -518,18 +751,32 @@ function NeueZeileDialog({
               onChange={(e) => setDauer(Math.max(1, Number(e.target.value) || 1))}
             />
           </Field>
+
+          {gewaehlt.length <= 1 ? (
+            <Field
+              label="Eigene Bezeichnung"
+              hint={
+                gewaehlt.length === 1
+                  ? 'Optional. Dasselbe Gewerk kommt oft zweimal vor – „Sanitär Rohinstallation“ und „Sanitär Endmontage“.'
+                  : 'Für eine Zeile, die zu keinem Gewerk gehört – etwa „Baustelle einrichten“.'
+              }
+            >
+              <Input
+                value={eigene}
+                onChange={(e) => setEigene(e.target.value)}
+                placeholder="z. B. Rohinstallation"
+              />
+            </Field>
+          ) : null}
         </div>
 
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="mt-4 flex shrink-0 justify-end gap-2">
           <Button variant="outline" size="sm" onClick={onClose}>
             Abbrechen
           </Button>
-          <Button
-            size="sm"
-            disabled={anlegen.isPending || (!tradeId && !label.trim())}
-            onClick={() => anlegen.mutate()}
-          >
-            <Plus /> Hinzufügen
+          <Button size="sm" disabled={anlegen.isPending || !kannAnlegen} onClick={() => anlegen.mutate()}>
+            <Plus />
+            {gewaehlt.length > 1 ? `${gewaehlt.length} Gewerke hinzufügen` : 'Hinzufügen'}
           </Button>
         </div>
       </DialogContent>
@@ -543,12 +790,15 @@ function ZeileBearbeitenDialog({
   raster,
   onClose,
   onFertig,
+  onWeg,
 }: {
   phase: PhaseDTO | null;
   projectId: string;
   raster: Raster;
   onClose: () => void;
   onFertig: () => void;
+  /** Loeschen laeuft ueber die Rueckfrage im Reiter - eine Stelle, ein Text. */
+  onWeg: (phase: PhaseDTO) => void;
 }) {
   const { toast } = useToast();
   const { data: gewerke } = useTrades();
@@ -590,19 +840,6 @@ function ZeileBearbeitenDialog({
         endDate: form.endDate,
         note: form.note.trim() || null,
       }),
-    onSuccess: (res) => {
-      onFertig();
-      onClose();
-      toast({ title: res.message, tone: 'success' });
-    },
-    onError: (e: Error) => toast({ title: e.message, tone: 'error' }),
-  });
-
-  const loeschen = useMutation({
-    mutationFn: () =>
-      api.delete<{ message: string }>(
-        `/api/projects/${projectId}/bauzeitenplan?zeile=${phase!.id}`,
-      ),
     onSuccess: (res) => {
       onFertig();
       onClose();
@@ -691,8 +928,7 @@ function ZeileBearbeitenDialog({
             variant="ghost"
             size="sm"
             className="text-destructive"
-            disabled={loeschen.isPending}
-            onClick={() => loeschen.mutate()}
+            onClick={() => phase && onWeg(phase)}
           >
             <Trash2 /> Entfernen
           </Button>
@@ -710,6 +946,20 @@ function ZeileBearbeitenDialog({
   );
 }
 
+/**
+ * Die zweite Zeile unter dem Gewerknamen.
+ *
+ * Vorher stand dort entweder die Firma oder der Zeitraum - nie beides, und
+ * welches, entschied ein Zufall der Daten. Der Zeitraum gehoert immer dahin:
+ * Beim Ablesen eines Plans ist „wann“ die erste Frage, und Balken abzaehlen
+ * ist keine Antwort.
+ */
+function untertitel(p: PhaseDTO): string {
+  const zeitraum = `${formatDateShort(p.startDate)}–${formatDateShort(p.endDate)}`;
+  const wer = p.firma ?? (p.gewerk && p.gewerk !== p.titel ? p.gewerk : null);
+  return wer ? `${wer} · ${zeitraum}` : zeitraum;
+}
+
 /** Enddatum um N Spalten verschieben – für das Ziehen an der rechten Kante. */
 function tageSpaeter(iso: IsoDate, spalten: number, raster: Raster): IsoDate {
   const d = new Date(`${iso}T12:00:00`);
@@ -717,4 +967,3 @@ function tageSpaeter(iso: IsoDate, spalten: number, raster: Raster): IsoDate {
   return d.toISOString().slice(0, 10) as IsoDate;
 }
 
-export { Badge };

@@ -27,12 +27,12 @@ let gewerkId = '';
 const plan = () => get<Plan>(`/api/projects/${projektId}/bauzeitenplan`);
 
 async function zeile(label: string, dauer = 1): Promise<string> {
-  const res = await post<{ phase: { id: string } }>(
+  const res = await post<{ phasen: { id: string }[] }>(
     `/api/projects/${projektId}/bauzeitenplan`,
     { tradeId: gewerkId, label, dauer },
   );
   expect(res.status, JSON.stringify(res.body)).toBe(201);
-  return res.body.phase.id;
+  return res.body.phasen[0].id;
 }
 
 /** Den Plan leeren, damit jeder Test bei null anfängt. */
@@ -85,6 +85,82 @@ describe('Zeilen anlegen', () => {
   it('weist eine Zeile ohne Gewerk und ohne Bezeichnung ab', async () => {
     const res = await post(`/api/projects/${projektId}/bauzeitenplan`, { dauer: 1 });
     expect(res.status).toBe(422);
+  });
+});
+
+describe('Mehrere Gewerke auf einmal', () => {
+  it('reiht sie in der Reihenfolge auf, in der sie kommen', async () => {
+    await leeren();
+    const res = await post<{ phasen: { id: string }[]; message: string }>(
+      `/api/projects/${projektId}/bauzeitenplan`,
+      {
+        zeilen: [
+          { tradeId: gewerkId, label: 'Erstens', dauer: 1 },
+          { tradeId: gewerkId, label: 'Zweitens', dauer: 2 },
+          { tradeId: gewerkId, label: 'Drittens', dauer: 1 },
+        ],
+      },
+    );
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.phasen).toHaveLength(3);
+    expect(res.body.message).toContain('3 Gewerke');
+
+    const { body } = await plan();
+    const titel = body.phasen.map((p) => p.titel);
+    expect(titel).toEqual(['Erstens', 'Zweitens', 'Drittens']);
+
+    // Keine zwei starten am selben Tag - sonst waere die Sammelanlage ein
+    // Stapel uebereinanderliegender Balken.
+    for (let i = 1; i < body.phasen.length; i++) {
+      expect(
+        body.phasen[i].startDate > body.phasen[i - 1].endDate,
+        `${titel[i]} beginnt nicht nach ${titel[i - 1]}`,
+      ).toBe(true);
+    }
+
+    // „Zweitens" hat zwei Wochen, also sechs Tage zwischen Beginn und Ende.
+    const zweitens = body.phasen[1];
+    const tage =
+      (new Date(zweitens.endDate).getTime() - new Date(zweitens.startDate).getTime()) /
+      86_400_000;
+    expect(tage).toBe(13);
+  });
+
+  it('legt gar nichts an, wenn eine Zeile unbrauchbar ist', async () => {
+    await leeren();
+    const res = await post(`/api/projects/${projektId}/bauzeitenplan`, {
+      zeilen: [
+        { tradeId: gewerkId, label: 'Geht', dauer: 1 },
+        { dauer: 1 },
+      ],
+    });
+    expect(res.status).toBe(422);
+
+    // Die brauchbare Zeile darf nicht allein stehengeblieben sein.
+    const { body } = await plan();
+    expect(body.phasen).toHaveLength(0);
+  });
+});
+
+describe('Gewerk wieder herausnehmen', () => {
+  it('entfernt genau die eine Zeile', async () => {
+    await leeren();
+    await zeile('Bleibt');
+    const weg = await zeile('Verschwindet');
+
+    const res = await del<{ message: string }>(
+      `/api/projects/${projektId}/bauzeitenplan?zeile=${weg}`,
+    );
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.message).toContain('Verschwindet');
+
+    const { body } = await plan();
+    expect(body.phasen.map((p) => p.titel)).toEqual(['Bleibt']);
+  });
+
+  it('meldet eine Zeile, die es nicht gibt', async () => {
+    const res = await del(`/api/projects/${projektId}/bauzeitenplan?zeile=gibtsnicht`);
+    expect(res.status).toBe(404);
   });
 });
 
